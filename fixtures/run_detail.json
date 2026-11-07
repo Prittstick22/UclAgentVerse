@@ -1,15 +1,15 @@
 {
- "run_id": "run_953d36bd5c",
+ "run_id": "run_cc0e55525e",
  "kind": "construction",
  "trigger_text": "User asked to build a portfolio",
- "as_of": "2025-11-07",
+ "as_of": "2026-07-07",
  "status": "completed",
  "outcome": "adjust",
- "started_at": "2026-11-07T21:03:46.954894+00:00",
- "finished_at": "2026-11-07T21:03:46.957218+00:00",
+ "started_at": "2026-11-07T22:44:57.279717+00:00",
+ "finished_at": "2026-11-07T22:44:57.282418+00:00",
  "agents": [
   {
-   "agent_id": "lead_7879fe",
+   "agent_id": "lead_653ec7",
    "parent_agent_id": null,
    "depth": 0,
    "role": "lead",
@@ -20,8 +20,8 @@
    "badges": []
   },
   {
-   "agent_id": "equity_scout_caecbc",
-   "parent_agent_id": "lead_7879fe",
+   "agent_id": "equity_scout_1e813e",
+   "parent_agent_id": "lead_653ec7",
    "depth": 1,
    "role": "equity_scout",
    "model": "gemini-flash-latest",
@@ -31,8 +31,8 @@
    "badges": []
   },
   {
-   "agent_id": "bond_scout_1c881f",
-   "parent_agent_id": "lead_7879fe",
+   "agent_id": "bond_scout_efa209",
+   "parent_agent_id": "lead_653ec7",
    "depth": 1,
    "role": "bond_scout",
    "model": "gemini-flash-latest",
@@ -42,8 +42,8 @@
    "badges": []
   },
   {
-   "agent_id": "stock_analyst_c13a63",
-   "parent_agent_id": "lead_7879fe",
+   "agent_id": "stock_analyst_806e87",
+   "parent_agent_id": "lead_653ec7",
    "depth": 1,
    "role": "stock_analyst",
    "model": "gemini-flash-latest",
@@ -53,8 +53,8 @@
    "badges": []
   },
   {
-   "agent_id": "filing_reader_b37ecb",
-   "parent_agent_id": "stock_analyst_c13a63",
+   "agent_id": "filing_reader_7e272a",
+   "parent_agent_id": "stock_analyst_806e87",
    "depth": 2,
    "role": "filing_reader",
    "model": "gemini-flash-latest",

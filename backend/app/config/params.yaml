@@ -1,6 +1,6 @@
 # Frozen simulation parameters. Change only via a board post BEFORE the eval-freeze tag.
 sim:
-  start: "2025-11-07"
+  start: "2026-07-07"          # 4-month window, entirely after Argon's reported Mar 2026 cutoff
   end: null                    # null = last date in the snapshot
   capital_gbp: 10000
   monthly_contribution_gbp: 200
@@ -34,6 +34,6 @@ forecast:                      # walk-forward 2-week outlook (engine/forecast.py
   lambda_return: 1.0           # 0 = no-forecast ablation
   max_view_tilt: 0.02          # cap on agent-view tilt to annualised mu (#74)
 periods:
-  development: ["2025-11-07", "2026-03-31"]
-  held_out: ["2026-04-01", null]
+  development: ["2023-01-02", "2026-07-06"]   # pre-sim data: parameter sanity checks only
+  held_out: ["2026-07-07", null]              # the whole sim window
 benchmark_global_etf: "VWRP.LSE"

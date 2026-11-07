@@ -59,7 +59,7 @@ What must be identical for everyone is shared as **files**, and there are four s
 | 1 | **Synthetic → real snapshot** | Jin (#6, #7) | ~00:00 | Download the zip from the link in the post. Replace `backend/data/snapshot/` with it, delete `backend/state.sqlite`, restart the API. Check with `make data-status`: label `eodhd`, and the sha256 must match the post. **From now on, never run `make synth`.** |
 | 2 | **Fixtures from real agent output** | Dev (#30) | ~01:30 | `git pull`. `fixtures/` now holds a real construction run. Mo's mock mode updates automatically |
 | 3 | **Config freeze** (`eval-freeze` tag) | Dev + Cem (#37) | 02:30 | `git pull`. From here, `backend/app/config/*` may not change (AGENTS.md rule 5) |
-| 4 | **Recorded year ready** (`runs/year.sqlite`) | Cem / whoever runs the batch (#37) | ~07:00 | Download it and put it in `backend/runs/year.sqlite`. Start the API with `STATE_DB=backend/runs/year.sqlite`. This is the **single source of truth** for replay, the eval numbers and the deployed demo. **Nobody reruns the year after this.** Work on a copy if you need to experiment |
+| 4 | **Recorded run ready** (`runs/year.sqlite`, the 4-month window) | Cem / whoever runs the batch (#37) | ~07:00 | Download it and put it in `backend/runs/year.sqlite`. Start the API with `STATE_DB=backend/runs/year.sqlite`. This is the **single source of truth** for replay, the eval numbers and the deployed demo. **Nobody reruns the year after this.** Work on a copy if you need to experiment |
 
 Rules:
 - **One copy of the snapshot.** Jin downloads it once; nobody re-downloads their own (different download times give different data).
