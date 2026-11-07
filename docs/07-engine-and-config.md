@@ -10,10 +10,10 @@ Owner: **Cem**. Code: `backend/app/engine/`, `backend/app/sim/`, `backend/app/mo
 - **Also:** annualised vol, max drawdown, beta vs the global ETF, Herfindahl concentration.
 - **Correlation never triggers trades on its own.**
 
-## 2. Optimiser (`engine/optimiser.py`, CVXPY): no return forecasts
+## 2. Optimiser (`engine/optimiser.py`, CVXPY): uses code-made 2-week estimates, never LLM numbers
 
 ```
-minimise    wᵀΣw + λ_track·‖Bw − b*‖² + λ_turn·Σ cᵢ|wᵢ − w_now,ᵢ| + λ_fee·OCFᵀw
+minimise    wᵀΣw − λ_return·μᵀw + λ_track·‖Bw − b*‖² + λ_turn·Σ cᵢ|wᵢ − w_now,ᵢ| + λ_fee·OCFᵀw
 subject to  Σw + cash = 1,  w ≥ 0,  cash ≥ cash_min,  wᵢ ≤ capᵢ,
             L ≤ Bw ≤ U (asset-class ranges),  Σ_stocks w ≤ stocks_total,  w_excluded = 0
 ```
@@ -25,6 +25,19 @@ subject to  Σw + cash = 1,  w ≥ 0,  cash ≥ cash_min,  wᵢ ≤ capᵢ,
   - `lower_risk`: b* shifted to the lower equity bound, risk ×2
 - **If infeasible,** return `status="infeasible"` + the binding constraints. Never loosen the mandate.
 - **Solver:** CLARABEL or OSQP (bundled with cvxpy); fall back to SCS.
+
+## 2a. Walk-forward 2-week forecast (`engine/forecast.py`, #73)
+
+Each review looks **10 trading days ahead using only data up to that day**:
+- `mu`: EWMA mean of daily returns (half-life weights the last 2 weeks most), shrunk towards 0 by `forecast.shrink`.
+- `sigma`: EWMA volatility.
+- Portfolio p10/p50/p90 over the horizon from the Ledoit-Wolf covariance.
+
+Rules:
+- It's always labelled **"estimate, not a promise"** and emitted as a `calc.result` (`forecast_2w`) so it's traceable.
+- `forecast.lambda_return: 0` reproduces the no-forecast optimiser. Report both in the evaluation (ablation).
+- (Feature #74) Agent views (direction + confidence + evidence) become **capped** tilts on `mu` via code. Views without supported evidence are dropped.
+- Walk-forward integrity is proven by `test_no_peeking` (#72): deleting or scrambling all data after day t changes nothing up to t.
 
 ## 3. Checker (`engine/checker.py`): independent, never imports the optimiser
 
@@ -89,6 +102,7 @@ subject to  Σw + cash = 1,  w ≥ 0,  cash ≥ cash_min,  wᵢ ≤ capᵢ,
 | costs | trade 0.0010 · fx 0.0015 (labelled assumptions) |
 | batch_auto_approve_turnover_max | 0.10 |
 | optimiser | λ_track 5 · λ_turn 1 · λ_fee 1 · lookback 504 · min_lookback 252 |
+| forecast | horizon_days 10 · ewma_halflife_days 10 · shrink 0.5 · lambda_return 1.0 · max_view_tilt 0.02 |
 | periods | development 2025-11-07 → 2026-03-31 · held_out 2026-04-01 → end |
 
 **Freeze rule:** sanity-check on 2023–2025 data only; freeze before the full-year run (09-build-plan). Don't tune on sim-year results.

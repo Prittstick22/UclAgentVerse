@@ -95,7 +95,7 @@
 
 - Paper trading only; no real financial records, account details or logins.
 - Synthetic inputs labelled. Backtests are never presented as live performance.
-- The model never forecasts prices; numbers come from code.
+- **Walk-forward only:** every simulated day/week sees only data up to that day (proven by `test_no_peeking`). The 2-week outlook is **estimated by code from past data** (labelled 'estimate'); the LLM never invents numbers. Agents may express views that code turns into capped tilts.
 - Historical mode never sees data after `as_of`, and blocks web search.
 
 ## 7. Judging rubric → where we score

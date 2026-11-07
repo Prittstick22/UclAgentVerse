@@ -14,6 +14,17 @@ Every strategy gets the same £10,000, the same £200/month and the same cost mo
 | `global_etf` | 100% in the global equity ETF |
 | `mechanical_5pct` | Rebalance to target whenever any 5% trigger fires, with **no agent reasoning**. Shows what reasoning adds |
 
+## Two separate test sets (never mixed)
+
+1. **Real market data replay** (our snapshot, Nov 2025 → Nov 2026, walk-forward): the main results below.
+2. **Organisers' AgentVerse finance kit** (synthetic cases + hidden test mode, #60/#61): reported in its own table, labelled "organiser synthetic test data".
+
+## Ablations (ours)
+
+- `ours` without the forecast term (`lambda_return: 0`)
+- `ours` with the 2-week forecast
+- (feature) `ours` with forecast + agent views
+
 ## Periods
 
 - **Development:** 2025-11-07 → 2026-03-31. Gemini 4 Argon's reported knowledge cutoff is March 2026, so the model may "know" this period.

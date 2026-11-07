@@ -27,6 +27,12 @@ optimiser:
   min_lookback: 252
 risk:
   stale_after_days: 3
+forecast:                      # walk-forward 2-week outlook (engine/forecast.py, #73)
+  horizon_days: 10
+  ewma_halflife_days: 10
+  shrink: 0.5                  # shrink mu towards 0
+  lambda_return: 1.0           # 0 = no-forecast ablation
+  max_view_tilt: 0.02          # cap on agent-view tilt to annualised mu (#74)
 periods:
   development: ["2025-11-07", "2026-03-31"]
   held_out: ["2026-04-01", null]
