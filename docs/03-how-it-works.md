@@ -40,6 +40,7 @@ for day in calendar.trading_days("2025-11-07", end):
     ledger.mark_to_market(gw.prices(as_of=day)); ledger.accrue_fund_fees(day)
     if calendar.is_first_trading_day_of_month(day): ledger.deposit(contribution)
     risk = engine.risk.snapshot(gw, as_of=day)       # rolling Ledoit-Wolf cov + corr
+    outlook = engine.forecast(gw, as_of=day, horizon=10)  # 2-week estimate from data <= day only
     hits = monitors.evaluate(day, ledger, risk, gw)  # drift, cap, price move, NAV drop, news, corr regime
     hits = cooldowns.filter(hits, day)               # 1 ad hoc run per holding per 5 days; fold into review if due within 2 days
     if schedule.is_review_day(day) or hits:
