@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/components/CorrelationLattice.tsx","./src/lib/api.ts","./src/lib/sse.ts","./src/lib/types.ts","./src/screens/Home.tsx","./src/screens/Placeholder.tsx","./src/screens/Quiz.tsx","./src/screens/Workspace.tsx"],"version":"5.9.3"}

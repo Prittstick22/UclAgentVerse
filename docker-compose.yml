@@ -1,0 +1,25 @@
+# DigitalOcean droplet deploy: docker compose up -d --build  (see docs/12-hosting-and-deploy.md)
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      SNAPSHOT_DIR: /data/snapshot
+      STATE_DB: /data/state.sqlite
+      RUNS_DIR: /data/runs
+    volumes:
+      - ./var:/data
+    restart: unless-stopped
+    expose: ["8000"]
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [app]
+    restart: unless-stopped
+volumes:
+  caddy_data:

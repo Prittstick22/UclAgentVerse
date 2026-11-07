@@ -1,0 +1,16 @@
+{
+ "items": [
+  {
+   "run_id": "run_953d36bd5c",
+   "kind": "construction",
+   "trigger_text": "User asked to build a portfolio",
+   "as_of": "2025-11-07",
+   "status": "completed",
+   "outcome": "adjust",
+   "started_at": "2026-11-07T21:03:46.954894+00:00",
+   "finished_at": "2026-11-07T21:03:46.957218+00:00",
+   "agents": [],
+   "proposal_id": null
+  }
+ ]
+}

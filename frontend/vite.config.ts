@@ -1,0 +1,13 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+
+// VITE_MOCK=1 (default in dev) serves fixtures/ instead of the backend. Set VITE_MOCK=0 to hit the real API.
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  server: {
+    port: 5173,
+    proxy: { "/api": { target: "http://localhost:8000", changeOrigin: true } },
+    fs: { allow: [".."] },
+  },
+});

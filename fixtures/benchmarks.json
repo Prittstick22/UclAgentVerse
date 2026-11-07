@@ -1,0 +1,14 @@
+{
+ "series": {},
+ "metrics": {},
+ "periods": {
+  "development": [
+   "2025-11-07",
+   "2026-03-31"
+  ],
+  "held_out": [
+   "2026-04-01",
+   null
+  ]
+ }
+}
