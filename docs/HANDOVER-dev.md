@@ -22,17 +22,20 @@ gh issue list --label owner:dev --label mvp     # mvp before feature, always
 | **02:30** | Review/trigger plans · benchmarks wired into Cem's loop · **M1 integration + `eval-freeze` tag** · 2-week slice, timed | #31 #20 #37 |
 | **03:00** | **Launch the 4-month agent run** (~1 h), then the `--no-agents` baseline | #37 |
 | **04:15** | Post `runs/year.sqlite` + `runs/no_agents.sqlite` (**switch 4**) | #37 |
+| **03:00–04:15** | **Deploy dry run** (droplet, HTTPS, current main) while the agent run goes | #4 |
 | 03:00–06:30 | Assurance gate → injection guard → finance-kit run → explainer (gate/guard/explainer are `feature`, but do them if MVP is done: they're the differentiator) | #32 #33 #61 #34 |
-| **06:30** | Second deploy with Jin; DigitalOcean account + billing must be ready **before 03:00** for his dry run | #56 |
+| **06:30** | **Second deploy** with the recorded runs + smoke test. DigitalOcean account + billing ready **before 03:00** | #13 #56 |
 | 07:00 | **Feature freeze**: bug fixes only | |
-| 07:00–09:00 | Fixes · deck draft · smoke test the link (demo with no keys + live) | #39 |
-| 09:00–12:20 | Deck + Q&A cheat sheet + rehearsal · submit 12:20 | #39 #69 |
+| 07:00–09:00 | Fixes · **08:00 final deploy** · voice-over 08:00–08:30 · smoke test the link 08:30 (demo with no keys + live) | #13 |
+| 01:30 → 09:30 | **Slide text to Jin in batches** (story by 03:00, controls by 05:00, eval by 08:30); Mo builds the video in parallel | #39 |
+| 09:00–12:20 | Q&A cheat sheet · review deck (10:30) + video (10:30) · deck PDF 11:00 · rehearsal · submit 12:20 | #39 #69 |
+| After judging | **Teardown**: destroy droplet, cancel EODHD, revoke keys | #14 #57 |
 | After judging | Cancel EODHD, revoke keys | #57 |
 
 Features only if ahead: #35 chat, #36 monitor designer, #38 retrospective, #63 Companies House, #64 macro, #65 FCA-grounded compliance, #74 agent views.
 
 ## Decisions already made
-- You own: Gemini agents, all paid/external APIs (accounts, payment, keys, adapters, `check_providers.py`), finance kit (#60/#61), benchmarks (#20), deck + pitch (#39/#69).
+- You own: **all deploys** (#4, #13, #14), Gemini agents, all paid/external APIs (accounts, payment, keys, adapters, `check_providers.py`), finance kit (#60/#61), benchmarks (#20), deck + pitch (#39/#69).
 - **Sim window: 7 Jul → 6 Nov 2026** (4 months, fully after Argon's reported Mar 2026 cutoff). Engine-only baseline over the same window = "what Gemini adds".
 - Walk-forward: nothing sees data after the sim day (`test_no_peeking`, #72). 2-week forecast is code-made from past data (#73).
 - Finance kit = organisers' synthetic test data, reported separately from our real-data replay.

@@ -1,6 +1,6 @@
 # 12 · Hosting and deploy (DigitalOcean)
 
-Owner: **Jin**.
+Owner: **Dev** (deploys). Jin owns the app-side pieces: #12, #78, #11.
 
 ## Shape
 
@@ -31,7 +31,7 @@ Owner: **Jin**.
 | Domain (optional) | Use a free DuckDNS subdomain or the IP |
 | Gemini | DeepMind key, internal billing |
 
-## First-time setup (Jin, ~20 min)
+## First-time setup (Dev, ~20 min)
 
 ```bash
 # On your laptop: create the droplet in the DO console (Ubuntu 24.04, Basic 2GB, lon1, add your SSH key)
@@ -77,7 +77,7 @@ Point the DNS A record (or DuckDNS) at the droplet IP **before** starting Caddy,
 | After that | Fixes only, each followed by a smoke test |
 | **After judging** | Teardown (below) |
 
-## Teardown after judging (Jin)
+## Teardown after judging (Dev)
 
 1. `scp root@<ip>:/opt/uclagentverse/var/{state.sqlite,runs/*} ./archive/` to keep the recorded runs.
 2. In the DO console: **Destroy** the droplet, plus any snapshot or backup images, so hourly billing stops. Powering off still bills.
