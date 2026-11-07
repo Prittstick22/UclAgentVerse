@@ -181,15 +181,15 @@ def check_finnhub(s) -> None:
     recent = c.get("https://finnhub.io/api/v1/company-news",
                    params={"symbol": "NVDA", "from": (date.today() - timedelta(days=7)).isoformat(),
                            "to": date.today().isoformat()})
-    rec("finnhub", "company news NVDA last 7 days (live)", "PASS" if recent.ok and recent.json() else "WARN",
-        f"{len(recent.json()) if recent.ok else recent.status_code} items")
+    rec("finnhub", "company news NVDA last 7 days (live)", "PASS" if recent.is_success and recent.json() else "WARN",
+        f"{len(recent.json()) if recent.is_success else recent.status_code} items")
     uk = c.get("https://finnhub.io/api/v1/company-news", params={"symbol": "AZN.L", "from": "2026-01-01",
                                                                   "to": "2026-01-31"})
-    rec("finnhub", "UK company news (AZN.L)", "PASS" if uk.ok and uk.json() else "WARN",
+    rec("finnhub", "UK company news (AZN.L)", "PASS" if uk.is_success and uk.json() else "WARN",
         "free tier is mostly North American → curate UK hero items by hand (docs/06 §6)")
     e = c.get("https://finnhub.io/api/v1/calendar/earnings", params={"from": "2026-04-01", "to": "2026-05-31",
                                                                     "symbol": "AAPL"})
-    rec("finnhub", "earnings calendar", "PASS" if e.ok and e.json().get("earningsCalendar") else "WARN",
+    rec("finnhub", "earnings calendar", "PASS" if e.is_success and e.json().get("earningsCalendar") else "WARN",
         f"HTTP {e.status_code}")
 
 
@@ -200,7 +200,7 @@ def check_alphavantage(s) -> None:
     r, ms = timed(lambda: httpx.get("https://www.alphavantage.co/query", timeout=30, params={
         "function": "NEWS_SENTIMENT", "tickers": "NVDA", "time_from": "20260401T0000", "time_to": "20260531T2359",
         "limit": 50, "apikey": s.alphavantage_api_key}))
-    body = r.json() if r.ok else {}
+    body = r.json() if r.is_success else {}
     feed = body.get("feed", [])
     if "Information" in body or "Note" in body:
         return rec("alphavantage", "NEWS_SENTIMENT NVDA Apr–May 2026", "FAIL", (body.get("Information") or body.get("Note"))[:140])
@@ -215,11 +215,11 @@ def check_alpaca(s) -> None:
     h = {"APCA-API-KEY-ID": s.alpaca_key_id, "APCA-API-SECRET-KEY": s.alpaca_secret_key}
     q = httpx.get("https://data.alpaca.markets/v2/stocks/quotes/latest", params={"symbols": "AAPL,MSFT", "feed": "iex"},
                   headers=h, timeout=30)
-    rec("alpaca", "latest quotes AAPL,MSFT (IEX)", "PASS" if q.ok and q.json().get("quotes") else "FAIL",
+    rec("alpaca", "latest quotes AAPL,MSFT (IEX)", "PASS" if q.is_success and q.json().get("quotes") else "FAIL",
         f"HTTP {q.status_code}")
     b = httpx.get("https://data.alpaca.markets/v2/stocks/bars", headers=h, timeout=30, params={
         "symbols": "AAPL", "timeframe": "1Day", "start": HISTORY_START, "adjustment": "all", "feed": "iex", "limit": 1})
-    rec("alpaca", "daily bars from 2023 (backup history)", "PASS" if b.ok else "WARN", f"HTTP {b.status_code}")
+    rec("alpaca", "daily bars from 2023 (backup history)", "PASS" if b.is_success else "WARN", f"HTTP {b.status_code}")
 
 
 # ----------------------------------------------------------------------------------------------- EDGAR
@@ -229,7 +229,7 @@ def check_edgar(s) -> None:
         rec("edgar", "user agent", "WARN", "set EDGAR_USER_AGENT='UclAgentVerse team <email>' (SEC asks for a contact)")
     r, ms = timed(lambda: httpx.get("https://data.sec.gov/submissions/CIK0000320193.json",
                                     headers={"User-Agent": ua}, timeout=30))
-    if not r.ok:
+    if not r.is_success:
         return rec("edgar", "submissions (Apple)", "FAIL", f"HTTP {r.status_code}")
     recent = r.json()["filings"]["recent"]
     forms = [(f, a) for f, a in zip(recent["form"], recent["acceptanceDateTime"]) if f in ("10-K", "10-Q", "8-K")]
@@ -279,7 +279,7 @@ def main() -> None:
     if a.report:
         lines = [f"# Provider check · {date.today()}", "", f"Summary: {counts}", "", "| Provider | Check | Status | Detail |",
                  "|---|---|---|---|"] + [f"| {r.provider} | {r.check} | {r.status} | {r.detail.replace('|', '/')} |" for r in ROWS]
-        Path(a.report).write_text("\n".join(lines) + "\n" + FIT)
+        Path(a.report).write_text("\n".join(lines) + "\n" + FIT, encoding="utf-8")
         print(f"Report written to {a.report}. Post it: python ../scripts/board.py new --from dev --to all --type fyi "
               f"--title 'Provider check results' --body - < {a.report}")
     sys.exit(1 if counts["FAIL"] else 0)
