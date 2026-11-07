@@ -1,6 +1,26 @@
-# Dev: what to do now (updated Sat 7 Nov 22:55)
+# Dev: what to do now (updated Sat 7 Nov 23:35)
 
-You're on your PC with Claude Code. Read `CLAUDE.md`/`AGENTS.md` first; the team timeline is in `docs/09-build-plan.md`. **Goal: one public link with demo + live mode, everything working by 09:00. The demo never waits on an API call. Submit by 12:20.**
+Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for example while Dev's Claude credits reset. Read `AGENTS.md` first; the team timeline is in `docs/09-build-plan.md`. **Goal: one public link with demo + live mode, everything working by 09:00. The demo never waits on an API call. Submit by 12:20.**
+
+## Resume here: current state (keep this section updated)
+
+**Done (Sat 23:35):** #3 EODHD bought + verified · #27 Gemini ping · #54 keys · #55 provider check (PR #81 merged). Results are in `board/messages/20261107T232248Z-dev-to-all-all-provider-keys-work-gemini-eodhd-paid-finnhub.md`.
+
+**Environment on Dev's PC (Windows, Git Bash + PowerShell):**
+- `.env` in the repo root has every key (git-ignored, **never print or commit it**). `LLM_MODE=live`. `GEMINI_MODEL_DEEP` and `GEMINI_MODEL_FAST` are **both `gemini-4-argon`** (team decision: Argon for every agent). Fallback if rate limits bite: `GEMINI_MODEL_FAST=gemini-3.8-flash`.
+- Backend venv: `backend/.venv` (Windows: `backend/.venv/Scripts/python`). `make` targets assume Unix paths, so on Windows call the venv Python directly, e.g. `cd backend && .venv/Scripts/python -m pytest -q`.
+- On Windows, prefix with `PYTHONIOENCODING=utf-8` for `scripts/board.py` and `check_providers.py`, or they crash on `→`/emoji.
+- `EDGAR_USER_AGENT` still holds a placeholder email: put in a real team email.
+
+**Decisions since the timeline below:**
+- Alpha Vantage `NEWS_SENTIMENT` is premium-only, so **news comes from Finnhub (US) and EODHD `/api/news` (UK + US backup)**. Jin was told on the board.
+- Alpaca is deferred: #80 (feature, decide at the end). DigitalOcean (#56) will be done by Dev later, but must be ready before Jin's 03:00 dry run.
+
+**Next, in order:** #28 agent loop (`backend/app/agents/supervisor.py`, `llm.py`) → #29 core tools (`agents/tools.py`) → #30 construction plan + prompts → #31 / #20 / #37. #28 also needs the Gemini **cost per call** measured and posted on the board, which was left open from #27.
+
+**Rules a fresh agent must not break:** data only via `DataGateway` with `as_of`; numbers only from `backend/app/engine/`; emit an event for every step; contract changes need a board post; branch `dev/<issue>-<slug>`, PR with `Closes #n`; self-merge only when CI is green and the change stays in Dev's folders.
+
+**Before handing back:** update this section (what's done, what's half-done, which branch), push, and post a board `handoff` to `dev` if something is mid-flight.
 
 ## Start of every session
 ```bash
