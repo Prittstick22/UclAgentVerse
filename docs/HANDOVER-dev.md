@@ -13,7 +13,7 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 - `EDGAR_USER_AGENT` still holds a placeholder email: put in a real team email.
 
 **Decisions since the timeline below:**
-- Alpha Vantage `NEWS_SENTIMENT` is premium-only, so **news comes from Finnhub (US) and EODHD `/api/news` (UK + US backup)**. Jin was told on the board.
+- **Alpha Vantage is not used anywhere** (its news endpoint is premium-only and we won't pay $49.99). **News = Finnhub (US) + EODHD `/api/news` (UK)**. Removed from code, docs and issues; Jin was told on the board.
 - Alpaca is deferred: #80 (feature, decide at the end). DigitalOcean (#56) will be done by Dev later, but must be ready before Jin's 03:00 dry run.
 
 **Next, in order:** #28 agent loop (`backend/app/agents/supervisor.py`, `llm.py`) → #29 core tools (`agents/tools.py`) → #30 construction plan + prompts → #31 / #20 / #37. #28 also needs the Gemini **cost per call** measured and posted on the board, which was left open from #27.
@@ -33,7 +33,7 @@ gh issue list --label owner:dev --label mvp     # mvp before feature, always
 | By | Do | Issues |
 |---|---|---|
 | **23:15** | Clone, `cp .env.example .env`, add `GEMINI_API_KEY` + `GEMINI_MODEL_FAST` + `LLM_MODE=live`, `make setup && make synth && make test`, `python -m app.agents.llm --ping` | #27 |
-| **23:45** | Sign up for Finnhub, Alpha Vantage (2–3 keys), EODHD free, Alpaca (optional); set `EDGAR_USER_AGENT`; run `python scripts/check_providers.py --eodhd-max 15 --report ../provider-report.md`; if London tickers are listed, **pay EODHD $19.99**, rerun `--only eodhd` | #3 #54 #55 |
+| **23:45** | Sign up for Finnhub, EODHD free, Alpaca (optional); set `EDGAR_USER_AGENT`; run `python scripts/check_providers.py --eodhd-max 15 --report ../provider-report.md`; if London tickers are listed, **pay EODHD $19.99**, rerun `--only eodhd` | #3 #54 #55 |
 | **00:00** | **Send the keys privately to Jin** (he downloads the real snapshot) · post the provider report on the board | #55 |
 | **00:30** | Get the AgentVerse finance kit + understand its hidden test mode → `docs/finance-kit.md` | #60 |
 | **01:00** | Agent loop on real Gemini (schema retries, budgets, tokens) | #28 |
