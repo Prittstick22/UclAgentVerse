@@ -46,6 +46,11 @@ schema_retry: 1
 
 - **Refusals** emit `agent.spawn_denied` with the reason. The caller must conclude with what it has and record the gap as an uncertainty.
 - **Budgets are starting guesses.** Measure them on the 1-month test slice, then freeze them.
+- **Bad replies:** a reply that doesn't match `AgentStep` is re-asked once with the validation error (`schema_retry`). A second failure, or Gemini still unreachable after retries, marks that agent `failed` (`agent.status`), records a low-confidence finding with the reason as an uncertainty, and the parent carries on. Invalid replies are never cached.
+- **Gemini errors:** 408/429/5xx/timeouts are retried with backoff (2 s, 4 s, 8 s). A persistent 429 switches to the next key in `GEMINI_API_KEY_BACKUPS`.
+- **Token budget** is checked before and after every LLM call; going over emits `budget.exceeded {limit: "tokens"}` once and agents stop, so the lead concludes (`investigate_further` if it has no decision).
+- **Cache:** prompts are deterministic (tool results are compacted and `calc:<event id>` is replaced by a stable alias mapped back in findings), so a rerun at the same `as_of` costs zero tokens. `run.completed` reports `tokens`, `cost_estimate_usd` (prices in `agents.yaml` `pricing:`), `duration_s`, `llm_calls`, `cached_calls`.
+- **Manual live check:** `cd backend && python -m app.agents.supervisor --run construction`.
 
 ## 4. Roles
 
