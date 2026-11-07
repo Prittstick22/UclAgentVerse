@@ -53,6 +53,13 @@ Point the DNS A record (or DuckDNS) at the droplet IP **before** starting Caddy,
 - **Automatic:** `.github/workflows/deploy.yml` does the same over SSH on every push to `main`, once these repo secrets are set: `DO_HOST`, `DO_USER`, `DO_SSH_KEY`. It's disabled until the secrets exist.
 - **Copy data to the server:** `scp -r backend/data/snapshot/* root@<ip>:/opt/uclagentverse/var/snapshot/` and the same for `runs/year.sqlite`.
 
+## The demo never waits on an API call (#78)
+
+- **Demo:** reads only the recorded run (`runs/year.sqlite`) + the baked-in snapshot, with `LLM_MODE=replay`. It works with every external key removed.
+- **Live mode:** the UI reads only cached data. Cron refreshes it in the background; no request handler calls a provider.
+- **Live agent runs** (passcode) return a `run_id` instantly and stream over SSE.
+- **Warm start:** everything is loaded at container start; one always-on container.
+
 ## Public link safety
 
 - **`PUBLIC_DEMO=1`, `LLM_MODE=replay`:** visitors see a replay of the recorded year, at no Gemini cost.
@@ -64,9 +71,9 @@ Point the DNS A record (or DuckDNS) at the droplet IP **before** starting Caddy,
 
 | When | What |
 |---|---|
-| By 22:30 | Droplet up, hello-world deployed at the real URL with HTTPS |
-| After M1 | Redeploy |
-| 09:00 freeze | Copy `runs/year.sqlite`, deploy, smoke test every screen |
+| 03:00–04:15 | Deploy dry run: droplet up, current main at the real URL with HTTPS |
+| 06:30 | Second deploy with the recorded runs |
+| 08:00 | Final deploy; 08:30–09:00 smoke test (demo with no keys + live) |
 | After that | Fixes only, each followed by a smoke test |
 | **After judging** | Teardown (below) |
 

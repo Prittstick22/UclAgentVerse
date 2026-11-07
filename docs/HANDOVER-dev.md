@@ -1,20 +1,45 @@
-# Handover for Dev's Claude Code session (from the planning chat, Sat 7 Nov 22:35)
+# Dev: what to do now (updated Sat 7 Nov 22:55)
 
-Read `CLAUDE.md`/`AGENTS.md` first; everything below is already reflected in docs/issues. This file just lists the decisions and open items from the planning chat.
+You're on your PC with Claude Code. Read `CLAUDE.md`/`AGENTS.md` first; the team timeline is in `docs/09-build-plan.md`. **Goal: one public link with demo + live mode, everything working by 09:00. The demo never waits on an API call. Submit by 12:20.**
+
+## Start of every session
+```bash
+git pull && python scripts/board.py list --to dev --open
+gh issue list --label owner:dev --label mvp     # mvp before feature, always
+```
+
+## Your timeline
+
+| By | Do | Issues |
+|---|---|---|
+| **23:15** | Clone, `cp .env.example .env`, add `GEMINI_API_KEY` + `GEMINI_MODEL_FAST` + `LLM_MODE=live`, `make setup && make synth && make test`, `python -m app.agents.llm --ping` | #27 |
+| **23:45** | Sign up for Finnhub, Alpha Vantage (2–3 keys), EODHD free, Alpaca (optional); set `EDGAR_USER_AGENT`; run `python scripts/check_providers.py --eodhd-max 15 --report ../provider-report.md`; if London tickers are listed, **pay EODHD $19.99**, rerun `--only eodhd` | #3 #54 #55 |
+| **00:00** | **Send the keys privately to Jin** (he downloads the real snapshot) · post the provider report on the board | #55 |
+| **00:30** | Get the AgentVerse finance kit + understand its hidden test mode → `docs/finance-kit.md` | #60 |
+| **01:00** | Agent loop on real Gemini (schema retries, budgets, tokens) | #28 |
+| **01:30** | Core tools against engine + gateway (incl. the `forecast` tool from Cem's #73) | #29 |
+| **02:00** | Construction plan + prompts → real proposal; `make fixtures` and push (**switch 2**) | #30 |
+| **02:30** | Review/trigger plans · benchmarks wired into Cem's loop · **M1 integration + `eval-freeze` tag** · 2-week slice, timed | #31 #20 #37 |
+| **03:00** | **Launch the 4-month agent run** (~1 h), then the `--no-agents` baseline | #37 |
+| **04:15** | Post `runs/year.sqlite` + `runs/no_agents.sqlite` (**switch 4**) | #37 |
+| 03:00–06:30 | Assurance gate → injection guard → finance-kit run → explainer (gate/guard/explainer are `feature`, but do them if MVP is done: they're the differentiator) | #32 #33 #61 #34 |
+| **06:30** | Second deploy with Jin; DigitalOcean account + billing must be ready **before 03:00** for his dry run | #56 |
+| 07:00 | **Feature freeze**: bug fixes only | |
+| 07:00–09:00 | Fixes · deck draft · smoke test the link (demo with no keys + live) | #39 |
+| 09:00–12:20 | Deck + Q&A cheat sheet + rehearsal · submit 12:20 | #39 #69 |
+| After judging | Cancel EODHD, revoke keys | #57 |
+
+Features only if ahead: #35 chat, #36 monitor designer, #38 retrospective, #63 Companies House, #64 macro, #65 FCA-grounded compliance, #74 agent views.
 
 ## Decisions already made
-- Dev owns: Gemini agents **and** all paid/external APIs (accounts, payment, keys, adapters, `check_providers.py`), the finance kit (#60, #61), deck and pitch (#39, #69).
-- Payments: EODHD "EOD Historical Data – All World" $19.99, one month (test the free plan first). DigitalOcean 2GB droplet only for the end-of-night deploy (~08:00), destroyed after judging (#56, #57). Gemini key is DeepMind-provided (internal billing).
-- Deploy happens at the end (Jin, ~08:00); everything is developed locally until then.
-- Data sharing: 4 announced switch moments (docs/13 "Data sharing"); `runs/year.sqlite` from the overnight batch is the single source of truth.
-- Walk-forward: no component may see data after the sim day (`test_no_peeking`, #72). 2-week forecast is code-made from past data (#73); agent views become capped tilts (#74, feature).
+- You own: Gemini agents, all paid/external APIs (accounts, payment, keys, adapters, `check_providers.py`), finance kit (#60/#61), benchmarks (#20), deck + pitch (#39/#69).
+- **Sim window: 7 Jul → 6 Nov 2026** (4 months, fully after Argon's reported Mar 2026 cutoff). Engine-only baseline over the same window = "what Gemini adds".
+- Walk-forward: nothing sees data after the sim day (`test_no_peeking`, #72). 2-week forecast is code-made from past data (#73).
 - Finance kit = organisers' synthetic test data, reported separately from our real-data replay.
-- Labels: do every `mvp` issue before any `feature`.
+- Data sharing: 4 announced switch moments (docs/13). `runs/year.sqlite` is the single source of truth.
+- Payments: EODHD $19.99 (one month); DigitalOcean 2GB droplet only from the 03:00 dry run until after judging.
+- Labels: every `mvp` issue before any `feature`.
 
 ## Open items
-- Confirm the meaning of "looks at its 2 weeks": (a) a 2-week horizon/cadence using all history up to today (what's implemented in docs/#73), or (b) only the last 2 weeks of data. Default: (a).
-- Who runs the overnight batch on their laptop (03:00–07:00, awake + online)?
-- Move issue #4's "hello-world deploy by 22:30" to the ~08:00 deploy plan.
-
-## Dev's order
-#27 Gemini ping → #3/#54/#55 provider keys + `check_providers.py` (send keys to Jin by ~23:00) → #60 finance kit → #28 → #29 → #30 → #31 → #37 overnight batch (02:30) → #61 → #32/#33/#34 → features → #39 deck, #69 rehearsal.
+- Who runs the 03:00 agent run (laptop awake + online until ~04:15)? Decide at the 02:30 integration.
+- "2 weeks" means a 2-week horizon/cadence using all history up to the sim day (assumed; say if you meant otherwise).
