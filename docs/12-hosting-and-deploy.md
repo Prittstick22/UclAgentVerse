@@ -1,0 +1,78 @@
+# 12 · Hosting and deploy (DigitalOcean)
+
+Owner: **Jin**.
+
+## Shape
+
+- **One DigitalOcean Droplet:** Ubuntu, Basic, **2 GB RAM** (pandas + CVXPY need it), London region (`lon1`). It's billed hourly: destroy it after judging.
+- **Docker Compose with two services:**
+  - **`app`:** our single image (repo-root `Dockerfile`). Stage 1 builds `frontend/`; stage 2 is Python with `backend/`. FastAPI serves `/api/*` and the built UI at `/`, on the same origin.
+  - **`caddy`:** reverse proxy with automatic HTTPS (Let's Encrypt). It passes SSE through without buffering.
+- **Persistent volume `./var` on the droplet:**
+  - `state.sqlite` (events, ledger, memory, LLM cache)
+  - `snapshot/` (data)
+  - `runs/` (recorded overnight run)
+
+  It survives redeploys.
+- **Cron on the droplet** replaces a cloud scheduler for live mode:
+  ```cron
+  0 17 * * 1-5  curl -fsS -X POST -H "X-Task-Secret: $TASK_SECRET" https://$DOMAIN/api/tasks/live-eod
+  30 21 * * 1-5 curl -fsS -X POST -H "X-Task-Secret: $TASK_SECRET" https://$DOMAIN/api/tasks/live-eod
+  5 * * * *     curl -fsS -X POST -H "X-Task-Secret: $TASK_SECRET" https://$DOMAIN/api/tasks/live-news
+  ```
+  The cron daemon runs in UTC; London is on GMT in November, so these times line up.
+
+## Costs
+
+| Item | Cost |
+|---|---|
+| Droplet 2 GB | ~$12/month, billed hourly (check GitHub Student Pack credit) |
+| EODHD EOD plan | $19.99, one month |
+| Domain (optional) | Use a free DuckDNS subdomain or the IP |
+| Gemini | DeepMind key, internal billing |
+
+## First-time setup (Jin, ~20 min)
+
+```bash
+# On your laptop: create the droplet in the DO console (Ubuntu 24.04, Basic 2GB, lon1, add your SSH key)
+ssh root@<ip>
+curl -fsSL https://get.docker.com | sh
+git clone https://github.com/Prittstick22/UclAgentVerse /opt/uclagentverse && cd /opt/uclagentverse
+cp .env.example .env && nano .env      # keys, DOMAIN, DEMO_PASSCODE, TASK_SECRET, PUBLIC_DEMO=1
+mkdir -p var/snapshot var/runs
+docker compose up -d --build
+docker compose logs -f app             # wait for "Uvicorn running"
+curl -s https://$DOMAIN/api/health
+```
+
+Point the DNS A record (or DuckDNS) at the droplet IP **before** starting Caddy, so the HTTPS certificate is issued. Open ports 80/443 only (`ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw enable`).
+
+## Deploys
+
+- **Manual:** `ssh root@<ip> 'cd /opt/uclagentverse && git pull && docker compose up -d --build'`.
+- **Automatic:** `.github/workflows/deploy.yml` does the same over SSH on every push to `main`, once these repo secrets are set: `DO_HOST`, `DO_USER`, `DO_SSH_KEY`. It's disabled until the secrets exist.
+- **Copy data to the server:** `scp -r backend/data/snapshot/* root@<ip>:/opt/uclagentverse/var/snapshot/` and the same for `runs/year.sqlite`.
+
+## Public link safety
+
+- **`PUBLIC_DEMO=1`, `LLM_MODE=replay`:** visitors see a replay of the recorded year, at no Gemini cost.
+- **Live investigations and chat** need the `X-Demo-Passcode` header (the UI asks once), with a per-IP rate limit and `DAILY_LLM_BUDGET_USD`.
+- **Secrets** live only in `/opt/uclagentverse/.env` on the droplet. Never in git or the frontend bundle.
+- **Footer on every screen:** "Paper portfolio · Not financial advice".
+
+## Cadence
+
+| When | What |
+|---|---|
+| By 22:30 | Droplet up, hello-world deployed at the real URL with HTTPS |
+| After M1 | Redeploy |
+| 09:00 freeze | Copy `runs/year.sqlite`, deploy, smoke test every screen |
+| After that | Fixes only, each followed by a smoke test |
+| **After judging** | Teardown (below) |
+
+## Teardown after judging (Jin)
+
+1. `scp root@<ip>:/opt/uclagentverse/var/{state.sqlite,runs/*} ./archive/` to keep the recorded runs.
+2. In the DO console: **Destroy** the droplet, plus any snapshot or backup images, so hourly billing stops. Powering off still bills.
+3. Remove the DNS record / DuckDNS entry.
+4. Cancel the EODHD subscription. Rotate or revoke the API keys and the demo passcode.
