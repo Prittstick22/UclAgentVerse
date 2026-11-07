@@ -4,9 +4,9 @@ Four people, four coding agents. Everyone owns an area, and **everyone picks up 
 
 | Person | GitHub | Coding agent | Primary area | Also on |
 |---|---|---|---|---|
-| **Dev** | @Prittstick22 | Claude | **Gemini agents:** LLM wrapper, supervisor, roles/prompts, tools, assurance gate, guard, chat, memory/learning | Pitch + deck owner; final demo script |
+| **Dev** | @Prittstick22 | Claude | **Gemini agents:** LLM wrapper, supervisor, roles/prompts, tools, assurance gate, guard, chat, memory/learning. **Plus all paid/external APIs:** accounts, payment, keys, provider adapters and the provider smoke test (#3, #54–#57) | Pitch + deck owner; final demo script |
 | **Cem** | @cempnrbs | GPT + Claude | **Engine + simulator:** risk, correlation, optimiser, checker, ledger, metrics, backtest, exposure, monitors/triggers, benchmarks, evaluation numbers | Eval slide |
-| **Jin** | @JCYuhei | Claude | **Data + platform:** snapshot fetch, DataGateway, clock, events/SSE, API routes, quiz scoring, live mode + scheduler, Docker/DigitalOcean, CI | Deploy owner; data sanity |
+| **Jin** | @JCYuhei | Claude | **Data + platform:** snapshot fetch (using Dev's verified adapters), DataGateway, clock, events/SSE, API routes, quiz scoring, live mode + scheduler, Docker/DigitalOcean, CI | Deploy owner; data sanity |
 | **Mo** | @MLouchini | GPT | **Frontend:** every screen, charts, agent tree, gate strip, correlation lattice, mock mode | Demo video recording + edit |
 
 ## Interfaces (who depends on whom)
@@ -16,6 +16,7 @@ Four people, four coding agents. Everyone owns an area, and **everyone picks up 
 | Mo ← Jin/Cem/Dev | REST + SSE shapes | `docs/04-api-contracts.md`, `frontend/src/lib/types.ts`, `fixtures/` |
 | Dev ← Cem | Engine functions agents call as tools | 04 §4, `engine/*.py` signatures |
 | Dev ← Jin | `DataGateway`, `events.emit` | 04 §4 |
+| Jin ← Dev | Provider keys (privately) + verified adapters in `data/adapters/` | #54, #55 |
 | Cem ← Jin | Gateway, clock, events for the sim loop | 04 §4 |
 | Cem ← Dev | `supervisor.start(kind, trigger, as_of) -> RunResult` called by the sim | `agents/supervisor.py` |
 | Jin ← Cem/Dev | API handlers call engine/supervisor | `api/*.py` |
