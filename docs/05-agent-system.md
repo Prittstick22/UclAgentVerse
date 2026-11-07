@@ -14,7 +14,7 @@ Owner: **Dev**. Code: `backend/app/agents/`. Config: `backend/app/config/agents.
 ## 2. Models
 
 - **Lead / critic / QA / retrospective / chat:** `GEMINI_MODEL_DEEP` (default `gemini-4-argon`).
-- **Everything else:** `GEMINI_MODEL_FAST` (a Flash model; set the current ID in `.env`).
+- **Everything else:** `GEMINI_MODEL_FAST`, also set to `gemini-4-argon` (team decision: Argon for every agent, as the organisers asked). If Argon rate limits bite during the long run, set it to `gemini-3.8-flash`; no code change needed.
 - **SDK:** `google-genai`. Structured output uses a JSON schema generated from Pydantic models.
 - **`LLM_MODE`:**
   - `live`: calls Gemini.

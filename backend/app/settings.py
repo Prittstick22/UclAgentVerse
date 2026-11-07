@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     gemini_api_key: str | None = None
     gemini_model_deep: str = "gemini-4-argon"
-    gemini_model_fast: str = "gemini-flash-latest"  # TODO(dev): set the current Flash model ID
+    gemini_model_fast: str = "gemini-4-argon"  # Argon everywhere; Flash (gemini-3.8-flash) is the fallback
 
     eodhd_api_key: str | None = None
     finnhub_api_key: str | None = None
