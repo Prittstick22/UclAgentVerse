@@ -20,7 +20,7 @@ make dev-web                    # :5173, proxies /api → :8000; VITE_MOCK=1 use
 | `LLM_MODE` | `fake` | `fake` (offline canned), `live` (Gemini), `replay` (cache only) |
 | `GEMINI_API_KEY` | — | DeepMind-provided key |
 | `GEMINI_MODEL_DEEP` / `GEMINI_MODEL_FAST` | `gemini-4-argon` / set a Flash ID | Models |
-| `EODHD_API_KEY`, `FINNHUB_API_KEY`, `ALPHAVANTAGE_API_KEY`, `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | — | Data providers |
+| `EODHD_API_KEY`, `FINNHUB_API_KEY`, `ALPACA_KEY_ID`, `ALPACA_SECRET_KEY` | — | Data providers |
 | `EDGAR_USER_AGENT` | `UclAgentVerse team <team-email>` | SEC asks for a contact |
 | `SNAPSHOT_DIR` | `backend/data/snapshot` | Snapshot location |
 | `STATE_DB` | `backend/state.sqlite` | Events, ledger, memory, LLM cache |

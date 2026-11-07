@@ -25,7 +25,7 @@ def main() -> None:
         print(f"[{step}] TODO: implement (see docs/06-data-plan.md §4 and the GitHub issue)")
         # prices:  app.data.adapters.eodhd.EODHD(key).eod(ticker, start) for every catalogue ticker → prices_daily.parquet
         # fx:      EODHD eod("GBPUSD.FOREX") → fx_daily.parquet
-        # news:    Finnhub company_news per US stock per month; Alpha Vantage for hero tickers; curated UK items
+        # news:    Finnhub company_news per US stock per month; EODHD /api/news for UK stocks (Alpha Vantage is NOT used)
         # filings: Edgar submissions + documents → filings.jsonl (accepted_at → available_at)
         # checks:  GBX normalised, gaps <= 3 days, FX aligned, coverage from 2023-01 → fail loudly
         # manifest: label="eodhd", coverage per ticker, gaps, downloaded_at

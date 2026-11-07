@@ -7,7 +7,7 @@
     python scripts/check_providers.py --report ../provider-report.md   # markdown for the board (no secrets)
 
 Call budget per full run: EODHD ~22 calls (free plan allows 20/day → use --eodhd-max 15 on the free plan),
-Alpha Vantage 1 (of 25/day), Finnhub ~4, Alpaca 2, EDGAR 1, Gemini ~5 small requests.
+Finnhub ~4, Alpaca 2, EDGAR 1, Gemini ~5 small requests.
 """
 from __future__ import annotations
 
@@ -193,21 +193,6 @@ def check_finnhub(s) -> None:
         f"HTTP {e.status_code}")
 
 
-# ----------------------------------------------------------------------------------------------- Alpha Vantage
-def check_alphavantage(s) -> None:
-    if not s.alphavantage_api_key:
-        return rec("alphavantage", "key", "SKIP", "ALPHAVANTAGE_API_KEY not set")
-    r, ms = timed(lambda: httpx.get("https://www.alphavantage.co/query", timeout=30, params={
-        "function": "NEWS_SENTIMENT", "tickers": "NVDA", "time_from": "20260401T0000", "time_to": "20260531T2359",
-        "limit": 50, "apikey": s.alphavantage_api_key}))
-    body = r.json() if r.is_success else {}
-    feed = body.get("feed", [])
-    if "Information" in body or "Note" in body:
-        return rec("alphavantage", "NEWS_SENTIMENT NVDA Apr–May 2026", "FAIL", (body.get("Information") or body.get("Note"))[:140])
-    rec("alphavantage", "NEWS_SENTIMENT NVDA Apr–May 2026", "PASS" if feed else "WARN",
-        f"{ms:.0f} ms, {len(feed)} items (1 of 25 daily requests used)")
-
-
 # ----------------------------------------------------------------------------------------------- Alpaca
 def check_alpaca(s) -> None:
     if not (s.alpaca_key_id and s.alpaca_secret_key):
@@ -246,8 +231,8 @@ FIT = """
 | Daily prices for every catalogue ticker from 2023-01 | EODHD (paid) | all `coverage` rows PASS after paying (WARN on free plan is expected) |
 | Correct GBX/GBP units + ISINs | EODHD symbol list | `LSE unit/ISIN` rows match the catalogue (fix catalogue in #5 otherwise) |
 | GBPUSD FX | EODHD | `coverage GBPUSD.FOREX` PASS |
-| Dated US company news Jul 2026 → now | Finnhub (+ Alpha Vantage for hero events) | news history + live rows PASS |
-| UK news | — | expected WARN → hand-curate hero UK items (labelled `curated`) |
+| Dated US company news Jul 2026 → now | Finnhub | news history + live rows PASS |
+| UK news | EODHD `/api/news` (paid plan) | Finnhub UK row WARN is expected; EODHD covers UK headlines |
 | Filings with timestamps | EDGAR | PASS |
 | Agents: structured JSON on both models | Gemini | both structured-output rows + AgentStep PASS |
 | Live news context (live mode only) | Gemini grounding | PASS or WARN (WARN → live mode uses Finnhub only) |
@@ -257,7 +242,7 @@ FIT = """
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--only", default="gemini,eodhd,finnhub,alphavantage,alpaca,edgar")
+    ap.add_argument("--only", default="gemini,eodhd,finnhub,alpaca,edgar")
     ap.add_argument("--eodhd-max", type=int, default=22, help="max EODHD calls (free plan: 20/day → use 15)")
     ap.add_argument("--report", help="write a markdown report (no secrets) to this path")
     a = ap.parse_args()
@@ -265,7 +250,7 @@ def main() -> None:
     only = set(a.only.split(","))
     print("Checking providers (keys are read from .env and never printed)\n")
     checks = {"gemini": lambda: check_gemini(s), "eodhd": lambda: check_eodhd(s, a.eodhd_max),
-              "finnhub": lambda: check_finnhub(s), "alphavantage": lambda: check_alphavantage(s),
+              "finnhub": lambda: check_finnhub(s),
               "alpaca": lambda: check_alpaca(s), "edgar": lambda: check_edgar(s)}
     for name, fn in checks.items():
         if name in only:

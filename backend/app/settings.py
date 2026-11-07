@@ -23,7 +23,6 @@ class Settings(BaseSettings):
 
     eodhd_api_key: str | None = None
     finnhub_api_key: str | None = None
-    alphavantage_api_key: str | None = None
     alpaca_key_id: str | None = None
     alpaca_secret_key: str | None = None
     edgar_user_agent: str = "UclAgentVerse hackathon team (set EDGAR_USER_AGENT)"
