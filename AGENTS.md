@@ -13,7 +13,7 @@ An AI investment team for first-time UK investors.
 
 Full spec: `docs/01-project-spec.md`. How it works end to end: `docs/03-how-it-works.md`.
 
-**Deadline:** feature freeze **Sun 09:00**, demo and deck **11:00**, submit **12:20** (hard deadline 13:00 London).
+**Deadline:** everything working on the live link by **Sun 09:00** (feature freeze 07:00), video + deck **11:00**, submit **12:20** (deadline 12:30 London). Timeline: `docs/09-build-plan.md`. **The demo must never wait on an API call** (#78).
 
 ## 2. Who you are working for
 
@@ -34,7 +34,7 @@ Shared and contract files (change only with a board message, §5): `docs/04-api-
 2. **Agents propose; code decides the numbers.** Weights, costs, exposures, risk and limit checks live in `backend/app/engine/` as deterministic Python. Agent code may *call* engine functions but must not reimplement or override them. No LLM output is ever trusted as a number.
 3. **Everything is an event.** Any agent step, tool call, check, decision or trade emits a typed event via `core.events.emit(...)`. Tool results are emitted by the tool wrapper, never by the model. Event shapes are defined in `docs/04-api-contracts.md`; if you need a new type, add it there *and* in `core/events.py` *and* in `frontend/src/lib/types.ts`, then post on the board.
 4. **Contracts first.** Don't change an API response or event shape silently. Update `docs/04-api-contracts.md`, the Pydantic models and the TS types in the same PR, and post a `contract-change` message on the board.
-5. **Config is frozen before evaluation.** Values in `backend/app/config/*.yaml` are fixed before the full-year run. Don't tune them on simulation-year results. If you think a value is wrong, post on the board.
+5. **Config is frozen before evaluation.** Values in `backend/app/config/*.yaml` are fixed before the evaluation run (tag `eval-freeze`, 02:30). Don't tune them on simulation-year results. If you think a value is wrong, post on the board.
 6. **No secrets in git.** Keys go in `.env` (git-ignored) (on the DigitalOcean droplet only). Never print keys in logs or events.
 7. **No real personal or financial data.** Profiles and amounts are fictional. Paper trading only. Synthetic data must be labelled `synthetic` in its source field and in the UI.
 8. **Offline-friendly.** Code must run with `LLM_MODE=fake` (no Gemini key) and with the synthetic snapshot (no data keys). Tests must not hit the network.

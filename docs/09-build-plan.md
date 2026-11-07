@@ -1,28 +1,39 @@
 # 09 · Build plan
 
-Times are London, Sat 7 → Sun 8 Nov 2026. **Feature freeze 09:00 · demo + deck done 11:00 · submit 12:20 · hard deadline 13:00.**
+Times are London, Sat 7 → Sun 8 Nov 2026. **Everyone stays up. Everything working by 09:00. Submit by 12:20 (deadline 12:30).**
+
+**End goal:** one public link with everything running (demo + live mode), where **the demo never waits on an API call**. The demo replays the recorded 4-month agent run; live mode reads cached data and runs agents asynchronously (#78).
 
 ## Milestones (GitHub milestones)
 
-| Milestone | Due | Done when |
+| Milestone | By | Done when |
 |---|---|---|
-| **M0 Setup** | Sat 22:30 | Everyone runs backend + frontend locally; synthetic snapshot; EODHD coverage tested; Argon key pinged; hello-world deployed to the DigitalOcean droplet |
-| **M1 Spine (Tier 1)** | Sun 03:00 | Quiz → mandate → agent construction run streamed to the UI → optimiser + checks → approve → ledger; deterministic full-year sim + benchmarks; home, P&L, lattice, timeline on real API |
-| **M2 Differentiator (Tier 2) + freeze** | Sun 09:00 | Overnight agent batch recorded; replay; full gate + badges; alternatives; decision cards; rebalances; chat; monitors; live mode; 4 controls; eval table |
-| **M3 Demo + submit** | Sun 12:20 | Video recorded from the hosted link; deck with eval numbers; submission done |
+| **M0 Setup** | **00:00** | Everyone runs backend + frontend locally; Gemini pinged; provider keys verified and sent to Jin; real snapshot download started |
+| **M1 Spine end to end** | **02:30** | Quiz → mandate → agent construction streamed to the UI → optimiser + checks → approve → ledger; deterministic sim with forecast + benchmarks; home, P&L, lattice, timeline on the real API; **config frozen (tag `eval-freeze`)** |
+| **M2 DONE: live link** | **09:00** | Recorded 4-month agent run + no-agents baseline; full gate; decision cards; replay; live mode; controls on film; eval table; **deployed link works for demo + live, with no API waits**; all `mvp` issues merged |
+| **M3 Video, deck, submit** | **12:20** | Video recorded from the link; deck with evidence; README; data sources; rehearsal; submitted |
 
-## Timeline
+## Timeline (everyone awake)
 
-| Time | Dev (agents) | Cem (engine/sim) | Jin (data/platform) | Mo (frontend) |
+| Time | Dev (agents, APIs) | Cem (engine, sim) | Jin (data, API, deploy) | Mo (frontend) |
 |---|---|---|---|---|
-| 20:45–22:30 | Ping Argon; LLM wrapper + cache + fake mode; supervisor skeleton with limits | Risk + correlation; optimiser v1 with tests | Synthetic snapshot; gateway; events + SSE; EODHD free-plan coverage test; DigitalOcean droplet + hello-world deploy | App shell, router, mode badge; quiz + mandate screens on mock |
-| 22:30–03:00 | Roles + prompts (lead, scouts, risk, stock); tools registry; construction plan end to end; gate skeleton (numbers + mandate via Cem) | Checker; ledger; metrics; deterministic sim loop; benchmarks; monitors + cooldowns | Real snapshot fetch (EODHD/Finnhub/EDGAR); quiz scoring; all API routes on real code | Agent workspace tree from SSE; proposal screen; home + P&L; correlation lattice; timeline |
-| **03:00** | **Integration 1 (M1).** Run a 1-month agent slice, time it, fix. **Launch the full-year agent batch** (`LLM_MODE=live`, batch approvals). Freeze config | | | |
-| 03:00–06:00 | Sleep shift / monitor the batch | Batch watch → eval numbers script | Sleep shift | Sleep shift |
-| 06:00–09:00 | Evidence checker, critic, compliance, QA, guard; chat; monitor designer | Exposure tool; rebalances + pnl endpoints; eval table | Live mode (EOD task, Scheduler), freshness, notifications; deploy the recorded run | Gate strip + badges; decision card; replay; chat; rebalances; benchmarks |
-| **09:00** | **Feature freeze.** Bake in the recorded run, deploy, smoke test the public link | | | |
-| 09:00–11:00 | Deck + script | Eval slide + numbers check | Deploy fixes only | Record video (2 takes) + edit |
-| 11:00–12:20 | Final review, submit by 12:20 | | | |
+| **23:00–00:00** | #27 Gemini ping · #3/#54 keys · #55 `check_providers.py` → keys to Jin | #15 risk · #16 optimiser · #73 forecast (start) | #5 catalogue · #6 real prices/FX download (with Dev's keys) · #62 data sources | #40 shell · #41 quiz + mandate (mock) |
+| **00:00** | **Switch 1: real snapshot posted (Jin)** | | | |
+| **00:00–01:30** | #60 finance kit · #28 agent loop · #29 tools | #73 forecast → optimiser · #17 checker · #18 ledger | #7 news/filings (Jul–Nov 2026, hero events) · #9 runs API · #8 mandate API | #42 agent workspace · #44 home + P&L · #45 lattice |
+| **01:30–02:30** | #30 construction plan → **switch 2: real fixtures** · #31 review/trigger plans · #20 benchmarks | #19 day loop + monitors · #22 sim ↔ agents + `--no-agents` · #21 portfolio API | #10 notifications/status · #12 public-demo safety · #78 no-API-wait design | #43 proposal · #46 timeline |
+| **02:30** | **M1 integration on one machine · switch 3: `eval-freeze` tag** · 2-week agent slice, timed | | | |
+| **03:00–04:15** | **Launch the 4-month agent run (~1 h) on the batch laptop**, then `--no-agents` baseline · meanwhile #32 gate · #33 guard | #72 no-peeking test · #23 approve/decline · #24 eval script | **Deploy dry run:** droplet + HTTPS + current main on the real link | #48 decision card · #49 rebalances + benchmarks |
+| **04:15** | **Switch 4: recorded run posted** (`runs/year.sqlite`, `runs/no_agents.sqlite`) | | | |
+| **04:15–06:30** | #61 finance-kit run · #34 explainer · #35 chat (feature) | Eval numbers from the recorded runs · #25 exposure (feature) | #11 live mode (cron, cache) · #78 replay from the recorded run · #13 bake in runs | #50 replay (feature) · #47 gate strip (feature) · polish |
+| **06:30** | **Second deploy** with recorded runs; smoke test the demo + live on the link | | | |
+| **07:00** | **Feature freeze:** unstarted `feature` issues are dropped; bug fixes only | | | |
+| **07:00–08:30** | Bug fixes · #39 deck draft | Bug fixes · #68 compliance checklist (start) | Fixes + **final deploy 08:00** · #70 README | Fixes · UI polish |
+| **08:30–09:00** | **Full smoke test on the link: demo (no keys needed) + live mode. M2 DONE** | | | |
+| 09:00–11:00 | #39 deck · #69 Q&A cheat sheet | #68 checklist · eval slide | #66 who-it-helps stats · README links | #52 record video from the link |
+| 11:00–12:00 | Rehearsal (4 min + 2 min Q&A) · final checks | | | |
+| **12:20** | **Submit** (deadline 12:30) | | | |
+
+**Batch laptop:** whoever runs the 03:00 agent run keeps that machine plugged in, awake (sleep disabled) and online until ~04:15. Decide at the 02:30 integration.
 
 ## Labels: `mvp` vs `feature`
 
@@ -37,10 +48,11 @@ Every issue is tagged `mvp` (the minimum demo that works end to end: quiz → ag
 5. Two alternatives → recommended only
 6. Never cut: the gate strip on proposals, replay, benchmarks, controls
 
-## Overnight batch checklist (03:00)
+## Agent-run checklist (03:00)
 
-- [ ] `config/*.yaml` frozen and committed (tag `eval-freeze`)
-- [ ] 2-week slice ran in under 10 min; extrapolated to < 1.5 h for the 4-month window
+- [ ] `config/*.yaml` frozen and tagged `eval-freeze`
+- [ ] 2-week slice ran in under 10 min; extrapolated to under 1.5 h for the 4-month window
 - [ ] LLM cache on; Gemini budget alert set
-- [ ] `python -m app.sim.runner --start 2026-07-07 --end <last> --agents --approvals batch_policy --record runs/year.sqlite`, then the engine-only baseline: same window with `--no-agents --record runs/no_agents.sqlite`
-- [ ] Someone awake checks progress every 30 min (`GET /api/sim/status`)
+- [ ] `python -m app.sim.runner --start 2026-07-07 --end <last> --agents --approvals batch_policy --record runs/year.sqlite`
+- [ ] Then `python -m app.sim.runner --start 2026-07-07 --end <last> --no-agents --record runs/no_agents.sqlite`
+- [ ] Post both files on the board (switch 4) with sha256
