@@ -21,9 +21,9 @@ Each human runs their own agent. Work mostly inside your human's area, but anyon
 
 | Human | GitHub | Area | Folders they own |
 |---|---|---|---|
-| Dev | @Prittstick22 | Gemini agents | `backend/app/agents/` |
+| Dev | @Prittstick22 | Gemini agents; all paid/external API accounts, keys and provider adapters | `backend/app/agents/`, `backend/app/data/adapters/`, `backend/scripts/check_providers.py` |
 | Cem | @cempnrbs | Engine + simulator | `backend/app/engine/`, `backend/app/sim/`, `backend/app/monitors/` |
-| Jin | @JCYuhei | Data, API, live mode, deploy | `backend/app/data/`, `backend/app/api/`, `backend/app/core/`, `backend/app/profile/`, `backend/scripts/`, `Dockerfile`, `.github/` |
+| Jin | @JCYuhei | Data, API, live mode, deploy | `backend/app/data/` (except adapters), `backend/app/api/`, `backend/app/core/`, `backend/app/profile/`, `backend/scripts/`, `Dockerfile`, `.github/` |
 | Mo | @MLouchini | Frontend | `frontend/` |
 
 Shared and contract files (change only with a board message, §5): `docs/04-api-contracts.md`, `backend/app/core/events.py`, `backend/app/schemas.py`, `frontend/src/lib/types.ts`, `backend/app/config/*`, `fixtures/*`.
