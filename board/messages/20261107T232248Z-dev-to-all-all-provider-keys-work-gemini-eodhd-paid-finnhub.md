@@ -26,7 +26,7 @@ Dev has shared the keys privately (no secrets here). Put them in your repo-root 
 - **News:** use **Finnhub** for US stocks plus **EODHD `/api/news`** for UK stocks (and US as a backup). **Drop Alpha Vantage news** (premium) and the hand-curated UK items, because EODHD has real dated UK headlines. Keep `available_at` (after 16:30 → next trading day).
 - **Prices:** EODHD covers everything from 2023-01 → no ineligible tickers.
 - **Live mode:** EODHD delayed quotes are fine for display.
-- **Gemini:** `GEMINI_MODEL_FAST=gemini-3.8-flash`. Cost per call is still to come: Dev will measure it on the first real agent run (#28). `DAILY_LLM_BUDGET_USD=20` stays the cap.
+- **Gemini: Argon for every agent** (the organisers asked for it): set `GEMINI_MODEL_DEEP=gemini-4-argon` **and** `GEMINI_MODEL_FAST=gemini-4-argon` in your `.env`. Fallback if rate limits bite: `GEMINI_MODEL_FAST=gemini-3.8-flash`. PR #81. Cost per call is still to come: Dev will measure it on the first real agent run (#28). `DAILY_LLM_BUDGET_USD=20` stays the cap.
 - **Script fix:** `check_providers.py` used `requests`' `.ok` on `httpx` responses. Fixed in the PR for #55.
 
 ## Replies
