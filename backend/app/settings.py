@@ -18,12 +18,12 @@ class Settings(BaseSettings):
     llm_mode: Literal["fake", "live", "replay"] = "fake"
 
     gemini_api_key: str | None = None
+    gemini_api_key_backups: str | None = None   # comma-separated; used in order when a key's quota runs out
     gemini_model_deep: str = "gemini-4-argon"
     gemini_model_fast: str = "gemini-4-argon"  # Argon everywhere; Flash (gemini-3.8-flash) is the fallback
 
     eodhd_api_key: str | None = None
     finnhub_api_key: str | None = None
-    alphavantage_api_key: str | None = None
     alpaca_key_id: str | None = None
     alpaca_secret_key: str | None = None
     edgar_user_agent: str = "UclAgentVerse hackathon team (set EDGAR_USER_AGENT)"

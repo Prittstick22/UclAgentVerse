@@ -4,10 +4,10 @@ Four people, four coding agents. Everyone owns an area, and **everyone picks up 
 
 | Person | GitHub | Coding agent | Primary area | Also on |
 |---|---|---|---|---|
-| **Dev** | @Prittstick22 | Claude | **Gemini agents:** LLM wrapper, supervisor, roles/prompts, tools, assurance gate, guard, chat, memory/learning. **Plus all paid/external APIs:** accounts, payment, keys, provider adapters and the provider smoke test (#3, #54–#57) | Pitch + deck owner; final demo script |
+| **Dev** | @Prittstick22 | Claude | **Gemini agents:** LLM wrapper, supervisor, roles/prompts, tools, assurance gate, guard, chat, memory/learning. **Plus all paid/external APIs:** accounts, payment, keys, provider adapters and the provider smoke test (#3, #54–#57) | **All deploys** (DigitalOcean); pitch content + script |
 | **Cem** | @cempnrbs | GPT + Claude | **Engine + simulator:** risk, correlation, optimiser, checker, ledger, metrics, backtest, exposure, monitors/triggers, benchmarks, evaluation numbers | Eval slide |
-| **Jin** | @JCYuhei | Claude | **Data + platform:** snapshot fetch (using Dev's verified adapters), DataGateway, clock, events/SSE, API routes, quiz scoring, live mode + scheduler, Docker/DigitalOcean, CI | Deploy owner; data sanity |
-| **Mo** | @MLouchini | GPT | **Frontend:** every screen, charts, agent tree, gate strip, correlation lattice, mock mode | Demo video recording + edit |
+| **Jin** | @JCYuhei | Claude | **Data + platform:** snapshot fetch (using Dev's verified adapters), DataGateway, clock, events/SSE, API routes, quiz scoring, live mode + scheduler, CI | **Deck slides** (built in parallel from 03:00); data sanity |
+| **Mo** | @MLouchini | GPT | **Frontend:** every screen, charts, agent tree, gate strip, correlation lattice, mock mode | **Demo video** in parallel: shot list 02:30, rough cut 07:30, final 10:30 |
 
 ## Interfaces (who depends on whom)
 
@@ -29,7 +29,7 @@ Four people, four coding agents. Everyone owns an area, and **everyone picks up 
 2. **Cem → Dev:** `optimise()` + `check_proposal()` callable with the real signature (even if naive). *Target 23:00.*
 3. **Dev → Cem:** `supervisor.start()` returns a fake `RunResult` in `LLM_MODE=fake`, so the sim loop can integrate. *Target 23:00.*
 4. **Jin → Mo:** real `/api/health`, `/api/profile/*`, `/api/runs/{id}/events` (SSE). Until then Mo uses mock mode. *Target 00:00.*
-5. **Jin → all:** hello-world on the DigitalOcean droplet with the real HTTPS URL. *Target 22:30.*
+5. **Dev → all:** deploy dry run on the DigitalOcean droplet with the real HTTPS URL. *Target 04:15.*
 
 ## Rituals
 

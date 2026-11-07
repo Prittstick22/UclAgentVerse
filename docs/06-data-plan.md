@@ -10,7 +10,6 @@ Owner: **Jin**. Code: `backend/app/data/`, `backend/scripts/fetch_snapshot.py`.
 - **Free:**
   - Alpaca (US stock quotes/history)
   - Finnhub (US company news, earnings calendar)
-  - Alpha Vantage (news for 2–3 hero tickers; 25/day)
   - SEC EDGAR (filings)
   - Gemini grounding (live only)
 - **From the hackathon slides (free):** AgentVerse finance kit (synthetic cases, real price history, hidden test mode; #60/#61); Companies House API (UK filings; #63); Bank of England, ONS, FRED, ECB Data Portal (macro; #64); FCA Handbook / legislation.gov.uk (compliance grounding; #65); FCA Financial Lives, ONS, World Bank Findex (who-it-helps stats; #66). Not used: crypto (Binance), fraud/AML datasets, Polymarket (out of scope for UK beginner portfolios).
@@ -48,7 +47,7 @@ The catalogue lives in `backend/app/config/catalogue.json` (hand-verified, versi
 
 1. **EODHD EOD** for every catalogue ticker + `GBPUSD.FOREX` (~30 calls).
 2. **Finnhub** company news for US stocks, Jun 2026 → today (window + a month of context), one call per stock per month (~50 calls at 60/min).
-3. **Alpha Vantage** `NEWS_SENTIMENT` for 2–3 hero tickers (spread across keys).
+3. **EODHD** `/api/news?s=<TICKER>&from=&to=` for UK stocks (included in the paid plan; Finnhub has no UK news). **Alpha Vantage is not used** (its news endpoint is premium-only).
 4. **EDGAR** submissions + filing docs for US stocks. The SEC asks for a contact in the User-Agent: use a team address in `EDGAR_USER_AGENT`.
 5. **Finnhub** earnings calendar; **macro** from Bank of England / ONS CSVs (manual download is fine).
 6. **Sanity checks** (fail loudly): GBX normalised, no gaps > 3 trading days, FX aligned, every ticker covered from 2023-01 or marked ineligible before its start.

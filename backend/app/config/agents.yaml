@@ -24,3 +24,8 @@ run_token_budget:
   manual: 200000
 run_wall_time_s: 300
 schema_retry: 1
+# USD per 1M tokens (Gemini API Standard tier, AI Studio pricing page, checked Sat 7 Nov 2026).
+# Output includes thinking tokens. Argon's price doubles on 1 Dec 2026; hackathon credits are free but finite.
+pricing:
+  gemini-4-argon: {input_per_m: 2.00, output_per_m: 10.00}
+  gemini-3.8-flash: {input_per_m: 0.75, output_per_m: 3.75}
