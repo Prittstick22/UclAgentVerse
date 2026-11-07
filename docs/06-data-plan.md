@@ -13,6 +13,8 @@ Owner: **Jin**. Code: `backend/app/data/`, `backend/scripts/fetch_snapshot.py`.
   - Alpha Vantage (news for 2–3 hero tickers; 25/day)
   - SEC EDGAR (filings)
   - Gemini grounding (live only)
+- **From the hackathon slides (free):** AgentVerse finance kit (synthetic cases, real price history, hidden test mode; #60/#61); Companies House API (UK filings; #63); Bank of England, ONS, FRED, ECB Data Portal (macro; #64); FCA Handbook / legislation.gov.uk (compliance grounding; #65); FCA Financial Lives, ONS, World Bank Findex (who-it-helps stats; #66). Not used: crypto (Binance), fraud/AML datasets, Polymarket (out of scope for UK beginner portfolios).
+- **Every dataset goes in `docs/DATA_SOURCES.md` with its licence** (#62).
 - **Fallback:** yfinance from a laptop for the snapshot (Yahoo often blocks cloud IPs, so never use it from the server).
 - **Dev data now:** `python scripts/make_synthetic_snapshot.py` writes a **synthetic** snapshot with the same schema, so everyone can build before the real data lands. It's labelled `data_source: synthetic` everywhere.
 

@@ -24,6 +24,10 @@ Times are London, Sat 7 → Sun 8 Nov 2026. **Feature freeze 09:00 · demo + dec
 | 09:00–11:00 | Deck + script | Eval slide + numbers check | Deploy fixes only | Record video (2 takes) + edit |
 | 11:00–12:20 | Final review, submit by 12:20 | | | |
 
+## Labels: `mvp` vs `feature`
+
+Every issue is tagged `mvp` (the minimum demo that works end to end: quiz → agent build → checks → approve → year simulation → home/P&L/lattice/timeline/benchmarks → eval + finance kit → deck/video/README) or `feature` (additional). Work `mvp` first: `gh issue list --label owner:<you> --label mvp`. At 07:00, any `feature` issue not started is dropped.
+
 ## If behind (cut in this order)
 
 1. Tier 3 entirely

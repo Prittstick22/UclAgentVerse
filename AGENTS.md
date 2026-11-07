@@ -42,7 +42,7 @@ Shared and contract files (change only with a board message, §5): `docs/04-api-
 
 ## 4. How to work an issue
 
-1. Pick an issue assigned to (or labelled for) your human: `gh issue list --label owner:<name>`. Comment "taking this" if it's unassigned.
+1. Pick an issue assigned to (or labelled for) your human: `gh issue list --label owner:<name> --label mvp`. **Do every `mvp` issue before any `feature` issue.** `mvp` = needed for the minimum demo that works end to end; `feature` = additional, build only once your MVP issues are done. Comment "taking this" if it's unassigned.
 2. Branch from `main`: `git checkout -b <name>/<issue-number>-<short-slug>`, e.g. `cem/12-optimiser`.
 3. Read the issue's **How** and **Acceptance criteria**, plus the linked doc section.
 4. Write the code **and** tests. Backend: `cd backend && pytest -q` must pass. Frontend: `cd frontend && npm run build` must pass.
