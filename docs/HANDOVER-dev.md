@@ -1,22 +1,23 @@
-# Dev: what to do now (updated Sat 7 Nov 23:35)
+# Dev: what to do now (updated Sun 8 Nov 00:30)
 
 Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for example while Dev's Claude credits reset. Read `AGENTS.md` first; the team timeline is in `docs/09-build-plan.md`. **Goal: one public link with demo + live mode, everything working by 09:00. The demo never waits on an API call. Submit by 12:20.**
 
 ## Resume here: current state (keep this section updated)
 
-**Done (Sat 23:35):** #3 EODHD bought + verified · #27 Gemini ping · #54 keys · #55 provider check (PR #81 merged). Results are in `board/messages/20261107T232248Z-dev-to-all-all-provider-keys-work-gemini-eodhd-paid-finnhub.md`.
+**Done:** #3 EODHD bought + verified · #27 Gemini ping · #54 keys · #55 provider check (PR #81) · **#28 agent loop on real Argon (PR #88)**: schema retry, Gemini retries + backup keys (`GEMINI_API_KEY_BACKUPS`), per-step token budget, cache-stable prompts, cost in `run.completed`. Measured: about 1,850 tokens and $0.007 per call, about 10 s per call; a rerun costs 0 tokens. Nothing is half-done. Results are in the board posts `...-all-provider-keys-work-...` and `...-agent-loop-live-on-argon-...`.
 
 **Environment on Dev's PC (Windows, Git Bash + PowerShell):**
 - `.env` in the repo root has every key (git-ignored, **never print or commit it**). `LLM_MODE=live`. `GEMINI_MODEL_DEEP` and `GEMINI_MODEL_FAST` are **both `gemini-4-argon`** (team decision: Argon for every agent). Fallback if rate limits bite: `GEMINI_MODEL_FAST=gemini-3.8-flash`.
 - Backend venv: `backend/.venv` (Windows: `backend/.venv/Scripts/python`). `make` targets assume Unix paths, so on Windows call the venv Python directly, e.g. `cd backend && .venv/Scripts/python -m pytest -q`.
 - On Windows, prefix with `PYTHONIOENCODING=utf-8` for `scripts/board.py` and `check_providers.py`, or they crash on `→`/emoji.
 - `EDGAR_USER_AGENT` still holds a placeholder email: put in a real team email.
+- The synthetic snapshot is in `backend/data/snapshot` (git-ignored). Manual live run: `cd backend && STATE_DB=<scratch>.sqlite .venv/Scripts/python -m app.agents.supervisor --run construction` (about $0.03; reruns are free from the cache).
 
 **Decisions since the timeline below:**
 - **Alpha Vantage is not used anywhere** (its news endpoint is premium-only and we won't pay $49.99). **News = Finnhub (US) + EODHD `/api/news` (UK)**. Removed from code, docs and issues; Jin was told on the board.
 - Alpaca is deferred: #80 (feature, decide at the end). DigitalOcean (#56) will be done by Dev later, but must be ready before Jin's 03:00 dry run.
 
-**Next, in order:** #28 agent loop (`backend/app/agents/supervisor.py`, `llm.py`) → #29 core tools (`agents/tools.py`) → #30 construction plan + prompts → #31 / #20 / #37. #28 also needs the Gemini **cost per call** measured and posted on the board, which was left open from #27.
+**Next, in order:** #29 core tools (`backend/app/agents/tools.py`: most are `not_implemented` stubs; wire them to `backend/app/engine/` and `DataGateway`, including Cem's `forecast` from #73) → #30 construction plan + prompts (`agents/prompts/*.md`; in the live test the lead asked for a non-existent `scout` role, so prompts must list the exact role names from `roles.py`) → #31 / #20 / #37. A construction run ends `investigate_further` until `build_options` exists.
 
 **Rules a fresh agent must not break:** data only via `DataGateway` with `as_of`; numbers only from `backend/app/engine/`; emit an event for every step; contract changes need a board post; branch `dev/<issue>-<slug>`, PR with `Closes #n`; self-merge only when CI is green and the change stays in Dev's folders.
 
