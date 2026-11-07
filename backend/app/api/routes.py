@@ -122,8 +122,8 @@ def rebalances(request: Request, limit: int = 20):
 
 @router.get("/benchmarks")
 def benchmarks(request: Request):
-    return {"series": {}, "metrics": {}, "periods": {"development": ["2025-11-07", "2026-03-31"],
-                                                      "held_out": ["2026-04-01", None]}}  # TODO(#benchmarks)
+    return {"series": {}, "metrics": {}, "periods": {"development": ["2023-01-02", "2026-07-06"],
+                                                      "held_out": ["2026-07-07", None]}}  # TODO(#benchmarks)
 
 
 @router.get("/risk/correlation")

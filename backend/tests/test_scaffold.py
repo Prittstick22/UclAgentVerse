@@ -12,13 +12,13 @@ from app.profile.quiz import mandate_for, score
 
 def test_gateway_refuses_future(state):
     with pytest.raises(AsOfViolation):
-        state.gw.prices(["VWRP.LSE"], end="2026-01-01")
+        state.gw.prices(["VWRP.LSE"], end="2026-10-01")
     assert state.gw.prices(["VWRP.LSE"]).index.max().date().isoformat() <= state.clock.as_of_str()
 
 
 def test_news_hidden_until_available(state):
     assert all(n.available_at <= state.clock.now().isoformat() for n in state.gw.news())
-    state.clock.set("2026-07-02")
+    state.clock.set("2026-10-02")
     assert any(n.id == "news_syn_inject" for n in state.gw.news())
 
 

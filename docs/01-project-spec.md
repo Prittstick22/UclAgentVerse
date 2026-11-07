@@ -36,7 +36,7 @@
    - Every proposal passes the **assurance gate** before the user sees it.
 3. **Correlation lattice:** a heatmap of how each pair of holdings moves together, with a date slider and plain-English callouts.
 4. **Historical simulation:**
-   - Start 7 Nov 2025 and step day by day to today.
+   - Start 7 Jul 2026 and step day by day to 6 Nov 2026 (4 months, entirely after Argon's reported Mar 2026 knowledge cutoff).
    - Daily mark-to-market (code); **fortnightly agent reviews**; **ad hoc triggers**: drift ≥ 5 percentage points, a holding moving ≥ 5% in a day or ≥ 10% since the last review, NAV ≥ 5% below the last review, relevant news.
    - Monthly £200 contributions.
 5. **Decisions:**
@@ -103,14 +103,14 @@
 | Criterion | Weight | Our evidence |
 |---|---|---|
 | Traceable reasoning | 25% | Event log, replay, evidence → claim → calculation links, separate badges, code-only maths |
-| Unseen-data testing | 25% | Benchmarks after costs; Apr–Nov 2026 is after Argon's reported Mar 2026 knowledge cutoff (held-out); params frozen before the run |
+| Unseen-data testing | 25% | Benchmarks after costs; the whole Jul–Nov 2026 window is after Argon's reported Mar 2026 knowledge cutoff (held-out); agents vs same-engine-without-agents shows what Gemini adds; params frozen before the run |
 | Relevance and impact | 20% | Two concrete problems; "26 reviews, N checks, only Z decisions asked of you" |
 | Controls and oversight | 15% | Coded limits, gateway firewall, injection guard, approval gate, refused spawns, all logged |
 | Ambition and technical quality | 15% | Lead-decided sub-agent trees, assurance roles, agent-designed monitors, tested memory rule |
 
 ## 8. Success for the weekend
 
-- The public demo link opens a replay of the full simulated year with at least one adjustment (and its full gate) and at least one "alarming but maintain" case.
+- The public demo link opens a replay of the full 4-month simulation with at least one adjustment (and its full gate) and at least one "alarming but maintain" case.
 - One live investigation can be run on request.
 - The deck has the eval table with both periods.
 - A 3-minute video shows the demo storyline (11-demo-and-pitch).

@@ -93,7 +93,7 @@ Rules:
 
 | Key | Value |
 |---|---|
-| sim.start / end | 2025-11-07 / latest snapshot date |
+| sim.start / end | 2026-07-07 / latest snapshot date (4 months) |
 | capital_gbp / monthly_contribution_gbp | 10000 / 200 |
 | review_every_n_days | 10 |
 | triggers | drift_pp 0.05 · price_move_day 0.05 · price_move_since_review 0.10 · nav_drop 0.05 · news_relevance 0.7 · corr_jump 0.15 |
@@ -103,6 +103,6 @@ Rules:
 | batch_auto_approve_turnover_max | 0.10 |
 | optimiser | λ_track 5 · λ_turn 1 · λ_fee 1 · lookback 504 · min_lookback 252 |
 | forecast | horizon_days 10 · ewma_halflife_days 10 · shrink 0.5 · lambda_return 1.0 · max_view_tilt 0.02 |
-| periods | development 2025-11-07 → 2026-03-31 · held_out 2026-04-01 → end |
+| periods | development 2023-01-02 → 2026-07-06 (pre-sim, sanity checks only) · held_out 2026-07-07 → end |
 
 **Freeze rule:** sanity-check on 2023–2025 data only; freeze before the full-year run (09-build-plan). Don't tune on sim-year results.

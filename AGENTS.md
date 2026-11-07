@@ -7,7 +7,7 @@ Read this fully before you write code. It applies to every coding agent (Claude 
 An AI investment team for first-time UK investors.
 - A quiz produces a mandate.
 - Supervised Gemini agents build a **paper** portfolio (ETFs, bond ETFs, a few stocks).
-- A simulator replays Nov 2025 → Nov 2026 day by day, with fortnightly reviews plus 5% triggers.
+- A simulator replays 7 Jul → 6 Nov 2026 (4 months, after Argon's knowledge cutoff) day by day, with fortnightly reviews plus 5% triggers.
 - A change is only proposed after an assurance gate (evidence, numbers, critic, compliance, QA) and needs user approval.
 - Live mode runs the same code on today's data.
 

@@ -16,20 +16,21 @@ Every strategy gets the same £10,000, the same £200/month and the same cost mo
 
 ## Two separate test sets (never mixed)
 
-1. **Real market data replay** (our snapshot, Nov 2025 → Nov 2026, walk-forward): the main results below.
+1. **Real market data replay** (our snapshot, 7 Jul → 6 Nov 2026, walk-forward): the main results below.
 2. **Organisers' AgentVerse finance kit** (synthetic cases + hidden test mode, #60/#61): reported in its own table, labelled "organiser synthetic test data".
 
 ## Ablations (ours)
 
+- `ours_no_agents`: same engine, no Gemini agents (the key comparison)
 - `ours` without the forecast term (`lambda_return: 0`)
 - `ours` with the 2-week forecast
 - (feature) `ours` with forecast + agent views
 
-## Periods
+## Window and runs
 
-- **Development:** 2025-11-07 → 2026-03-31. Gemini 4 Argon's reported knowledge cutoff is March 2026, so the model may "know" this period.
-- **Held-out:** 2026-04-01 → latest date. This is after the model's cutoff: our honest unseen-data claim.
-- **Report the two separately.** Config is frozen (tag `eval-freeze`) before either is run. Disclose any reruns.
+- **Simulation window:** 7 Jul → 6 Nov 2026 (~85 trading days). Gemini 4 Argon's reported knowledge cutoff is March 2026, so the **whole window is held-out**: the model can't have seen it. Parameters are sanity-checked only on pre-window data (2023 → Jul 2026) and frozen (tag `eval-freeze`) before the run.
+- **Agent run** (`ours`, overnight): the showcase. Recorded in `runs/year.sqlite` (name kept for scripts).
+- **Engine-only run** (`ours_no_agents`, same window, `--no-agents`, ~1 min): identical optimiser, forecast and triggers, but no Gemini. **`ours` vs `ours_no_agents` = what Gemini adds.**
 
 ## Metrics
 
@@ -45,12 +46,12 @@ Per strategy and period: total return (TWR), annualised vol, max drawdown, Sharp
 ## Headline lines for the deck
 
 - "Over the year the system ran **X reviews and Y checks** and asked you to decide **Z times**."
-- "On the held-out period, ours vs buy-and-hold: return, drawdown and cost." Report it honestly, even if we lose.
+- "Gemini agents vs the same engine without them, and vs buy-and-hold: return, drawdown, cost, decisions asked." Report it honestly, even if we lose.
 - "Every decision traceable: N events, M evidence items, 100% of numbers recomputed by code."
 
 ## Caveats (on the slide)
 
-- One year is one path, not statistically significant.
+- Four months is one short path, not statistically significant.
 - Simulated backtest, not live performance.
 - Batch approvals were simulated by policy.
 - Synthetic items are labelled.

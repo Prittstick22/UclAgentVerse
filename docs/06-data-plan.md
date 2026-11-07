@@ -47,7 +47,7 @@ The catalogue lives in `backend/app/config/catalogue.json` (hand-verified, versi
 `python scripts/fetch_snapshot.py --start 2023-01-02 --tickers config` steps:
 
 1. **EODHD EOD** for every catalogue ticker + `GBPUSD.FOREX` (~30 calls).
-2. **Finnhub** company news for US stocks, Nov 2025 → today, one call per stock per month (~120 calls at 60/min).
+2. **Finnhub** company news for US stocks, Jun 2026 → today (window + a month of context), one call per stock per month (~50 calls at 60/min).
 3. **Alpha Vantage** `NEWS_SENTIMENT` for 2–3 hero tickers (spread across keys).
 4. **EDGAR** submissions + filing docs for US stocks. The SEC asks for a contact in the User-Agent: use a team address in `EDGAR_USER_AGENT`.
 5. **Finnhub** earnings calendar; **macro** from Bank of England / ONS CSVs (manual download is fine).
@@ -73,5 +73,5 @@ Commit the snapshot if under ~50 MB, otherwise upload it to a GCS bucket and cop
 
 ## 6. Hero events and synthetic items
 
-- Pick 2–3 real events from **Apr–Nov 2026** (after Argon's reported knowledge cutoff) that hit holdings: one material (→ adjust), one alarming but immaterial (→ maintain).
+- Pick 2–3 real events from **7 Jul – 6 Nov 2026** (the sim window, after Argon's reported knowledge cutoff) that hit holdings: one material (→ adjust), one alarming but immaterial (→ maintain).
 - The **injection-guard** demo article is synthetic and must have `synthetic: true` and a visible "synthetic test item" label.

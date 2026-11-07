@@ -26,7 +26,7 @@ from pydantic import BaseModel  # noqa: E402
 from app.config import catalogue_raw  # noqa: E402
 from app.settings import get_settings  # noqa: E402
 
-SIM_START = "2025-11-07"
+SIM_START = "2026-07-07"
 HISTORY_START = "2023-01-02"
 
 
@@ -172,11 +172,11 @@ def check_finnhub(s) -> None:
         return rec("finnhub", "key", "SKIP", "FINNHUB_API_KEY not set")
     c = httpx.Client(timeout=30, headers={"X-Finnhub-Token": s.finnhub_api_key})
     r, ms = timed(lambda: c.get("https://finnhub.io/api/v1/company-news",
-                                params={"symbol": "AAPL", "from": "2025-11-07", "to": "2025-11-30"}))
+                                params={"symbol": "AAPL", "from": "2026-07-07", "to": "2026-07-31"}))
     if r.status_code != 200:
-        return rec("finnhub", "company news AAPL Nov 2025", "FAIL", f"HTTP {r.status_code}: {r.text[:100]}")
+        return rec("finnhub", "company news AAPL Jul 2026", "FAIL", f"HTTP {r.status_code}: {r.text[:100]}")
     items = r.json()
-    rec("finnhub", "company news AAPL Nov 2025 (history)", "PASS" if items else "FAIL",
+    rec("finnhub", "company news AAPL Jul 2026 (history)", "PASS" if items else "FAIL",
         f"{ms:.0f} ms, {len(items)} items; remaining/min={r.headers.get('X-Ratelimit-Remaining', '?')}")
     recent = c.get("https://finnhub.io/api/v1/company-news",
                    params={"symbol": "NVDA", "from": (date.today() - timedelta(days=7)).isoformat(),
@@ -246,7 +246,7 @@ FIT = """
 | Daily prices for every catalogue ticker from 2023-01 | EODHD (paid) | all `coverage` rows PASS after paying (WARN on free plan is expected) |
 | Correct GBX/GBP units + ISINs | EODHD symbol list | `LSE unit/ISIN` rows match the catalogue (fix catalogue in #5 otherwise) |
 | GBPUSD FX | EODHD | `coverage GBPUSD.FOREX` PASS |
-| Dated US company news Nov 2025 → now | Finnhub (+ Alpha Vantage for hero events) | news history + live rows PASS |
+| Dated US company news Jul 2026 → now | Finnhub (+ Alpha Vantage for hero events) | news history + live rows PASS |
 | UK news | — | expected WARN → hand-curate hero UK items (labelled `curated`) |
 | Filings with timestamps | EDGAR | PASS |
 | Agents: structured JSON on both models | Gemini | both structured-output rows + AgentStep PASS |

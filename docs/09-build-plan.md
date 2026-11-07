@@ -40,7 +40,7 @@ Every issue is tagged `mvp` (the minimum demo that works end to end: quiz → ag
 ## Overnight batch checklist (03:00)
 
 - [ ] `config/*.yaml` frozen and committed (tag `eval-freeze`)
-- [ ] 1-month slice ran in under 15 min; extrapolated to < 3 h for the year
+- [ ] 2-week slice ran in under 10 min; extrapolated to < 1.5 h for the 4-month window
 - [ ] LLM cache on; Gemini budget alert set
-- [ ] `python -m app.sim.runner --start 2025-11-07 --end <last> --agents --approvals batch_policy --record runs/year.sqlite`
+- [ ] `python -m app.sim.runner --start 2026-07-07 --end <last> --agents --approvals batch_policy --record runs/year.sqlite`, then the engine-only baseline: same window with `--no-agents --record runs/no_agents.sqlite`
 - [ ] Someone awake checks progress every 30 min (`GET /api/sim/status`)

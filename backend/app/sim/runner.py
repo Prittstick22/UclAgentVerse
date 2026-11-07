@@ -3,7 +3,7 @@
 SCAFFOLD: deterministic loop skeleton (clock, fills, mark-to-market, contributions, tick events) runs end to end.
 TODO(issues): monitors + cooldowns, review schedule, agent runs via supervisor, approvals, benchmarks, CLI flags.
 
-    python -m app.sim.runner --start 2025-11-07 --end 2025-12-31 [--agents] [--approvals batch_policy]
+    python -m app.sim.runner --start 2026-07-07 --end 2026-07-31 [--agents] [--approvals batch_policy]
 """
 from __future__ import annotations
 

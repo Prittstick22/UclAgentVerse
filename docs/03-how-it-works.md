@@ -2,7 +2,7 @@
 
 ## 1. User journey
 
-1. **Landing.** Choose "Historical demo · As of 7 Nov 2025" or "Current markets · Paper portfolio".
+1. **Landing.** Choose "Historical demo · As of 7 Jul 2026" or "Current markets · Paper portfolio".
 2. **Quiz** (about 8 questions, plain English, £ examples such as "If £10,000 fell to £8,000, would that stop you reaching your goal?").
    - `POST /api/profile/quiz` → profile + mandate.
    - Conflicting answers produce one follow-up question.
@@ -23,7 +23,7 @@
 
 | | Historical | Live |
 |---|---|---|
-| Clock | `SimClock`, starts 2025-11-07, steps trading days | `LiveClock`, real time |
+| Clock | `SimClock`, starts 2026-07-07, steps trading days | `LiveClock`, real time |
 | Data | Snapshot in the image, revealed up to `as_of` | Snapshot + daily EOD top-up + optional display quotes |
 | Web search | Blocked | Gemini grounding allowed inside investigations |
 | Portfolio | Fictional historical portfolio | Persistent paper portfolio |
@@ -34,7 +34,7 @@
 ## 3. The day loop (historical)
 
 ```python
-for day in calendar.trading_days("2025-11-07", end):
+for day in calendar.trading_days("2026-07-07", end):
     clock.set(day)                                   # act at the close (16:30 London)
     ledger.fill_pending(gw.prices(as_of=day))        # yesterday's decisions fill at today's close (+costs)
     ledger.mark_to_market(gw.prices(as_of=day)); ledger.accrue_fund_fees(day)
