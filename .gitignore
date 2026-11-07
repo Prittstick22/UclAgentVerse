@@ -1,0 +1,26 @@
+# env / secrets
+.env
+*.env.local
+# python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+backend/state.sqlite*
+backend/*.sqlite
+# data (synthetic is regenerated; real snapshot goes to the droplet / bucket)
+backend/data/snapshot/*
+!backend/data/snapshot/.gitkeep
+backend/runs/*
+!backend/runs/.gitkeep
+backend/app/static/
+var/
+# node
+node_modules/
+frontend/dist/
+# misc
+.DS_Store
+eval/
+archive/
