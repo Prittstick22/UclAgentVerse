@@ -1,0 +1,19 @@
+{
+ "mode": "historical",
+ "as_of": "2025-11-07",
+ "nav_gbp": 0.0,
+ "cash_gbp": 0.0,
+ "invested_gbp": 0.0,
+ "contributions_gbp": 0.0,
+ "total_return": 0.0,
+ "status": "monitoring_normally",
+ "last_review_date": null,
+ "next_review_date": null,
+ "holdings": [],
+ "counters": {
+  "reviews": 0,
+  "checks": 0,
+  "decisions_asked": 0,
+  "adjustments": 0
+ }
+}

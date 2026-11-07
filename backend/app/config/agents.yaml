@@ -1,0 +1,26 @@
+# Supervisor limits, enforced in code (backend/app/agents/supervisor.py). See docs/05-agent-system.md §3.
+max_depth: 2
+max_agents_per_run:
+  construction: 12
+  review: 4
+  rebalance: 4
+  trigger: 8
+  chat: 3
+  retrospective: 3
+  manual: 8
+max_parallel: 3
+max_children_per_agent: 2        # non-lead agents
+max_children_lead: 6
+max_tool_calls_per_agent: 8
+max_steps_per_agent: 6
+max_revision_loops: 1
+run_token_budget:
+  construction: 400000
+  review: 60000
+  rebalance: 40000
+  trigger: 200000
+  chat: 80000
+  retrospective: 120000
+  manual: 200000
+run_wall_time_s: 300
+schema_retry: 1

@@ -1,0 +1,39 @@
+{
+ "version": 1,
+ "profile": "balanced",
+ "goal": {
+  "name": "Long-term savings",
+  "target_date": "2040-01-01",
+  "starting_amount_gbp": 10000.0,
+  "monthly_contribution_gbp": 200.0
+ },
+ "ranges": {
+  "equity": [
+   0.4,
+   0.6
+  ],
+  "bond": [
+   0.35,
+   0.55
+  ],
+  "cash_min": 0.03
+ },
+ "caps": {
+  "per_fund": 0.5,
+  "per_stock": 0.03,
+  "stocks_total": 0.1
+ },
+ "exclusions": [],
+ "review_every_n_days": 10,
+ "triggers": {
+  "drift_pp": 0.05,
+  "price_move_day": 0.05,
+  "price_move_since_review": 0.1,
+  "nav_drop": 0.05,
+  "news_relevance": 0.7
+ },
+ "approval": {
+  "require_user_approval": true,
+  "batch_auto_approve_turnover_max": 0.1
+ }
+}

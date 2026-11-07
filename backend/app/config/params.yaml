@@ -1,0 +1,33 @@
+# Frozen simulation parameters. Change only via a board post BEFORE the eval-freeze tag.
+sim:
+  start: "2025-11-07"
+  end: null                    # null = last date in the snapshot
+  capital_gbp: 10000
+  monthly_contribution_gbp: 200
+review_every_n_days: 10        # 10 = fortnightly, 5 = weekly
+triggers:
+  drift_pp: 0.05               # asset class or holding this far from target (percentage points)
+  price_move_day: 0.05
+  price_move_since_review: 0.10
+  nav_drop: 0.05               # vs NAV at last review
+  news_relevance: 0.7
+  corr_jump: 0.15              # informs review only
+cooldown_days: 5
+fold_into_review_days: 2
+min_trade_gbp: 25
+costs:
+  trade: 0.0010                # labelled assumption
+  fx: 0.0015                   # extra on USD instruments
+batch_auto_approve_turnover_max: 0.10
+optimiser:
+  lambda_track: 5.0
+  lambda_turn: 1.0
+  lambda_fee: 1.0
+  lookback: 504
+  min_lookback: 252
+risk:
+  stale_after_days: 3
+periods:
+  development: ["2025-11-07", "2026-03-31"]
+  held_out: ["2026-04-01", null]
+benchmark_global_etf: "VWRP.LSE"

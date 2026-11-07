@@ -1,0 +1,8 @@
+{
+ "status": "ok",
+ "mode": "historical",
+ "as_of": "2025-11-07",
+ "version": "0.1.0",
+ "llm_mode": "fake",
+ "data_source": "synthetic"
+}

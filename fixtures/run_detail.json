@@ -1,0 +1,68 @@
+{
+ "run_id": "run_953d36bd5c",
+ "kind": "construction",
+ "trigger_text": "User asked to build a portfolio",
+ "as_of": "2025-11-07",
+ "status": "completed",
+ "outcome": "adjust",
+ "started_at": "2026-11-07T21:03:46.954894+00:00",
+ "finished_at": "2026-11-07T21:03:46.957218+00:00",
+ "agents": [
+  {
+   "agent_id": "lead_7879fe",
+   "parent_agent_id": null,
+   "depth": 0,
+   "role": "lead",
+   "model": "gemini-4-argon",
+   "question": "construction: User asked to build a portfolio",
+   "purpose": "Lead this run",
+   "status": "done",
+   "badges": []
+  },
+  {
+   "agent_id": "equity_scout_caecbc",
+   "parent_agent_id": "lead_7879fe",
+   "depth": 1,
+   "role": "equity_scout",
+   "model": "gemini-flash-latest",
+   "question": "equity_scout task for construction",
+   "purpose": "fake plan",
+   "status": "done",
+   "badges": []
+  },
+  {
+   "agent_id": "bond_scout_1c881f",
+   "parent_agent_id": "lead_7879fe",
+   "depth": 1,
+   "role": "bond_scout",
+   "model": "gemini-flash-latest",
+   "question": "bond_scout task for construction",
+   "purpose": "fake plan",
+   "status": "done",
+   "badges": []
+  },
+  {
+   "agent_id": "stock_analyst_c13a63",
+   "parent_agent_id": "lead_7879fe",
+   "depth": 1,
+   "role": "stock_analyst",
+   "model": "gemini-flash-latest",
+   "question": "stock_analyst task for construction",
+   "purpose": "fake plan",
+   "status": "done",
+   "badges": []
+  },
+  {
+   "agent_id": "filing_reader_b37ecb",
+   "parent_agent_id": "stock_analyst_c13a63",
+   "depth": 2,
+   "role": "filing_reader",
+   "model": "gemini-flash-latest",
+   "question": "Find risk-factor passages",
+   "purpose": "evidence",
+   "status": "done",
+   "badges": []
+  }
+ ],
+ "proposal_id": null
+}

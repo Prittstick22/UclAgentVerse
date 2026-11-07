@@ -1,0 +1,49 @@
+{
+ "profile": {
+  "name": "growth",
+  "tolerance_score": 0.667,
+  "capacity_score": 1.0,
+  "conflict": false,
+  "follow_up_question": null,
+  "explanation": "We used the lower of your comfort with risk (67%) and your ability to absorb a loss (100%), so your profile is growth. This is a prototype policy, not a suitability assessment."
+ },
+ "mandate": {
+  "version": 1,
+  "profile": "growth",
+  "goal": {
+   "name": "Long-term savings",
+   "target_date": "2040-01-01",
+   "starting_amount_gbp": 10000.0,
+   "monthly_contribution_gbp": 200.0
+  },
+  "ranges": {
+   "equity": [
+    0.6,
+    0.8
+   ],
+   "bond": [
+    0.15,
+    0.35
+   ],
+   "cash_min": 0.02
+  },
+  "caps": {
+   "per_fund": 0.6,
+   "per_stock": 0.04,
+   "stocks_total": 0.15
+  },
+  "exclusions": [],
+  "review_every_n_days": 10,
+  "triggers": {
+   "drift_pp": 0.05,
+   "price_move_day": 0.05,
+   "price_move_since_review": 0.1,
+   "nav_drop": 0.05,
+   "news_relevance": 0.7
+  },
+  "approval": {
+   "require_user_approval": true,
+   "batch_auto_approve_turnover_max": 0.1
+  }
+ }
+}

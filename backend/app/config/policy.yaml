@@ -1,0 +1,31 @@
+# Prototype allocation policy (NOT a suitability assessment). Frozen before the full-year run.
+# Fractions of portfolio value. See docs/07-engine-and-config.md §8.
+profiles:
+  cautious:
+    equity: [0.20, 0.40]
+    bond: [0.55, 0.75]
+    cash_min: 0.05
+    stocks_total: 0.00
+    per_stock: 0.00
+    per_fund: 0.50
+  balanced:
+    equity: [0.40, 0.60]
+    bond: [0.35, 0.55]
+    cash_min: 0.03
+    stocks_total: 0.10
+    per_stock: 0.03
+    per_fund: 0.50
+  growth:
+    equity: [0.60, 0.80]
+    bond: [0.15, 0.35]
+    cash_min: 0.02
+    stocks_total: 0.15
+    per_stock: 0.04
+    per_fund: 0.60
+  adventurous:
+    equity: [0.80, 0.98]
+    bond: [0.00, 0.15]
+    cash_min: 0.02
+    stocks_total: 0.20
+    per_stock: 0.05
+    per_fund: 0.60

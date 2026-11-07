@@ -1,0 +1,16 @@
+name: Deploy to DigitalOcean
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  deploy:
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}   # set repo variable DEPLOY_ENABLED=true once the droplet exists
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: cd /opt/uclagentverse && git pull && docker compose up -d --build

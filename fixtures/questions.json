@@ -1,0 +1,176 @@
+{
+ "questions": [
+  {
+   "id": "horizon",
+   "text": "When might you need this money?",
+   "help": "Money you need soon can't ride out a fall.",
+   "measures": "capacity",
+   "options": [
+    {
+     "id": "lt3",
+     "label": "Within 3 years"
+    },
+    {
+     "id": "3to7",
+     "label": "In 3\u20137 years"
+    },
+    {
+     "id": "7to15",
+     "label": "In 7\u201315 years"
+    },
+    {
+     "id": "gt15",
+     "label": "More than 15 years away"
+    }
+   ]
+  },
+  {
+   "id": "emergency",
+   "text": "Do you have 3+ months of spending saved separately for emergencies?",
+   "help": "If not, you may be forced to sell at a bad time.",
+   "measures": "capacity",
+   "options": [
+    {
+     "id": "no",
+     "label": "No"
+    },
+    {
+     "id": "some",
+     "label": "About 1\u20132 months"
+    },
+    {
+     "id": "yes",
+     "label": "Yes, 3 months or more"
+    }
+   ]
+  },
+  {
+   "id": "loss_goal",
+   "text": "If \u00a310,000 fell to \u00a38,000 for a year, would that stop you reaching your goal?",
+   "help": "This is about your situation, not your feelings.",
+   "measures": "capacity",
+   "options": [
+    {
+     "id": "yes",
+     "label": "Yes, it would"
+    },
+    {
+     "id": "maybe",
+     "label": "It would set me back"
+    },
+    {
+     "id": "no",
+     "label": "No, I could wait"
+    }
+   ]
+  },
+  {
+   "id": "income",
+   "text": "How steady is your income?",
+   "help": "",
+   "measures": "capacity",
+   "options": [
+    {
+     "id": "unsteady",
+     "label": "Unsteady / none"
+    },
+    {
+     "id": "ok",
+     "label": "Fairly steady"
+    },
+    {
+     "id": "steady",
+     "label": "Very steady"
+    }
+   ]
+  },
+  {
+   "id": "reaction",
+   "text": "Your \u00a310,000 drops to \u00a38,000 in a month. What do you do?",
+   "help": "",
+   "measures": "tolerance",
+   "options": [
+    {
+     "id": "sell",
+     "label": "Sell everything"
+    },
+    {
+     "id": "some",
+     "label": "Sell some"
+    },
+    {
+     "id": "hold",
+     "label": "Wait it out"
+    },
+    {
+     "id": "buy",
+     "label": "Invest more"
+    }
+   ]
+  },
+  {
+   "id": "swings",
+   "text": "Which yearly range would you accept on \u00a310,000?",
+   "help": "Higher possible gains come with bigger possible falls.",
+   "measures": "tolerance",
+   "options": [
+    {
+     "id": "narrow",
+     "label": "\u00a39,500 to \u00a310,700"
+    },
+    {
+     "id": "mid",
+     "label": "\u00a39,000 to \u00a311,200"
+    },
+    {
+     "id": "wide",
+     "label": "\u00a38,000 to \u00a312,500"
+    },
+    {
+     "id": "widest",
+     "label": "\u00a37,000 to \u00a313,500"
+    }
+   ]
+  },
+  {
+   "id": "experience",
+   "text": "Have you invested before?",
+   "help": "",
+   "measures": "context",
+   "options": [
+    {
+     "id": "never",
+     "label": "Never"
+    },
+    {
+     "id": "little",
+     "label": "A little (ISA, pension app)"
+    },
+    {
+     "id": "yes",
+     "label": "Yes, regularly"
+    }
+   ]
+  },
+  {
+   "id": "worry",
+   "text": "How often would you check your portfolio when markets fall?",
+   "help": "",
+   "measures": "tolerance",
+   "options": [
+    {
+     "id": "daily",
+     "label": "Daily and I'd worry"
+    },
+    {
+     "id": "weekly",
+     "label": "Weekly"
+    },
+    {
+     "id": "rarely",
+     "label": "Rarely"
+    }
+   ]
+  }
+ ]
+}
