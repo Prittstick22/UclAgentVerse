@@ -58,7 +58,7 @@ class RecordedEvents(EventBus):
 class RecordedReplay:
     def __init__(self, state: AppState):
         if not isinstance(state.clock, SimClock) or not isinstance(state.events, RecordedEvents):
-            raise ValueError("Recorded playback needs a historical clock and recorded event bus")
+            raise TypeError("Recorded playback needs a historical clock and recorded event bus")
         self.state = state
         self.clock = state.clock
         self.bus = state.events
