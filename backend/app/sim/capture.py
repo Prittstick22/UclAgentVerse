@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 import math
+import os
 import threading
 import time
 from pathlib import Path
@@ -166,6 +167,8 @@ async def capture(settings: Settings, out: Path, budget_file: Path, limit: float
     lock_path = Path(budget_file).with_suffix(".lock")
     lock_file = None
     report = {"status": "incomplete", "start": start, "end": end, "agents": agents}
+    # Set orders (e.g. tied trades) follow the hash seed; a fixed seed makes a later continue replay exactly.
+    report["python_hash_seed"] = os.environ.get("PYTHONHASHSEED", "random")
     try:
         budget = CaptureBudget(budget_file, limit)
         # A second capture cannot race the shared ledger; an interrupted process leaves this lock for diagnosis.

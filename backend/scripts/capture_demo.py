@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -30,6 +31,8 @@ def main() -> None:
     parser.add_argument("--review-every-from", nargs=2, metavar=("DATE", "N"),
                         help="fallback: from DATE review every N trading days (e.g. 20 = monthly)")
     args = parser.parse_args()
+    if os.environ.get("PYTHONHASHSEED") is None:
+        print("Note: set PYTHONHASHSEED=0 so this attempt can be continued exactly later.", file=sys.stderr)
     kwargs = {"_env_file": args.env_file} if args.env_file else {}
     settings = Settings(**kwargs, app_mode="historical", llm_mode="fake" if args.engine_only else "live",
                         snapshot_dir=args.snapshot, demo_persona=args.persona, gemini_model_deep="gemini-4-argon",
