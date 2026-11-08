@@ -47,6 +47,28 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 - Rules: data only via `DataGateway` with `as_of`; numbers only from `backend/app/engine/`; emit an event for every step; contract or config changes need a board post; branch `dev/<issue>-<slug>`; PR with `Closes #n`; self-merge only when CI is green. Ask before editing other people's folders (see AGENTS.md §2).
 - Test patterns: `tests/test_tools.py` (call tools via `state.supervisor.tools.call`) and `tests/test_supervisor.py` (stub Gemini client). Tests must never hit the network.
 
+### Hand-off prompt (paste this into the next agent)
+
+```
+You're taking over Dev's work on the UclAgentVerse hackathon repo (an AI investment team for first-time UK investors). Dev's previous agent ran out of credits.
+
+1. Read AGENTS.md, then docs/HANDOVER-dev.md ("Resume here" at the top).
+2. Run `git pull`, then `$env:PYTHONIOENCODING='utf-8'; python scripts/board.py list --to dev --open`, and act on anything addressed to dev or all.
+3. Do the next item in "Next, in order" in the handover. Read its GitHub issue first with `gh issue view <n>`.
+
+Rules:
+- Teammates push to main constantly. Run `git fetch && git merge origin/main` into your branch at the start, before every commit, and before opening and merging a PR. Commit before merging, and never overwrite your work.
+- Never print, log or commit API keys or .env contents.
+- Use LLM_MODE=fake unless you're doing a deliberate live check. The Gemini credits are limited.
+- This is Windows: use backend/.venv/Scripts/python, PYTHONIOENCODING=utf-8 for the board script, and encoding="utf-8" when reading or writing files.
+- Tests must not use the network. Run `cd backend && .venv/Scripts/python -m pytest -q` (and the frontend build if you touched it) before every PR.
+- Only edit Dev's areas (AGENTS.md section 2). Post on the board before changing shared files.
+- Never copy files from ../agentverse into the repo except into .agents/skills/, and keep kit names (bench, testbed, answers.jsonl, AGENTVERSE_CHALLENGE, data.binance.vision) out of our code. The organisers' provenance scan flags them. See docs/finance-kit.md.
+- Open a PR with "Closes #<n>" and merge only after CI passes.
+
+Before you stop for any reason, update the "Resume here" section in docs/HANDOVER-dev.md and push it.
+```
+
 ### Before handing back
 Update this section (done / half-done / branch), push, and post a board `handoff` to `dev` if anything is mid-flight.
 
