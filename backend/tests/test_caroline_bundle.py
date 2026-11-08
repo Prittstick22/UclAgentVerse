@@ -97,6 +97,51 @@ def test_caroline_replays_with_her_own_profile_and_mandate(repo, monkeypatch):
 
 def test_priya_is_still_the_default_persona():
     assert Settings(_env_file=None).demo_persona == "priya"
+
+
+def test_one_server_selects_both_recordings_per_browser(tmp_path, monkeypatch):
+    bundles = {
+        persona: launcher.prepare_bundle(ROOT, tmp_path / persona, persona=persona)[1]
+        for persona in ("priya", "caroline")
+    }
+    settings = Settings(_env_file=None, snapshot_dir=tmp_path / "empty-snapshot",
+                        state_db=tmp_path / "state.sqlite", llm_mode="replay", replay_only=True, demo_bundles=bundles)
+    state = build_state(settings)
+    monkeypatch.setattr(app.state, "app", state, raising=False)
+    try:
+        with TestClient(app) as caroline:
+            priya = TestClient(app)
+            assert set(priya.get("/api/profile/demos").json()) == {"priya", "caroline"}
+            assert priya.post("/api/mode", json={"mode": "historical", "persona": "priya"}).is_success
+            assert caroline.post("/api/mode", json={"mode": "historical", "persona": "caroline"}).is_success
+            assert caroline.get("/api/profile/demo").json()["name"] == "Caroline"
+            assert priya.get("/api/profile/demo").json()["name"] == "Priya"
+            assert caroline.get("/api/mandate").json()["profile"] == "aggressive"
+            assert priya.get("/api/mandate").json()["profile"] == "balanced"
+            assert caroline.get("/api/portfolio").json()["nav_gbp"] != priya.get("/api/portfolio").json()["nav_gbp"]
+            assert caroline.get("/api/benchmarks").json() != priya.get("/api/benchmarks").json()
+            fills = caroline.get("/api/portfolio/rebalances?limit=500").json()["items"]
+            assert sum(len(batch["changes"]) for batch in fills) == 59
+            assert all(batch["run_id"] is None for batch in fills)
+            run_id = caroline.get("/api/runs").json()["items"][0]["run_id"]
+            events = f"/api/runs/{run_id}/events"
+            assert caroline.get(events + "?format=json").json()["items"]
+            assert priya.get(events + "?format=json").json()["items"] == []
+            assert "event: run.completed" in caroline.get(events).text
+            assert caroline.post("/api/mode", json={"mode": "live"}).is_success
+            assert caroline.get("/api/portfolio").json()["mode"] == "live"
+            assert state.modes["live"].gw.snapshot.source_label == "eodhd"
+            assert priya.get("/api/portfolio").json()["mode"] == "historical"
+            assert caroline.get("/api/portfolio?mode=historical").json()["nav_gbp"] != priya.get("/api/portfolio").json()["nav_gbp"]
+            assert caroline.post("/api/portfolio/build").status_code == 409
+            assert caroline.post("/api/mode", json={"mode": "historical"}).is_success
+            assert caroline.get("/api/profile/demo").json()["name"] == "Caroline"
+            assert caroline.post("/api/mode", json={"mode": "historical", "persona": "priya"}).is_success
+            assert caroline.get("/api/profile/demo").json()["name"] == "Priya"
+            priya.close()
+    finally:
+        for st in [*state.demo_states.values(), state.modes["live"]]:
+            st.db.conn.close()
     assert demo_mandate().profile == "balanced"
 
 

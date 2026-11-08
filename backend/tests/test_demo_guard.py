@@ -146,5 +146,6 @@ def test_replay_works_with_no_keys(snapshot_dir, monkeypatch):
 
     c = _client(monkeypatch, state)
     h = c.get("/api/health").json()
+    assert h["live_runs_enabled"] is True
     assert h["llm_mode"] == "replay"
     assert c.post("/api/sim/start", json={"speed": 0}).status_code == 200

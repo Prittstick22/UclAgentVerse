@@ -92,14 +92,15 @@
 .mandate-fields { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
 .mandate-fields label { display: grid; gap: 4px; }
 .mandate-fields input { width: 100%; }
+.mandate-review input[type="number"] { appearance: textfield; }
+.mandate-review input[type="number"]::-webkit-inner-spin-button,
+.mandate-review input[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.mandate-errors { margin: 0; padding-left: 18px; list-style: disc; }
 
 .notice-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--terminal-edge); }
 .notice-row small { color: var(--terminal-muted); }
 .notice-row > div:first-child { flex: 1; }
 .notice-row p { color: var(--terminal-muted); margin: 3px 0; }
-.agent-opening { min-height: 280px; display: grid; align-content: center; justify-items: center; gap: 12px; }
-.agent-opening .terminal-agent-avatar { width: 58px; height: 58px; }
-.agent-opening .terminal-agent-avatar svg { width: 46px; height: 46px; }
 .agent-stage { display: grid; gap: 8px; grid-template-columns: minmax(0,1fr); }
 .agent-tile { min-width: 0; min-height: 310px; display: flex; flex-direction: column; overflow: hidden; }
 .agent-tile header { display: flex; align-items: center; gap: 8px; padding: 10px; }
@@ -114,7 +115,7 @@
 .agent-events button { text-align: left; }
 .agent-terminal { padding: 8px; border: 1px solid var(--terminal-edge); border-radius: 6px; background: var(--terminal-inset); }
 .agent-terminal summary { cursor: pointer; }
-.agent-refused { padding: 8px; border-left: 2px solid var(--terminal-negative); }
+.agent-refused { padding: 8px; border-radius: 6px; background: var(--terminal-inset); overflow-wrap: anywhere; }
 .agent-bars { display: grid; gap: 6px; }
 .agent-bars > div { display: grid; grid-template-columns: 80px minmax(0, 1fr) 60px; align-items: center; gap: 8px; }
 .agent-bars i { min-height: 7px; border-radius: 2px; background: var(--terminal-accent); }
@@ -141,7 +142,7 @@
 .proposal-team > div { flex: 1; display: flex; gap: 6px; align-items: center; border: 1px solid var(--terminal-edge); border-radius: 7px; padding: 8px; text-transform: capitalize; }
 .proposal-team > div:first-child { flex: 1.35; }
 .proposal-team > div:first-child .terminal-agent-avatar { flex-basis: 42px; height: 42px; }
-.proposal-message { padding: 12px; background: var(--terminal-inset); border-left: 2px solid var(--terminal-accent); }
+.proposal-message { padding: 12px; border-radius: 6px; background: var(--terminal-inset); overflow-wrap: anywhere; }
 .proposal-holdings { max-height: 230px; overflow: auto; }
 .proposal-gates { display: flex; gap: 6px; flex-wrap: wrap; }
 .proposal-gates li { padding: 4px 7px; background: var(--terminal-raised); border: 1px solid var(--terminal-edge); border-radius: 5px; text-transform: capitalize; }
@@ -285,7 +286,7 @@
 .agent-room-side { overflow: auto; }
 .agent-room-side header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; }
 .agent-room-side header :is(h1,h2) { margin: 0; font-size: 13px; font-weight: 600; }
-.agent-room-brief { display: grid; gap: 4px; padding: 9px 10px 12px; }
+.agent-room-brief { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 9px 10px 12px; overflow-wrap: anywhere; }
 .agent-room-brief :is(p,small) { color: var(--terminal-muted); }
 .agent-participant { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; align-items: center; gap: 6px; width: 100%; padding: 6px 9px; text-align: left; text-transform: capitalize; }
 .agent-participant:is(:hover,[aria-pressed="true"]) { background: var(--terminal-raised); }
@@ -312,7 +313,7 @@
 .agent-evidence-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .agent-event-list li > :is(button, div) > small { grid-column: 2; }
 .agent-event-list [aria-current="step"] > :is(button, div) { color: var(--terminal-text); }
-.agent-step-note { max-width: 66ch; line-height: 1.5; }
+.agent-step-note { max-width: 66ch; line-height: 1.5; overflow-wrap: anywhere; }
 .agent-sources { display: grid; gap: 8px; padding: 12px; background: var(--terminal-inset); border-radius: 4px; }
 .agent-sources .evidence-box { border: 0; padding: 0; background: none; }
 .agent-sources blockquote { margin: 8px 0; max-height: 158px; overflow-y: auto; }
@@ -333,7 +334,8 @@
   --grip-gap: 8px;
   grid-template-columns: minmax(192px, min(var(--agent-lead-width, 50% - 4px), 100% - 200px)) minmax(192px, 1fr);
 }
-.agent-stage > .agent-tile:first-child { grid-column: 1; min-height: 330px; }
+.agent-stage[data-count="2"] { grid-template-rows: auto; }
+.agent-stage > .agent-tile:first-child { grid-area: 1 / 1; min-height: 330px; }
 .agent-stage > .agent-tile:nth-child(2) { grid-area: 1 / 2; }
 .agent-stage > .agent-tile:nth-child(3) { grid-area: 2 / 2; }
 .agent-room-center:has(> .proposal-nudge) > .agent-stage { --stage-reserved-height: 64px; }
@@ -464,6 +466,7 @@
 .approval-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .approval-toggle input { accent-color: var(--terminal-signal); }
 .approval-limit { display: grid; gap: 8px; }
+.approval-limit[hidden] { display: none; }
 .approval-limit label { display: grid; gap: 4px; max-width: 16rem; }
 .terminal-bell { min-width: 28px; justify-content: center; }
 .terminal-bell svg { width: 16px; height: 16px; }

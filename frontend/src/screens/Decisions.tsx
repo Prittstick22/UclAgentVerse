@@ -4,6 +4,7 @@ import AgentAvatar from "../components/AgentAvatar";
 import HoldingIssuer from "../components/HoldingIssuer";
 import FinanceTerm from "../components/FinanceTerm";
 import { finance } from "../lib/financeTerms";
+import { publicNarrative } from "../lib/investigation";
 import { AssuranceStrip, focusInProposal, ProposalBacktest, ProposalEvidenceDrawer, proposalCalculations } from "../components/ProposalEvidence";
 export { EvidenceView } from "../components/ProposalEvidence";
 import { api, get, mockEvents, MOCK, post } from "../lib/api";
@@ -44,8 +45,8 @@ export function recordedFixture(id: string): Proposal {
 export function ProposalDialog({ id, mode, close, changed }: {
   id: string; mode?: Mode; close: () => void; changed?: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const navigate = useNavigate();
+  const dialog = useRef<HTMLDialogElement>(null);
   const response = useResource(id, async signal => MOCK ? recordedFixture(id) : get<Proposal>(pathFor(id), "", signal));
   const proposal = response.value;
   const catalogue = useResource("catalogue", signal => get<{ instruments: { ticker: string; name: string }[] }>("/catalogue", "catalogue", signal));
@@ -58,10 +59,10 @@ export function ProposalDialog({ id, mode, close, changed }: {
       get<{ items: AgentEvent[] }>("/runs/" + encodeURIComponent(runId) + "/events?format=json", "", signal));
   const [source, setSource] = useState<{ id: string; seq?: number; trigger: HTMLButtonElement }>();
   const evidenceReturnFocus = useRef<HTMLButtonElement>();
-  const [outcome, setOutcome] = useState("");
   const [error, setError] = useState("");
   const [pendingDecision, setPendingDecision] = useState<"approve" | "decline">();
   const busy = pendingDecision !== undefined;
+  const actionable = !MOCK && mode === "live" && proposal?.status === "awaiting_approval";
   const option = proposal?.options.find(item => item.label === (selection || proposal.selected)) ?? proposal?.options[0];
   const changes = option?.label === proposal?.selected ? proposal?.decision_card.changes ?? [] : [];
   const changesByTicker = new Map(changes.map(change => [change.ticker, change]));
@@ -89,16 +90,18 @@ export function ProposalDialog({ id, mode, close, changed }: {
   }, []);
 
   async function decide(decision: "approve" | "decline") {
-    if (busy || outcome) return;
+    if (busy || !actionable) return;
     setPendingDecision(decision);
     setError("");
     try {
       const result = await post<{ fill_date?: string }>(pathFor(id) + "/" + decision,
         decision === "approve" ? { option: option?.label } : {}, "");
-      setOutcome(decision === "approve" ? (result.fill_date ? "Approved · Scheduled for " + result.fill_date : "Approved · Queued for the next available close") : "Portfolio kept as is");
+      const proposalNotice = decision === "approve"
+        ? "Proposal approved. Paper trades are queued for " + (result.fill_date ?? "the next available close") + "."
+        : "Proposal declined. Your portfolio stays as it is.";
+      close();
       changed?.();
-      // Live: after approving, show the confirmation briefly, then go back to the dashboard.
-      if (decision === "approve" && mode === "live") window.setTimeout(() => { close(); navigate("/"); }, 1200);
+      navigate("/", { replace: true, state: { proposalNotice } });
     } catch (e) { setError((e as Error).message); }
     finally { setPendingDecision(undefined); }
   }
@@ -106,15 +109,15 @@ export function ProposalDialog({ id, mode, close, changed }: {
   return <dialog className="proposal-modal terminal-glass" ref={dialog} aria-labelledby="proposal-title"
     onCancel={event => { event.preventDefault(); if (!busy) close(); }}>
     <button className="mvp-action proposal-close" aria-label="Close proposal" disabled={busy} onClick={close}>×</button>
-    <h1 id="proposal-title">{proposal?.decision_card.headline ?? "Portfolio proposal"}</h1>
+    <h1 id="proposal-title">{publicNarrative(proposal?.decision_card.headline) || "Portfolio proposal"}</h1>
     {!proposal ? <p role={response.error ? "alert" : "status"}>{response.error ?? "Loading proposal…"}</p> : <>
       <p className="mvp-muted">{proposal.as_of} · Paper portfolio{mode === "historical" ? " · Recorded demo" : ""}</p>
       {run.value?.agents.length ? <div className="proposal-team">{run.value.agents.filter(agent => agent.status !== "denied").slice(0, 4).map(agent =>
         <div key={agent.agent_id}><AgentAvatar role={agent.role} /><span>{words(agent.role === "lead" ? "Lead agent" : agent.role)}</span></div>)}</div> : null}
-      {proposal.decision_card.body && <p className="proposal-message">{proposal.decision_card.body}</p>}
+      {proposal.decision_card.body && <p className="proposal-message">{publicNarrative(proposal.decision_card.body)}</p>}
       <AssuranceStrip results={proposal.gates} draft={proposal.status === "draft" && !MOCK} />
       <div className="mvp-toolbar proposal-options" aria-label="Portfolio options">{proposal.options.map(item =>
-        <button className="mvp-action" key={item.label} aria-pressed={item === option} disabled={busy || !!outcome}
+        <button className="mvp-action" key={item.label} aria-pressed={item === option} disabled={busy}
           onClick={() => { setSelection(item.label); setSource(undefined); }}>{words(item.label)}</button>)}
         {calculation && <button className="mvp-action accent compact" type="button"
           onClick={event => setSource({ id: "calc:" + calculation.id, seq: calculation.seq, trigger: event.currentTarget })}>Show calculations</button>}
@@ -154,16 +157,15 @@ export function ProposalDialog({ id, mode, close, changed }: {
       {proposal.uncertainties.length > 0 && <ul className="proposal-uncertainties">{proposal.uncertainties.map((item, i) => <li key={i}>{item}</li>)}</ul>}
       <p className="mvp-muted">{proposal.decision_card.risk_warning}</p>
       <footer className="mvp-toolbar">
-        <p className="proposal-decision-status" role="status" data-complete={!!outcome}>
-          {pendingDecision ? (pendingDecision === "approve" ? "Saving approval…" : "Saving decline…") : outcome}
-        </p>
+        {pendingDecision && <p className="proposal-decision-status" role="status">
+          {pendingDecision === "approve" ? "Saving approval…" : "Saving decline…"}
+        </p>}
         {error && <p role="alert" className="proposal-decision-status mvp-error">{error}</p>}
-        <Link to={"/runs/" + encodeURIComponent(proposal.run_id) + "?replay=1"} className="mvp-action" onClick={close}>Why this proposal?</Link>
-        {mode === "live" && <Link to="/profile" className="mvp-action" onClick={close}>Change preferences</Link>}
-        {!MOCK && mode === "live" && proposal.status === "awaiting_approval" && !outcome && <>
+        {!busy && <Link to={"/runs/" + encodeURIComponent(proposal.run_id) + "?replay=1"} className="mvp-action" onClick={close}>Replay investigation</Link>}
+        {actionable ? <>
           <button className="mvp-action" disabled={busy} onClick={() => void decide("decline")}>Decline · Keep current portfolio</button>
           <button className="mvp-action primary" disabled={busy || !option} onClick={() => void decide("approve")}>Approve</button>
-        </>}
+        </> : mode === "live" && <Link to="/" className="mvp-action primary" onClick={close}>Back to Home</Link>}
       </footer>
     </>}
   </dialog>;
@@ -192,7 +194,7 @@ export function DecisionList({ mode }: { mode?: Mode }) {
       <section className="terminal-glass glass-feedback mvp-panel" key={kind}>
         <h2>{["Decisions", "Review digest", "Data coverage"][index]}</h2>
         {resource.value?.items.filter(item => item.kind === kind).map(item => <article className="notice-row" key={item.id}>
-          <div><strong>{item.title}</strong><p>{item.body}</p><small>{item.created_at.slice(0, 10)}</small></div>
+          <div><strong>{publicNarrative(item.title)}</strong><p>{publicNarrative(item.body)}</p><small>{item.created_at.slice(0, 10)}</small></div>
           <div className="mvp-toolbar">
             {item.proposal_id && <button className="mvp-action primary" data-tour-target="proposal" onClick={() => select(item.proposal_id ?? "")}>Review proposal</button>}
             {item.run_id && <Link className="mvp-action" to={"/runs/" + encodeURIComponent(item.run_id) + "?replay=1"}>
@@ -203,6 +205,6 @@ export function DecisionList({ mode }: { mode?: Mode }) {
         </article>)}
         {!resource.value?.items.some(item => item.kind === kind) && <p className="mvp-muted">Nothing here yet.</p>}
       </section>)}
-    {selected && <ProposalDialog key={selected} id={selected} mode={mode} close={() => select("")} changed={() => refresh(n => n + 1)} />}
+    {selected && <ProposalDialog key={selected} id={selected} mode={mode} close={() => select("")} />}
   </div>;
 }

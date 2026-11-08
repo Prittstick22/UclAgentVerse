@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import CorrelationLattice from "../components/CorrelationLattice";
 import AgentAvatar from "../components/AgentAvatar";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProposalDialog } from "./Decisions";
 import HoldingIssuer from "../components/HoldingIssuer";
 import { chartDateTick, chartValueTick, moneyAxisWidth } from "../lib/chartLabels";
 import FinanceTerm from "../components/FinanceTerm";
 import { finance } from "../lib/financeTerms";
+import { investigationTitle, publicNarrative } from "../lib/investigation";
 import NewsCard from "../components/NewsCard";
 import ScrollArrivalList from "../components/ScrollArrivalList";
 import PanelGrip from "../components/PanelGrip";
@@ -308,9 +309,10 @@ function reviewResult(review: ReviewSummary) {
   return "Review completed";
 }
 
-function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificationError, markRead, marking, revision, startCheck, checking, checkError }: {
+function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificationError, markRead, marking, revision, startCheck, checking, checkError, refresh, liveRunsEnabled }: {
   portfolio: Portfolio | null; reviews: ReviewSummary[]; notifications: Notification[];
-  reviewError: string; notificationError: string; markRead: (id: string) => void; marking: string | null; revision: number; startCheck: () => void; checking: boolean; checkError: string;
+  reviewError: string; notificationError: string; markRead: (id: string) => void; marking: string | null; revision: number; startCheck: () => void; checking: boolean; checkError: string; refresh: () => void;
+  liveRunsEnabled: boolean;
 }) {
   const [view, setView] = useState<ActivityView>("Reviews");
   const [selected, setSelected] = useState<string | null>(null);
@@ -327,7 +329,9 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
     <div className="portfolio-panel-heading"><span className="portfolio-review-glyph"><TerminalBrand /></span>
       <h2 id="portfolio-review-heading">Agent review</h2></div>
     {portfolio?.mode === "live" && <div className="portfolio-review-action">
-      <button type="button" className="mvp-action primary" data-tour-target="portfolio-check" disabled={checking} onClick={startCheck}>{checking ? "Starting investigation…" : portfolio.holdings.length ? "Check portfolio now" : "Build my paper portfolio"}</button>
+      {!liveRunsEnabled ? <Link className="mvp-action primary" to="/onboarding">Choose a recorded demo</Link>
+        : portfolio.status === "investigating" ? <Link className="mvp-action" to="/workspace">Open investigations</Link>
+          : !pending && <button type="button" className="mvp-action primary" data-tour-target="portfolio-check" disabled={checking} onClick={startCheck}>{checking ? "Starting investigation…" : portfolio.holdings.length ? "Check portfolio now" : "Build my paper portfolio"}</button>}
       {checkError && <p role="alert">{checkError}</p>}
     </div>}
     <div className="portfolio-review-switch" role="group" aria-label="Review views">
@@ -339,7 +343,7 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
       {view === "Reviews" && review && <div className="portfolio-review-detail">
         <div><span>{selected === review.run_id ? "Selected review" : "Latest recorded review"}</span>
           <time dateTime={review.as_of}>{dateLabel(review.as_of)}</time></div>
-        <strong>{reviewResult(review)}</strong><p>{review.trigger_text}</p>
+        <strong>{reviewResult(review)}</strong><p>{investigationTitle(review.trigger_text, review.kind)}</p>
       </div>}
       <div className="portfolio-overview-title"><h3>Portfolio overview</h3><time dateTime={portfolio?.as_of}>{dateLabel(portfolio?.as_of)}{portfolio && " close"}</time></div>
       <div className="portfolio-overview-value"><div><span>Portfolio value</span><strong>{portfolio ? money.format(portfolio.nav_gbp) : "—"}</strong></div>
@@ -364,7 +368,7 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
         <ul className="portfolio-review-team">{agents.map((agent) => <li key={agent.agent_id} data-status={agent.status}>
           <AgentAvatar role={agent.role} />
           <div><strong>{agent.role === "lead" ? "Lead agent" : agent.role.replaceAll("_", " ")}</strong>
-            {agent.purpose && <p title={agent.purpose}>{agent.purpose}</p>}</div>
+            {agent.purpose && <p title={publicNarrative(agent.purpose)}>{publicNarrative(agent.purpose)}</p>}</div>
           <span>{agent.status}</span>
         </li>)}</ul>
       </>}
@@ -387,7 +391,7 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
       <h3>{view === "Watch" ? "Activity digest" : "Decisions"}</h3>
       {notificationError && <p className="portfolio-inline-error" role="alert">{notificationError}</p>}
       {activity.length > 0 ? <ul className="portfolio-notification-list">{activity.map((item) => <li key={item.id}>
-        <strong>{item.title}</strong><p>{item.body}</p>
+        <strong>{publicNarrative(item.title)}</strong><p>{publicNarrative(item.body)}</p>
         {item.proposal_id && <button className="mvp-action accent compact" onClick={() => setProposal(item.proposal_id ?? "")}>Review proposal</button>}
         <div><time dateTime={item.created_at}>{dateLabel(item.created_at)}</time>
           {!item.read && <button type="button" disabled={marking !== null} onClick={() => markRead(item.id)}>
@@ -396,11 +400,11 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
       </li>)}</ul> : !notificationError && <p className="portfolio-empty">{view === "Watch" ? "No activity notices yet" : "No decisions to review"}</p>}
     </section>}
     {portfolio && <footer><span>{portfolio.counters.adjustments} filled {portfolio.counters.adjustments === 1 ? "adjustment" : "adjustments"}</span></footer>}
-    {proposal && <ProposalDialog key={proposal} id={proposal} mode={portfolio?.mode} close={() => setProposal("")} />}
+    {proposal && <ProposalDialog key={proposal} id={proposal} mode={portfolio?.mode} close={() => setProposal("")} changed={refresh} />}
   </aside>;
 }
 
-export default function Home({ onClockChange }: { onClockChange?: (date: string) => void }) {
+export default function Home({ onClockChange, liveRunsEnabled }: { onClockChange?: (date: string) => void; liveRunsEnabled: boolean }) {
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((current) => current + 1), []);
   const [view, setView] = useState<ChartView>("Performance");
@@ -410,6 +414,8 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
+  const proposalNotice = typeof location.state?.proposalNotice === "string" ? location.state.proposalNotice : "";
   const [read, setRead] = useState<string[]>([]);
   const [marking, setMarking] = useState<string | null>(null);
   const [markError, setMarkError] = useState("");
@@ -481,7 +487,7 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
 
   const portfolio = summary.value;
   async function startCheck() {
-    if (!portfolio || checking) return;
+    if (!portfolio || checking || !liveRunsEnabled) return;
     setChecking(true);
     setCheckError("");
     try {
@@ -498,8 +504,12 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
   const holdingPoints = (holdingPrices.value?.points ?? []).map(({ date, close_gbp }) => ({ date, nav_gbp: close_gbp, weights: {}, contributions_gbp: null }));
   const availableNotifications = notifications.value?.items.map((item) => read.includes(item.id) ? { ...item, read: true } : item) ?? [];
   return <div className="portfolio-home resizable-desk">
-    {summary.error && <div className="portfolio-summary-error" role="alert"><span>Couldn’t load the latest portfolio summary · {summary.error}</span>
-      <button type="button" onClick={refresh}>Retry</button></div>}
+    {(proposalNotice || summary.error) && <div className="portfolio-summary-banner">
+      {proposalNotice && <div className="portfolio-summary-notice" role="status"><span>{proposalNotice}</span>
+        <button className="mvp-action compact" type="button" onClick={() => navigate("/", { replace: true, state: null })}>Dismiss</button></div>}
+      {summary.error && <div className="portfolio-summary-error" role="alert"><span>Couldn’t load the latest portfolio summary · {summary.error}</span>
+        <button className="mvp-action compact" type="button" onClick={refresh}>Retry</button></div>}
+    </div>}
     <Watchlist portfolio={portfolio} holdings={holdings} history={points} selected={selected} select={selectHolding} pending={summary.pending} />
     <div className="portfolio-center">
     <section className="portfolio-panel terminal-glass glass-feedback portfolio-chart" aria-label="Portfolio charts">
@@ -533,7 +543,7 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
     </div>
     <ReviewPanel portfolio={portfolio} reviews={reviews.value?.slice(0, 8) ?? []} notifications={availableNotifications}
       reviewError={reviews.error} notificationError={markError || (notifications.error && "Couldn’t load portfolio activity")}
-      markRead={markRead} marking={marking} revision={revision} startCheck={() => void startCheck()} checking={checking} checkError={checkError} />
+      markRead={markRead} marking={marking} revision={revision} startCheck={() => void startCheck()} checking={checking} checkError={checkError} refresh={refresh} liveRunsEnabled={liveRunsEnabled} />
     <PanelGrip edge="left" panel=".portfolio-watchlist" neighbor=".portfolio-chart" variable="--desk-left" min={168} remaining={400} label="Resize holdings and chart widths" />
     <PanelGrip edge="right" panel=".portfolio-review" neighbor=".portfolio-chart" variable="--desk-right" min={224} remaining={400} label="Resize review and chart widths" />
   </div>;

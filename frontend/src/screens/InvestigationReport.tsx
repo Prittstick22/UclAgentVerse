@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { FilledAllocation, RecordedValuePath } from "../components/InvestigationFigures";
 import { get, mockEvents, MOCK } from "../lib/api";
-import { outcomeLabel, publicSteps, record, roleLabel, safeUrl, text } from "../lib/investigation";
+import { investigationTitle, outcomeLabel, publicNarrative, publicSteps, record, roleLabel, safeUrl, text } from "../lib/investigation";
 import type { AgentEvent, DecisionCard, NewsFeed, PortfolioRebalances, RunSummary } from "../lib/types";
 import { useResource } from "../lib/useResource";
 import { gbp, pct, recordedFixture } from "./Decisions";
@@ -126,17 +126,17 @@ export default function InvestigationReport({ source }: { source?: string }) {
       {report.error ? <p role="alert">{report.error}</p> : !run ? <p role="status">Loading the recorded investigation…</p> : <>
         <section>
           <h2>Why the investigation started</h2>
-          <p>{run.trigger_text || "The reason for starting this investigation was not recorded."}</p>
+          <p>{run.trigger_text ? investigationTitle(run.trigger_text, run.kind) : "The reason for starting this investigation was not recorded."}</p>
         </section>
         <section>
           <h2>What the lead concluded</h2>
           <p><strong>{outcome}</strong></p>
-          {text(reason) && <p>{text(reason)}</p>}
+          {publicNarrative(reason) && <p>{publicNarrative(reason)}</p>}
           {run.status === "running" && <p>This report includes the steps recorded when it was opened.</p>}
         </section>
         <section>
           <h2>Portfolio decisions and trades</h2>
-          {proposed && <><p><strong>{proposed.headline}</strong></p><p>{proposed.body}</p>
+          {proposed && <><p><strong>{publicNarrative(proposed.headline)}</strong></p><p>{publicNarrative(proposed.body)}</p>
             {proposed.changes.length > 0 && <table><caption>Proposed changes</caption>
               <thead><tr><th>Investment</th><th>Action</th><th>Estimated amount</th><th>Weight before</th><th>Target weight</th></tr></thead>
               <tbody>{proposed.changes.map((change, index) => <tr key={change.ticker + index}>
@@ -172,7 +172,7 @@ export default function InvestigationReport({ source }: { source?: string }) {
             const reference = calculationDocs.get(text(calculation?.payload.name));
             return <li key={step.id} id={"report-step-" + stepNumber.get(step.id)}>
             <h3>{step.heading}</h3><p className="investigation-report-byline">{step.who}</p>
-            {step.notes.map((note, index) => <p key={index}>{note}</p>)}
+            {step.notes.map(publicNarrative).filter(Boolean).map((note, index) => <p key={index}>{note}</p>)}
             {step.method && <div className="investigation-report-method"><strong>How the calculation works</strong>
               {step.method.map(note => <p key={note}>{note}</p>)}
               {reference && <a href={reference[1]} target="_blank" rel="noreferrer">{reference[0]}</a>}

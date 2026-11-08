@@ -3,7 +3,7 @@ import { Link, Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigat
 import { DemoPasscodeDialog, ShellIcon, TerminalBrand } from "./components/TerminalShellUi";
 import { api, attachApiFeedback, MOCK } from "./lib/api";
 import type { ApiError } from "./lib/api";
-import type { Health, Mode } from "./lib/types";
+import type { DemoPersona, Health, Mode } from "./lib/types";
 import ProductTour from "./components/ProductTour";
 import type { TourSession } from "./lib/productTour";
 import Quiz, { ProfileScreen } from "./screens/Quiz";
@@ -42,22 +42,35 @@ export default function App() {
   const [modeVersion, setModeVersion] = useState(0);
   const [setupComplete, setSetupComplete] = useState(() => localStorage.getItem("ucl-paper-setup") === "1");
   const [tour, setTour] = useState<(TourSession & { serial: number }) | null>(null);
+  const [deferredLiveTour, setDeferredLiveTour] = useState<TourSession | null>(null);
   const tourSerial = useRef(0);
   const location = useLocation();
   const navigate = useNavigate();
-  const setup = !setupComplete && (location.pathname === "/" || location.pathname === "/onboarding");
+  const planReady = setupComplete || (location.pathname === "/" && typeof location.state?.proposalNotice === "string");
+  const setup = !planReady && (location.pathname === "/" || location.pathname === "/onboarding");
+  useEffect(() => {
+    if (planReady && !setupComplete) {
+      localStorage.setItem("ucl-paper-setup", "1");
+      setSetupComplete(true);
+    }
+  }, [planReady, setupComplete]);
   function finishSetup(mode: Mode, room: string) {
     localStorage.setItem("ucl-paper-setup", "1");
     setSetupComplete(true);
-    if (localStorage.getItem("ucl-guided-tour-" + mode) === "1") return false;
-    setTour({ mode, room, serial: ++tourSerial.current });
-    return true;
+    if (localStorage.getItem("ucl-guided-tour-" + mode) === "1") return;
+    if (mode === "live") setDeferredLiveTour({ mode, room });
+    else setTour({ mode, room, serial: ++tourSerial.current });
   }
 
-  function closeTour(stepId: string) {
+  useEffect(() => {
+    if (location.pathname !== "/" || health?.mode !== "live" || !deferredLiveTour) return;
+    setTour({ ...deferredLiveTour, serial: ++tourSerial.current });
+    setDeferredLiveTour(null);
+  }, [deferredLiveTour, health?.mode, location.pathname]);
+
+  function closeTour() {
     if (tour) {
       localStorage.setItem("ucl-guided-tour-" + tour.mode, "1");
-      if (tour.mode === "live" && tour.room.startsWith("/runs/") && (stepId === "welcome" || stepId === "team")) navigate(tour.room);
     }
     setTour(null);
   }
@@ -71,6 +84,7 @@ export default function App() {
   const marketMode = <span className="terminal-mode-badge" aria-live="polite">
     <ShellIcon name="clock" />{modeLabel(health, healthPending)}
   </span>;
+  const liveRunsEnabled = health !== null && health.live_runs_enabled !== false;
   const [error, setError] = useState<ApiError | null>(null);
   const [prompt, setPrompt] = useState<PendingPasscode | null>(null);
   const pendingPasscode = useRef<PendingPasscode | null>(null);
@@ -109,9 +123,9 @@ export default function App() {
     setPrompt(null);
   }
 
-  async function changeMode(mode: Mode) {
-    if (!health) return false;
-    if (mode === health.mode) return true;
+  async function changeMode(mode: Mode, persona?: DemoPersona) {
+    if (!health || (mode === "live" && !liveRunsEnabled)) return false;
+    if (mode === health.mode && !persona) return true;
     if (MOCK) {
       setHealth({ ...health, mode });
       setModeVersion(version => version + 1);
@@ -120,7 +134,8 @@ export default function App() {
     setChanging(true);
     setError(null);
     try {
-      const next = await api.setMode(mode);
+      const next = await api.setMode(mode, persona);
+      if (mode === "historical") setDeferredLiveTour(null);
       setHealth((previous) => previous && { ...previous, mode: next.mode, as_of: next.as_of, data_source: "" });
       setModeVersion((version) => version + 1);
       void api.health().then(setHealth).catch(() => {});
@@ -135,7 +150,7 @@ export default function App() {
   return (
     <div className={`terminal-shell${setup ? " terminal-setup" : ""}`}>
       {!setup && <header className="terminal-topbar terminal-glass">
-        <Link to="/" className="terminal-brand" aria-label="UclAgentVerse Home" title="UclAgentVerse">
+        <Link to="/" className="terminal-brand" aria-label="Stead Home" title="Stead">
           <TerminalBrand />
         </Link>
         <nav aria-label="Main navigation">
@@ -151,13 +166,13 @@ export default function App() {
 
       <main className="terminal-main">
         <Routes>
-          <Route path="/" element={setupComplete ? <Home key={modeVersion} onClockChange={showClock} /> : <Navigate replace to="/onboarding" />} />
-          <Route path="/runs/:runId" element={<section className="terminal-room-page terminal-glass"><Workspace mode={health?.mode} /></section>} />
+          <Route path="/" element={planReady ? <Home key={modeVersion} onClockChange={showClock} liveRunsEnabled={liveRunsEnabled} /> : <Navigate replace to="/onboarding" />} />
+          <Route path="/runs/:runId" element={<section className="terminal-room-page terminal-glass"><Workspace mode={health?.mode} liveRunsEnabled={liveRunsEnabled} /></section>} />
           <Route element={<section className="terminal-page terminal-glass"><Outlet /></section>}>
-            <Route path="/onboarding" element={<Quiz mode={health?.mode} changing={changing} onMode={changeMode} complete={finishSetup} />} />
+            <Route path="/onboarding" element={<Quiz mode={health?.mode} liveRunsEnabled={liveRunsEnabled} changing={changing} onMode={changeMode} complete={finishSetup} />} />
             <Route path="/quiz" element={<Navigate replace to="/onboarding" />} />
             <Route path="/profile" element={<ProfileScreen mode={health?.mode} restartTour={restartTour} />} />
-            <Route path="/workspace" element={<Workspace mode={health?.mode} />} />
+            <Route path="/workspace" element={<Workspace mode={health?.mode} liveRunsEnabled={liveRunsEnabled} />} />
             <Route path="/runs/:runId/report" element={<InvestigationReport source={health?.data_source} />} />
             <Route path="/timeline" element={<TimelineScreen />} />
             <Route path="/decisions" element={<DecisionList mode={health?.mode} />} />
@@ -176,7 +191,7 @@ export default function App() {
           <span className="terminal-source">{health.data_source === "synthetic" ? "SYNTHETIC data" : health.data_source}</span>
         )}
         {MOCK && <span>Mock</span>}
-        <strong>UclAgentVerse</strong>
+        <strong>Stead</strong>
       </footer>
 
       {error && (

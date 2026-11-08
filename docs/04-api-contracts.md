@@ -119,9 +119,9 @@ interface AgentNode {
 
 ## 2. Endpoints
 
-Profile notes (#115): historical mode follows the fixed fictional Priya persona. `GET /api/mandate`
-returns her mandate; both profile edit endpoints refuse changes with 409 `validation_error` and
-message `This demo follows Priya. Switch to live mode to create your own profile.` Live quiz and
+Profile notes (#115): historical mode follows the selected fictional persona (`DemoPersona = "priya" | "caroline"`).
+`GET /api/mandate` returns that persona's mandate. Profile edits in historical mode return 409
+`validation_error`. Live quiz and
 mandate editing follow the validation/versioning rules below. `GET /api/profile/demo` is read-only in either mode and never
 changes the visitor's live mandate. Its `result` uses the existing quiz scoring and its `mandate`
 uses the persona's configured goal, profile and exclusions. No provider or LLM is called.
@@ -129,6 +129,14 @@ The balanced historical CLI recording uses the same persona mandate; other CLI p
 their policy defaults. New CLI recordings store the full starting mandate in SQLite `kv`
 (`ns=sim_mandate`, `key=initial`) so it can be compared field-for-field with this endpoint.
 Older recordings without this metadata are not automatically certified or rewritten.
+
+On a server with multiple recorded demos, `GET /api/profile/demos` lists the available choices.
+`POST /api/mode` accepts an optional `persona` in historical mode and sets the HTTP-only
+`stead_workspace` cookie for that browser. Omitting the persona preserves the current choice,
+or uses the configured default on first visit. An unavailable recording returns 404. Supplying a
+persona in live mode returns 422. Reads and event streams use the selected recording. A server
+using the legacy single-recording configuration without `DEMO_BUNDLES` retains its existing mode
+behavior and lists only that profile.
 
 Live mandate notes (#8): equity/bond ranges must be ordered subsets of the
 profile policy ranges; cash minimum cannot fall below policy; caps must be
@@ -158,11 +166,12 @@ answers retain conservative zero scores for backwards compatibility.
 
 | Method + path | Body / query | Response | Owner |
 |---|---|---|---|
-| `GET /api/health` | — | `{status:"ok", mode, as_of, version, llm_mode, data_source}` | Jin |
+| `GET /api/health` | — | `{status:"ok", mode, as_of, version, llm_mode, data_source, live_runs_enabled: boolean}`; false for replay-only servers | Jin |
 | `GET /api/mode` | — | `{mode, as_of, sim:{running, speed, start, end}}` | Jin |
-| `POST /api/mode` | `{mode}` | same as GET | Jin |
+| `POST /api/mode` | `{mode, persona?: DemoPersona}` | same as GET | Jin |
 | `GET /api/profile/questions` | — | `{questions: Question[]}`, where `Question = {id, text, help, measures: "tolerance"\|"capacity"\|"context", options: {id, label}[]}` | Jin |
 | `GET /api/profile/demo` | — (available in both modes, read-only) | `DemoProfile = {name: string, age: number, story: string, profile: ProfileName, goal: Goal, answers: Record<string,string>, synthetic: true, result: ProfileResult, mandate: Mandate}` | Jin |
+| `GET /api/profile/demos` | — (available in both modes, read-only) | Map from available `DemoPersona` values to `DemoProfile` | Jin |
 | `POST /api/profile/quiz` | `QuizRequest = {answers: {[qid]: option_id}, goal?: Mandate.goal\|null, exclusions?: string[], follow_up_answer?: "yes"\|"no"\|null}` | `{profile: {name, tolerance_score, capacity_score, conflict: boolean, follow_up_question: string\|null, explanation: string}, mandate: Mandate}`; historical mode: 409 `validation_error`; invalid request: 422 `validation_error` with `details.fields` | Jin |
 | `GET /api/mandate` | — | `Mandate` | Jin |
 | `PUT /api/mandate` | `Mandate` | `Mandate` (version+1), or 422 `validation_error`; historical mode: 409 `validation_error` | Jin |
@@ -174,7 +183,7 @@ answers retain conservative zero scores for backwards compatibility.
 | `GET /api/portfolio/history` | `?mode&start&end` | `{points: {date, nav_gbp, weights: {[ticker]: number}, contributions_gbp: number\|null}[]}` | Mo |
 | `GET /api/portfolio/holdings/{ticker}/prices` | `?limit=90` (1–260) | `{ticker, as_of, points: [{date, close_gbp}]}` with ascending adjusted daily GBP closes through the active clock. | Mo |
 | `GET /api/portfolio/pnl` | `?mode&period=since_purchase\|1m\|3m\|ytd\|sim_year` | `{period, rows: {ticker, name, pnl_gbp, pnl_pct, realised_gbp, unrealised_gbp, contribution_to_return}[], total_pnl_gbp}` | Mo |
-| `GET /api/portfolio/rebalances` | `?mode&limit=20` | `{items: {date, run_id, trigger_kind, trigger_text, changes: OrderChange[], cost_gbp}[]}` | Mo |
+| `GET /api/portfolio/rebalances` | `?mode&limit=20` | `{items: {date, run_id, trigger_kind, trigger_text, changes: OrderChange[], cost_gbp}[]}`; `run_id` is null for recorded fills with dated weights but no investigation link | Mo |
 | `GET /api/benchmarks` | `?mode` | `{series: {[name]: {date, nav_gbp}[]}, metrics: {[name]: Metrics}, periods: {development: [start, end], held_out: [start, end]}}`, where `Metrics = {total_return, vol_annual, max_drawdown, sharpe, turnover, costs_gbp, trades}`; names: `ours`, `buy_and_hold`, `quarterly_rebalance`, `global_etf`, `mechanical_5pct` | Cem |
 | `GET /api/risk/correlation` | `?mode&as_of&lookback&tickers` (`lookback` default = params `optimiser.lookback`, 504; `as_of` = any past date, future → 400 `asof_violation`) | `{as_of, lookback, tickers: string[], matrix: number[][], avg_pairwise: number, callouts: {a, b, corr, text}[], history_days: number, short_history: boolean}` (`short_history` = fewer than 252 return rows were available; used anyway, flagged) | Cem |
 | `GET /api/runs` | `?mode&kind&limit` | `{items: RunSummary[]}` (agents omitted) | Jin |

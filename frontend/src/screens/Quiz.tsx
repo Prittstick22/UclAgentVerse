@@ -1,43 +1,47 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AgentAvatar from "../components/AgentAvatar";
 import { ShellIcon } from "../components/TerminalShellUi";
 import { api, ApiError, get, MOCK, put } from "../lib/api";
 import { useResource } from "../lib/useResource";
-import type { DemoProfile, Mandate, Mode, ProfileResult, Question } from "../lib/types";
+import type { DemoPersona, DemoProfile, Mandate, Mode, ProfileResult, Question } from "../lib/types";
 import "./mvp.css";
 
 type Profile = { profile: ProfileResult; mandate: Mandate };
-type ExampleProfile = Pick<DemoProfile, "name" | "story" | "profile" | "result" | "answers"> & { ranges: Mandate["ranges"]; recording: boolean; stockRange?: [number, number] };
-
-// The higher-risk scenario uses the aggressive policy. Its quiz answers score as adventurous.
-const caroline: ExampleProfile = {
-  name: "Caroline", profile: "aggressive", recording: false,
-  story: "Caroline invests regularly and is saving for a goal more than 15 years away. She has an emergency fund and would invest more during a market fall.",
-  answers: { horizon: "gt15", emergency: "yes", loss_goal: "no", income: "steady", reaction: "buy", swings: "widest", experience: "yes", worry: "rarely" },
-  result: { name: "adventurous", tolerance_score: 1, capacity_score: 1, conflict: false, follow_up_question: null,
-    explanation: "Caroline’s answers reach the quiz’s highest risk band. This example uses a separate, stock-heavy investment plan." },
-  ranges: { equity: [.95, .98], bond: [0, 0], cash_min: .02 },
-  stockRange: [.57, .60],
-};
 
 const percentField = (value: number) => Math.round(value * 100) + "%";
+const loadDemoProfile = (signal: AbortSignal) => get<DemoProfile>("/profile/demo", "demo_profile", signal);
+const demoPersonas: DemoPersona[] = ["priya", "caroline"];
 
-export default function Quiz({ mode, changing, onMode, complete }: {
-  mode?: Mode; changing: boolean; onMode: (mode: Mode) => Promise<boolean>; complete: (mode: Mode, room: string) => boolean;
+export default function Quiz({ mode, liveRunsEnabled, changing, onMode, complete }: {
+  mode?: Mode; liveRunsEnabled: boolean; changing: boolean; onMode: (mode: Mode, persona?: DemoPersona) => Promise<boolean>; complete: (mode: Mode, room: string) => void;
 }) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [step, setStep] = useState(0);
   const [result, setResult] = useState<Profile | null>(null);
   const [entry, setEntry] = useState<Mode>("historical");
-  const [demo, setDemo] = useState<ExampleProfile | null>(null);
+  const demos = useResource("demo-profiles", api.demos);
+  const [persona, setPersona] = useState<DemoPersona>("priya");
+  const demo = entry === "historical" ? demos.value?.[persona] : undefined;
   const [busy, setBusy] = useState(false);
   const [confirmingAnswer, setConfirmingAnswer] = useState(false);
   const [error, setError] = useState("");
   const timer = useRef<number>();
   const title = useRef<HTMLHeadingElement>(null);
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const requestedDemo = useRef(params.get("demo"));
+
+  useEffect(() => {
+    if (!demos.value || !requestedDemo.current) return;
+    const selected = demoPersonas.find(id => id === requestedDemo.current);
+    requestedDemo.current = null;
+    if (selected && demos.value[selected] && step === 0 && entry === "historical") {
+      setPersona(selected);
+      setStep(1);
+    }
+  }, [demos.value, entry, step]);
 
   useEffect(() => {
     const abort = new AbortController();
@@ -46,16 +50,15 @@ export default function Quiz({ mode, changing, onMode, complete }: {
     return () => { abort.abort(); window.clearTimeout(timer.current); };
   }, []);
 
-  async function chooseMode(next: Mode) {
+  async function enterMode(next: Mode) {
     setBusy(true);
     setError("");
     try {
-      if (!await onMode(next)) throw new Error("Couldn’t change the market mode. Try again.");
+      if (!await onMode(next, next === "historical" ? persona : undefined)) throw new Error("Couldn’t open this workspace. Try again.");
       if (next === "historical") {
-        const profile = await get<DemoProfile>("/profile/demo", "demo_profile");
-        setDemo({ ...profile, ranges: profile.mandate.ranges, recording: true });
-      } else setDemo(null);
-      setStep(1);
+        complete("historical", "/timeline");
+        navigate("/");
+      } else setStep(1);
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -84,19 +87,20 @@ export default function Quiz({ mode, changing, onMode, complete }: {
     setError("");
     setBusy(true);
     try {
-      await put("/mandate", mandate, "mandate");
+      const saved = await put("/mandate", mandate, "mandate");
+      setResult(previous => previous && { ...previous, mandate: saved });
       const { run_id } = await api.build();
       const room = "/runs/" + encodeURIComponent(run_id) + "?live=1";
-      navigate(complete("live", room) ? "/" : room);
-    } catch (e) { setError(planError(e)); }
-    finally { setBusy(false); }
+      complete("live", room);
+      navigate(room);
+    } finally { setBusy(false); }
   }
 
   const question = questions[step - 1];
   const answerLocked = confirmingAnswer || busy;
   const isDemo = step > 0 && demo;
   const count = isDemo ? 2 : questions.length + 2;
-  const heading = step === 0 ? "Welcome to your AI investment team" : isDemo ? "Meet " + demo.name :
+  const heading = step === 0 ? "Welcome to Stead" : isDemo ? "Meet " + demo.name :
     question ? question.text : "Review your investment plan";
   useEffect(() => { title.current?.focus(); }, [step, heading]);
 
@@ -111,8 +115,8 @@ export default function Quiz({ mode, changing, onMode, complete }: {
       <AgentAvatar role="lead" />
       <h1 ref={title} tabIndex={-1}>{heading}</h1>
       {step === 0 ? <>
-        <p>The team builds and monitors a paper portfolio around your goals and how much risk you’re comfortable taking.</p>
-        <fieldset className="onboard-entry" disabled={busy || changing}>
+        <p>Your AI investment team builds and monitors a paper portfolio around your goals and how much risk you’re comfortable taking.</p>
+        {liveRunsEnabled && <fieldset className="onboard-entry" disabled={busy || changing}>
           <legend>We recommend trying the demo first</legend>
           <div>
             <label className="glass-feedback">
@@ -130,18 +134,23 @@ export default function Quiz({ mode, changing, onMode, complete }: {
               <span id="entry-live-description">Skip the demo and set up your own paper portfolio with current market data. Live research takes longer because the agents run their checks in real time.</span>
             </label>
           </div>
-        </fieldset>
+        </fieldset>}
         {entry === "historical" && <section className="onboard-demo-list mvp-enter" aria-labelledby="onboard-demo-heading">
           <h2 id="onboard-demo-heading">Choose a demo profile</h2>
-          <div className="onboard-options">
-            <button className="glass-feedback" disabled={busy || changing || !mode} onClick={() => void chooseMode("historical")}><strong>Priya</strong>
-              <span>Lower risk tolerance · Full portfolio replay</span></button>
-            <button className="glass-feedback" disabled={busy || changing} onClick={() => { setDemo(caroline); setError(""); setStep(1); }}><strong>Caroline</strong>
-              <span>Higher risk tolerance · Profile walkthrough</span></button>
-          </div>
+          {demos.value ? <div className="onboard-options">{demoPersonas.map(id => {
+            const profile = demos.value?.[id];
+            return profile && <button key={id} className="glass-feedback" disabled={busy || changing}
+              onClick={() => { setPersona(id); setError(""); setStep(1); }}>
+              <strong>{profile.name}</strong>
+              <span>{profile.profile === "aggressive" ? "Higher-risk portfolio" : "Lower-risk portfolio"} · Full portfolio replay</span>
+            </button>;
+          })}</div> : demos.error ? <>
+            <p role="alert">Couldn’t load the demo profiles.</p>
+            <button type="button" className="mvp-action" onClick={() => window.location.reload()}>Try again</button>
+          </> : <p role="status">Loading demo profiles…</p>}
         </section>}
-        {entry === "live" && <button className="mvp-action onboard-start mvp-enter" disabled={busy || changing || !mode}
-          onClick={() => void chooseMode("live")}>{busy || changing ? "Opening live setup…" : "Let’s go"}</button>}
+        {liveRunsEnabled && entry === "live" && <button className="mvp-action onboard-start mvp-enter" disabled={busy || changing || !mode}
+          onClick={() => void enterMode("live")}>{busy || changing ? "Opening live setup…" : "Let’s go"}</button>}
       </> : isDemo ? <>
         <p>{demo.story}</p>
         <dl className="onboard-demo-scores">
@@ -149,17 +158,18 @@ export default function Quiz({ mode, changing, onMode, complete }: {
           <div><dt>Ability to absorb a loss</dt><dd>{percentField(demo.result.capacity_score)}</dd></div>
           <div><dt>Investment profile</dt><dd>{demo.profile}</dd></div>
         </dl>
-        {demo.recording ? <Link className="mvp-action primary" to="/" onClick={() => complete("historical", "/timeline")}>Explore demo</Link> : <>
-          <p>{demo.result.explanation}</p>
-          <p>Example allocation · Shares {demo.ranges.equity.map(percentField).join("–")} · Bonds {percentField(demo.ranges.bond[1])}
-            {demo.stockRange && " · Individual stocks " + demo.stockRange.map(percentField).join("–")}</p>
+        {demo.mandate.caps.stocks_min != null && <>
+          <p>Target allocation · Shares {demo.mandate.ranges.equity.map(percentField).join("–")} · Bonds {demo.mandate.ranges.bond.map(percentField).filter((value, index, values) => index === 0 || value !== values[0]).join("–")}
+            {" · Individual stocks " + [demo.mandate.caps.stocks_min, demo.mandate.caps.stocks_total].map(percentField).join("–")}</p>
           {questions.length > 0 && <details className="desk-disclosure onboard-demo-answers">
-            <summary>See Caroline’s answers</summary>
+            <summary>See {demo.name}’s answers</summary>
             <dl>{questions.map(question => <div key={question.id}>
               <dt>{question.text}</dt><dd>{question.options.find(option => option.id === demo.answers[question.id])?.label}</dd>
             </div>)}</dl>
           </details>}
         </>}
+        <button className="mvp-action primary" disabled={busy || changing || !mode}
+          onClick={() => void enterMode("historical")}>{busy ? "Opening demo…" : "Explore demo"}</button>
       </> : question ? <>
         <p>{question.help}</p>
         <div className="onboard-options" role="group" aria-label="Answer choices">{question.options.map(option => {
@@ -168,7 +178,7 @@ export default function Quiz({ mode, changing, onMode, complete }: {
             aria-disabled={answerLocked && selected || undefined}
             onClick={() => choose(question, option.id)}>{option.label}</button>;
         })}</div>
-      </> : result ? <MandateReview key={`${result.mandate.version}:${result.profile.name}`} mandate={result.mandate} profile={result.profile} busy={busy} submit={build} /> : <p role="status">Loading questions…</p>}
+      </> : result ? <MandateReview mandate={result.mandate} profile={result.profile} busy={busy} submit={build} /> : <p role="status">Loading questions…</p>}
       {error && <p className="mvp-error" role="alert">{error}</p>}
       {step > 0 && <button className="mvp-action" disabled={busy} onClick={() => {
         window.clearTimeout(timer.current); timer.current = undefined;
@@ -178,108 +188,150 @@ export default function Quiz({ mode, changing, onMode, complete }: {
   </div>;
 }
 
-const FIELD_LABELS: Record<string, string> = {
-  "ranges.equity": "Shares min/max", "ranges.bond": "Bonds min/max", "ranges.cash_min": "Cash minimum",
-  "caps.per_fund": "Fund cap", "caps.per_stock": "Stock cap", "caps.stocks_total": "All stocks cap",
-  "caps.stocks_min": "Stocks minimum", review_every_n_days: "Review every",
+const planFieldLabels: Record<string, string> = {
+  "ranges.equity": "Shares range",
+  "ranges.bond": "Bonds range",
+  "ranges.cash_min": "Cash minimum",
+  "caps.per_fund": "Fund cap",
+  "caps.per_stock": "Stock cap",
+  "caps.stocks_total": "All stocks cap",
+  "caps.stocks_min": "Stocks minimum",
+  "goal.starting_amount_gbp": "Starting amount",
+  "goal.monthly_contribution_gbp": "Monthly contribution",
   "approval.batch_auto_approve_turnover_max": "Maximum turnover per proposal",
+  review_every_n_days: "Review frequency",
+  exclusions: "Exclusions",
 };
 
-/** "Invalid mandate." + the backend's per-field reasons, with fractions shown as percentages. */
-export function planError(e: unknown): string {
-  const fields = e instanceof ApiError ? (e.details as { fields?: Record<string, string> } | undefined)?.fields : undefined;
-  if (!fields || !Object.keys(fields).length) return (e as Error).message;
-  const pct = (s: string) => s.replace(/\d*\.\d+|\b[01]\b/g, n => `${Number((Number(n) * 100).toFixed(1))}%`);
-  return "Please fix your investment plan: " + Object.entries(fields)
-    .map(([k, v]) => `${FIELD_LABELS[k] ?? k}: ${k.startsWith("goal.") || k === "review_every_n_days" ? v : pct(v)}`).join(" · ");
+const formatPlanPercent = new Intl.NumberFormat("en-GB", { style: "percent", maximumFractionDigits: 6 });
+function planErrors(error: unknown): string[] {
+  const fields = error instanceof ApiError ? (error.details as { fields?: Record<string, unknown> } | undefined)?.fields : undefined;
+  const messages = fields && typeof fields === "object" ? Object.entries(fields).flatMap(([field, message]) => {
+    if (typeof message !== "string") return [];
+    const label = planFieldLabels[field.replace(/\.[01]$/, "")];
+    const readable = message
+      .replace(/within \[([\d.]+), ([\d.]+)\]/, (_, min, max) => "within " + formatPlanPercent.format(Number(min)) + "–" + formatPlanPercent.format(Number(max)))
+      .replace(/between ([\d.]+) and (\d+(?:\.\d+)?)/, (_, min, max) => "between " + formatPlanPercent.format(Number(min)) + " and " + formatPlanPercent.format(Number(max)))
+      .replace("Minimum equity, bond and cash weights cannot total more than 1.", "Minimum shares, bonds and cash must add up to 100% or less.");
+    return [label ? label + ". " + readable : readable];
+  }) : [];
+  return messages.length ? messages : [error instanceof Error ? error.message : "Couldn’t save your investment plan."];
 }
 
-/** A % input that can be cleared and retyped: keeps the typed text while editing, updates the plan when it's a number. */
-function PercentInput({ label, value, onValue }: { label: string; value: number; onValue: (value: number) => void }) {
-  const shown = String(Number((value * 100).toFixed(2)));
-  const [text, setText] = useState(shown);
-  return <label>{label}<input className="terminal-field" type="number" min="0" max="100" step="0.1" value={text}
-    onChange={e => { setText(e.target.value); if (e.target.value.trim() !== "" && Number.isFinite(Number(e.target.value))) onValue(Number(e.target.value) / 100); }}
-    onBlur={() => setText(shown)} required /></label>;
-}
-
-function MandateReview({ mandate: initial, profile, busy, submit, saveOnly = false }: {
-  mandate: Mandate; profile?: ProfileResult; busy: boolean; submit: (mandate: Mandate) => void; saveOnly?: boolean;
+function MandateReview({ mandate, profile, busy, submit, saveOnly = false }: {
+  mandate: Mandate; profile?: ProfileResult; busy: boolean; submit: (mandate: Mandate) => Promise<void>; saveOnly?: boolean;
 }) {
-  // Seeded once per mandate: the parent passes key={version} so a new quiz result rebuilds the form with its values.
-  const [mandate, setMandate] = useState(initial);
-  const percentage = (label: string, value: number, change: (value: number) => Mandate) =>
-    <PercentInput label={label} value={value} onValue={v => setMandate(change(v))} />;
-  return <form className="mandate-review" onSubmit={e => { e.preventDefault(); submit(mandate); }}>
+  const [autoApprove, setAutoApprove] = useState(!mandate.approval.require_user_approval);
+  const [errors, setErrors] = useState<string[]>([]);
+  const percentage = (name: string, label: string, value: number, inactive = false) =>
+    <label>{label}<input className="terminal-field" name={name} type="number" min="0" max="100" step="any" required
+      defaultValue={Number((value * 100).toPrecision(15))} disabled={busy || inactive} /></label>;
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const form = event.currentTarget;
+    const fields = new FormData(form);
+    const number = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).valueAsNumber;
+    const fraction = (name: string) => number(name) / 100;
+    const submitted: Mandate = {
+      ...mandate,
+      goal: {
+        ...mandate.goal,
+        starting_amount_gbp: number("starting_amount_gbp"),
+        monthly_contribution_gbp: number("monthly_contribution_gbp"),
+      },
+      ranges: {
+        equity: [fraction("sharesMin"), fraction("sharesMax")],
+        bond: [fraction("bondsMin"), fraction("bondsMax")],
+        cash_min: fraction("cashMin"),
+      },
+      caps: {
+        ...mandate.caps,
+        per_fund: fraction("per_fund"),
+        per_stock: fraction("per_stock"),
+        stocks_total: fraction("stocks_total"),
+      },
+      review_every_n_days: number("reviewDays"),
+      exclusions: String(fields.get("exclusions") ?? "").split(",").map(value => value.trim()).filter(Boolean),
+      approval: {
+        require_user_approval: !autoApprove,
+        batch_auto_approve_turnover_max: fields.has("turnoverMax") ? fraction("turnoverMax") : mandate.approval.batch_auto_approve_turnover_max,
+      },
+    };
+    setErrors([]);
+    try { await submit(submitted); }
+    catch (error) { setErrors(planErrors(error)); }
+  }
+
+  return <form className="mandate-review" onSubmit={save} onChange={() => { if (errors.length) setErrors([]); }}>
     {profile && <>
       <p>{profile.explanation}</p>
       <p className="mvp-muted">Your risk score uses the lower of how comfortable you are with a fall ({profile.tolerance_score}) and how much of a loss you could absorb ({profile.capacity_score}).</p>
       {profile.follow_up_question && <p>{profile.follow_up_question}</p>}
     </>}
     <div className="mandate-fields">
-      {(["equity", "bond"] as const).flatMap(asset => ([0, 1] as const).map(index =>
-        <div key={asset + index}>{percentage((asset === "equity" ? "Shares" : "Bonds") + (index ? " max (%)" : " min (%)"), mandate.ranges[asset][index], value => {
-          const range: [number, number] = [...mandate.ranges[asset]];
-          range[index] = value;
-          return { ...mandate, ranges: { ...mandate.ranges, [asset]: range } };
-        })}</div>))}
-      {percentage("Cash minimum (%)", mandate.ranges.cash_min, value => ({ ...mandate, ranges: { ...mandate.ranges, cash_min: value } }))}
-      {(["per_fund", "per_stock", "stocks_total"] as const).map((cap, i) =>
-        <div key={cap}>{percentage(["Fund cap (%)", "Stock cap (%)", "All stocks cap (%)"][i], mandate.caps[cap],
-          value => ({ ...mandate, caps: { ...mandate.caps, [cap]: value } }))}</div>)}
-      <label>Review every (trading days)<input className="terminal-field" type="number" min="1" required value={mandate.review_every_n_days}
-        onChange={e => setMandate({ ...mandate, review_every_n_days: Number(e.target.value) })} />
+      {percentage("sharesMin", "Shares min (%)", mandate.ranges.equity[0])}
+      {percentage("sharesMax", "Shares max (%)", mandate.ranges.equity[1])}
+      {percentage("bondsMin", "Bonds min (%)", mandate.ranges.bond[0])}
+      {percentage("bondsMax", "Bonds max (%)", mandate.ranges.bond[1])}
+      {percentage("cashMin", "Cash minimum (%)", mandate.ranges.cash_min)}
+      {percentage("per_fund", "Fund cap (%)", mandate.caps.per_fund)}
+      {percentage("per_stock", "Stock cap (%)", mandate.caps.per_stock)}
+      {percentage("stocks_total", "All stocks cap (%)", mandate.caps.stocks_total)}
+      <label>Review every (trading days)<input className="terminal-field" name="reviewDays" type="number" min="1" step="1" required
+        defaultValue={mandate.review_every_n_days} disabled={busy} />
         <small>10 trading days is roughly two weeks. A review checks the portfolio and can propose a change.</small></label>
-      {(["starting_amount_gbp", "monthly_contribution_gbp"] as const).map(field =>
-        <label key={field}>{field === "starting_amount_gbp" ? "Starting amount (£)" : "Monthly contribution (£)"}
-          <input className="terminal-field" type="number" min={field === "starting_amount_gbp" ? 100 : 0} step="50" required
-            defaultValue={mandate.goal[field]}
-            onChange={e => { if (e.target.value.trim() !== "" && Number.isFinite(Number(e.target.value)))
-              setMandate({ ...mandate, goal: { ...mandate.goal, [field]: Number(e.target.value) } }); }} /></label>)}
-      <label>Exclusions (comma separated)<input className="terminal-field" defaultValue={mandate.exclusions.join(", ")}
-        onChange={e => setMandate({ ...mandate, exclusions: e.target.value.split(",").map(x => x.trim()).filter(Boolean) })} />
+      <label>Starting amount (£)<input className="terminal-field" name="starting_amount_gbp" type="number" min="0" step="0.01"
+        required defaultValue={mandate.goal.starting_amount_gbp} disabled={busy} /></label>
+      <label>Monthly contribution (£)<input className="terminal-field" name="monthly_contribution_gbp" type="number" min="0" step="0.01"
+        required defaultValue={mandate.goal.monthly_contribution_gbp} disabled={busy} /></label>
+      <label>Exclusions (comma separated)<input className="terminal-field" name="exclusions" defaultValue={mandate.exclusions.join(", ")} disabled={busy} />
         <small>Enter exact tickers or catalogue groups, separated by commas. Leave blank for no exclusions.</small></label>
     </div>
     {saveOnly && !MOCK && <fieldset className="approval-preferences">
       <legend>Paper trade approval</legend>
       <label className="approval-toggle">
-        <input type="checkbox" checked={!mandate.approval.require_user_approval}
-          onChange={event => setMandate({ ...mandate, approval: { ...mandate.approval, require_user_approval: !event.target.checked } })} />
+        <input type="checkbox" checked={autoApprove} disabled={busy} onChange={event => setAutoApprove(event.target.checked)} />
         Automatically approve eligible proposals
       </label>
       <p className="mvp-muted">Only applies to new live paper proposals that pass the assurance checks and stay within your turnover limit. Anything larger still asks for your approval.</p>
-      {!mandate.approval.require_user_approval && <div className="approval-limit mvp-enter">
-        {percentage("Maximum turnover per proposal (%)", mandate.approval.batch_auto_approve_turnover_max,
-          value => ({ ...mandate, approval: { ...mandate.approval, batch_auto_approve_turnover_max: value } }))}
+      <div className="approval-limit mvp-enter" hidden={!autoApprove}>
+        {percentage("turnoverMax", "Maximum turnover per proposal (%)", mandate.approval.batch_auto_approve_turnover_max, !autoApprove)}
         <p className="mvp-muted">Turnover is the share of the portfolio that would move between investments or cash. Switch off auto-approval and save to require approval for future proposals.</p>
-      </div>}
+      </div>
     </fieldset>}
-    <button className="mvp-action primary" disabled={busy}>{busy ? "Saving…" : saveOnly ? "Save investment plan" : "Build my paper portfolio"}</button>
+    {errors.length > 0 && <ul className="mandate-errors mvp-error" role="alert">
+      {errors.map((message, index) => <li key={index}>{message}</li>)}
+    </ul>}
+    <button type="submit" className="mvp-action primary" disabled={busy}>{busy ? "Saving…" : saveOnly ? "Save investment plan" : "Build my paper portfolio"}</button>
     {MOCK && <p className="mvp-muted">Fixture preview</p>}
   </form>;
 }
 
 export function ProfileScreen({ mode, restartTour }: { mode?: Mode; restartTour: () => void }) {
-  const resource = useResource("profile:" + mode, signal => get<Mandate>("/mandate", "mandate", signal));
+  const resource = useResource("profile:" + mode, signal => mode === "live" ? get<Mandate>("/mandate", "mandate", signal) : Promise.resolve(null));
+  const demo = useResource("demo:" + mode, signal => mode === "historical" ? loadDemoProfile(signal) : Promise.resolve(null));
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [saved, setSaved] = useState<Mandate>();
   const [busy, setBusy] = useState(false);
+  const mandate = saved ?? resource.value;
   async function save(mandate: Mandate) {
     setBusy(true);
-    setError("");
     setMessage("");
-    try { await put("/mandate", mandate, "mandate"); setMessage("Investment plan saved"); }
-    catch (e) { setError(planError(e)); }
-    finally { setBusy(false); }
+    try {
+      setSaved(await put("/mandate", mandate, "mandate"));
+      setMessage("Investment plan saved");
+    } finally { setBusy(false); }
   }
   return <div className="onboard onboard-step mvp-enter">
     <AgentAvatar role="lead" />
     <h1>Your profile</h1>
-    <p>{mode === "historical" ? "Demo · Priya’s recorded paper portfolio" : "Real · Paper portfolio using current markets"}</p>
-    {mode === "live" && resource.value && <MandateReview key={resource.value.version} mandate={resource.value} busy={busy} submit={save} saveOnly />}
+    <p>{mode === "historical" ? demo.value ? `Demo · ${demo.value.name}’s recorded paper portfolio` : "Demo · Recorded paper portfolio" : "Live · Paper portfolio using current markets"}</p>
+    {mode === "live" && mandate && <MandateReview mandate={mandate} busy={busy} submit={save} saveOnly />}
     {mode === "live" && !resource.value && !resource.error && <p role="status">Loading your investment plan…</p>}
     {message && <p role="status">{message}</p>}
-    {(error || resource.error) && <p role="alert" className="mvp-error">{error || resource.error}</p>}
+    {resource.error && <p role="alert" className="mvp-error">{resource.error}</p>}
     <div className="mvp-toolbar"><Link className="mvp-action" to="/onboarding">Change mode or retake questions</Link>
       {mode && <button type="button" className="mvp-action" onClick={restartTour}>Guided tour</button>}</div>
   </div>;

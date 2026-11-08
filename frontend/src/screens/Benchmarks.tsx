@@ -6,6 +6,7 @@ import {
 import Term from "../components/FinanceTerm";
 import { chartDateTick, chartValueTick, moneyAxisWidth, percentAxisWidth } from "../lib/chartLabels";
 import { get, MOCK } from "../lib/api";
+import { investigationTitle } from "../lib/investigation";
 import {
   benchmarkNames, joinBenchmarkSeries, sp500Key, sp500ReturnSeries, sp500Ticker, type Benchmarks,
 } from "../lib/benchmarkData";
@@ -79,6 +80,7 @@ export default function BenchmarkScreen() {
   const data = useMemo(() => joinBenchmarkSeries(report.value?.series ?? {}), [report.value]);
   const names = Object.entries(report.value?.series ?? {}).filter(([, points]) => points.length).map(([name]) => name);
   const strategies = Object.keys(report.value?.metrics ?? {});
+  const showReplayNote = !MOCK && hasWindow && strategies.length > 0;
   const colors = new Map([...new Set([...names, ...strategies])].map((name, index) => [name, palette[index % palette.length]]));
   colors.set(sp500Key, marketColor);
   const color = (name: string) => colors.get(name) ?? palette[0];
@@ -112,7 +114,7 @@ export default function BenchmarkScreen() {
       <div><h1><span data-tour-target="benchmarks-intro">Benchmarks</span></h1><p>Compare how the agents’ paper portfolio performed against simpler investing strategies.</p></div>
       <div className="benchmark-period">
         <strong>{hasWindow ? dateLong.format(new Date(start)) + " – " + dateLong.format(new Date(end)) : "Recorded results"}</strong>
-        <span>Paper portfolio · Recorded simulation{MOCK ? " · Synthetic fixtures" : ""}</span>
+        <span>Paper portfolio · Recorded simulation{MOCK ? " · Synthetic fixtures" : showReplayNote ? "*" : ""}</span>
       </div>
     </header>
     {report.error ? <section className="terminal-glass glass-feedback benchmark-card"><p role="alert">Couldn’t load benchmark results. {report.error}</p></section> :
@@ -166,6 +168,7 @@ export default function BenchmarkScreen() {
             {rows.length ? <ComparisonBars rows={rows} metric={selectedMetric} /> : <p className="benchmark-empty">No values for this metric.</p>}
             {selectedMetric.id === "total_return" && <p className="benchmark-note">{marketUnavailable ? "S&P 500 tracker prices are unavailable for the full period." :
               marketReturn !== undefined ? "S&P 500 uses Vanguard’s VUAG fund in GBP. Strategy returns exclude deposits and include simulated trading costs." : "Strategy returns exclude deposits and include simulated trading costs."}</p>}
+            {showReplayNote && <p className="benchmark-note">* We limited both demos to four months to keep Gemini API usage manageable. The profiles follow different risk plans, and one replay can’t show long-term performance.</p>}
           </section>
         </div>
         <div className="benchmark-grid benchmark-grid-details">
@@ -219,10 +222,10 @@ export default function BenchmarkScreen() {
         <p>Filled trades that changed the mix of investments in the paper portfolio.</p></div></header>
       {rebalances.error ? <p role="alert">Couldn’t load recent rebalances.</p> : !rebalances.value ? <p role="status">Loading recent rebalances…</p> :
         !rebalanceItems.length ? <p className="benchmark-note">No filled rebalances yet.</p> :
-          rebalanceItems.map(item => <article className="notice-row" key={item.run_id + item.date}>
-            <div><strong>{item.trigger_text || words(item.trigger_kind)}</strong><p>{item.date} · Cost {gbp.format(item.cost_gbp)}</p>
-              <ul>{item.changes.map(change => <li key={change.ticker + change.action}>{words(change.action)} {gbp.format(change.amount_gbp)} · {change.ticker}</li>)}</ul></div>
-            <Link to={"/runs/" + encodeURIComponent(item.run_id) + "?replay=1"} className="mvp-action">Replay investigation</Link>
+          rebalanceItems.map(item => <article className="notice-row" key={(item.run_id ?? "recorded") + item.date}>
+            <div><strong>{item.trigger_text ? investigationTitle(item.trigger_text, item.trigger_kind) : "Recorded trades"}</strong><p>{item.date} · Cost {gbp.format(item.cost_gbp)}</p>
+              <ul>{item.changes.map((change, i) => <li key={change.ticker + change.action + i}>{words(change.action)} {gbp.format(change.amount_gbp)} · {change.ticker}</li>)}</ul></div>
+            {item.run_id && <Link to={"/runs/" + encodeURIComponent(item.run_id) + "?replay=1"} className="mvp-action">Replay investigation</Link>}
           </article>)}
     </section>
   </div>;

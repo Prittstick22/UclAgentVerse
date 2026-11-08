@@ -15,7 +15,7 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_UNPACKED_BYTES = 64 * 1024 * 1024
-# One immutable bundle per persona. Priya's manifest stays where it was; each server replays exactly one persona.
+# One immutable bundle per persona.
 MANIFESTS = {"priya": "demo/manifest.json", "caroline": "demo/caroline.manifest.json"}
 
 
@@ -68,13 +68,14 @@ def prepare_bundle(root: Path = ROOT, destination: Path | None = None, persona: 
     return manifest, destination
 
 
-def replay_environment(root: Path, data: Path, *, api_only: bool = False, persona: str = "priya") -> dict[str, str]:
+def replay_environment(root: Path, data: Path, *, api_only: bool = False, persona: str = "priya",
+                       bundles: dict[str, Path] | None = None) -> dict[str, str]:
     env = dict(os.environ)
     env.update(APP_MODE="historical", LLM_MODE="replay", REPLAY_ONLY="1", PUBLIC_DEMO="1", DEMO_PERSONA=persona,
                RECORDED_RUN=str(data / "recording.sqlite"), SNAPSHOT_DIR=str(data / "snapshot"),
                STATE_DB=str(root / ".demo-runtime/state.sqlite"), RUNS_DIR=str(root / ".demo-runtime/runs"),
                STATIC_DIR=str(root / ".demo-runtime/no-static" if api_only else root / "frontend/dist"),
-               PYTHONIOENCODING="utf-8")
+               PYTHONIOENCODING="utf-8", DEMO_BUNDLES=json.dumps({name: str(path) for name, path in (bundles or {}).items()}))
     # Explicit empty values take precedence over .env, without modifying or sharing anyone's file.
     for key in ("GEMINI_API_KEY", "GEMINI_API_KEY_BACKUPS", "EODHD_API_KEY", "FINNHUB_API_KEY",
                 "ALPACA_KEY_ID", "ALPACA_SECRET_KEY", "DEMO_PASSCODE", "TASK_SECRET"):
@@ -104,31 +105,37 @@ def main() -> int:
     parser.add_argument("--setup", action="store_true", help="Install dependencies and build the UI first")
     parser.add_argument("--check", action="store_true", help="Verify/extract bundle without dependencies, API keys or server")
     parser.add_argument("--api-only", action="store_true", help="Serve API for frontend development with VITE_MOCK=0")
-    parser.add_argument("--persona", choices=sorted(MANIFESTS), default="priya",
-                        help="Which recorded demo to replay (default: priya, the balanced demo)")
+    parser.add_argument("--persona", choices=sorted(MANIFESTS),
+                        help="Default profile on startup, or verify only that bundle with --check")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
     if sys.version_info < (3, 11):  # noqa: UP036 - launcher must explain prerequisites before creating a venv
         parser.error("Python 3.11+ is required")
     try:
-        manifest, data = prepare_bundle(persona=args.persona)
-        with sqlite3.connect(f"{(data / 'recording.sqlite').resolve().as_uri()}?mode=ro", uri=True) as conn:
-            if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-                raise ValueError("Recorded SQLite integrity check failed")
-        print(f"Verified {manifest['bundle_id']}: {manifest['days']} trading days, {manifest['agent_runs']} saved investigations.", flush=True)
+        bundles = {}
+        names = (args.persona,) if args.check and args.persona else MANIFESTS
+        for name in names:
+            manifest, data = prepare_bundle(persona=name)
+            with sqlite3.connect(f"{(data / 'recording.sqlite').resolve().as_uri()}?mode=ro", uri=True) as conn:
+                if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                    raise ValueError(f"Recorded SQLite integrity check failed for {name}")
+            print(f"Verified {manifest['bundle_id']}: {manifest['days']} trading days, {manifest['agent_runs']} saved investigations.", flush=True)
+            bundles[name] = data
         if args.check:
             return 0
+        persona = args.persona or "priya"
         if args.setup:
             setup(ROOT, api_only=args.api_only)
         python = venv_python(ROOT)
         if not python.exists() or (not args.api_only and not (ROOT / "frontend/dist/index.html").exists()):
             raise ValueError("First run: python scripts/demo.py --setup")
         (ROOT / ".demo-runtime").mkdir(exist_ok=True)
-        print(f"Recorded demo: http://{args.host}:{args.port}/ — choose Demo. Ctrl+C stops this server.", flush=True)
-        print("No API keys/provider calls. Live questionnaire works; new Live investigations are disabled.", flush=True)
+        print(f"Recorded demos: http://{args.host}:{args.port}/ — choose Priya or Caroline. Ctrl+C stops this server.", flush=True)
+        print("Recorded demos only. No API keys or provider calls.", flush=True)
+        env = replay_environment(ROOT, bundles[persona], api_only=args.api_only, persona=persona, bundles=bundles)
         return subprocess.run([str(python), "-m", "uvicorn", "app.main:app", "--host", args.host, "--port", str(args.port)],
-                              cwd=ROOT / "backend", env=replay_environment(ROOT, data, api_only=args.api_only, persona=args.persona), check=False).returncode
+                              cwd=ROOT / "backend", env=env, check=False).returncode
     except (OSError, ValueError, sqlite3.Error, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         print(f"Demo startup: {error}", file=sys.stderr)
         return 1

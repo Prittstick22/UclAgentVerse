@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { OrderChange, PortfolioRebalances, RunSummary } from "../lib/types";
-import { outcomeLabel } from "../lib/investigation";
+import type { Mode, OrderChange, PortfolioRebalances, RunSummary } from "../lib/types";
+import { investigationTitle, outcomeLabel } from "../lib/investigation";
 import AgentAvatar from "./AgentAvatar";
 import HoldingIssuer from "./HoldingIssuer";
 import FinanceTerm from "./FinanceTerm";
@@ -11,14 +11,16 @@ import "./investigation-overview.css";
 
 type Run = Omit<RunSummary, "agents">;
 type Fill = PortfolioRebalances["items"][number];
+// The construction ID is stable across replays of the bundled Priya recording.
+const priyaConstructionRun = "run_5a769626e9";
 const date = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const weight = new Intl.NumberFormat("en-GB", { style: "percent", maximumFractionDigits: 2 });
 const points = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2, signDisplay: "exceptZero" });
 const name = (ticker: string) => ticker.split(".")[0];
 const runPath = (id: string) => "/runs/" + encodeURIComponent(id);
-const runLink = (run: Run) => runPath(run.run_id) + (run.status === "running" ? "?live=1" : "?replay=1");
-const fillKey = (fill: Fill) => fill.run_id + ":" + fill.date;
+const fillKey = (fill: Fill) => (fill.run_id ?? "recorded") + ":" + fill.date;
+const fillLabel = (fill: Fill) => !fill.run_id ? "Recorded trades" : fill.trigger_kind === "construction" ? "Starting portfolio" : "Rebalance";
 const outcomeKey = (run: Run) => run.status === "completed" ? run.outcome || "other" : "other";
 const stateLabel = (run: Run) => run.status === "running" ? "Live investigation" : run.status === "failed" ? "Investigation stopped" :
   run.status === "cancelled" ? "Investigation cancelled" : outcomeLabel(run.outcome) || "Investigation completed";
@@ -29,26 +31,30 @@ function changeLabel(change: OrderChange) {
   return change.action === "sell" ? "Sold" : "Bought";
 }
 
-export default function InvestigationOverview({ runs, rebalances, changesUnavailable }: {
-  runs: Run[]; rebalances?: PortfolioRebalances; changesUnavailable: boolean;
+export default function InvestigationOverview({ mode, runs, rebalances, changesUnavailable }: {
+  mode?: Mode; runs: Run[]; rebalances?: PortfolioRebalances; changesUnavailable: boolean;
 }) {
   const ordered = runs.slice().reverse();
   const completed = runs.filter(run => run.status === "completed");
   const latest = ordered[0];
   const ids = new Set(runs.map(run => run.run_id));
-  const changes = (rebalances?.items ?? []).filter(item => ids.has(item.run_id)).sort((a, b) => b.date.localeCompare(a.date));
+  const priyaDemo = mode === "historical" && ids.has(priyaConstructionRun);
+  const changes = (rebalances?.items ?? []).filter(item => item.run_id ? ids.has(item.run_id) : !priyaDemo)
+    .sort((a, b) => b.date.localeCompare(a.date));
   const changesByRun = new Map<string, OrderChange[]>();
-  for (const fill of changes) changesByRun.set(fill.run_id, [...(changesByRun.get(fill.run_id) ?? []), ...fill.changes]);
+  for (const fill of changes) if (fill.run_id) changesByRun.set(fill.run_id, [...(changesByRun.get(fill.run_id) ?? []), ...fill.changes]);
   const [selection, setSelection] = useState("");
   const fill = changes.find(item => fillKey(item) === selection) ?? changes[0];
   const kept = completed.filter(run => run.outcome === "maintain").length;
   const proposals = completed.filter(run => run.outcome === "adjust").length;
+  const showChanges = Boolean(fill) || changesUnavailable;
+  const runLink = (run: Run) => runPath(run.run_id) + (mode === "live" ? "" : "?replay=1");
 
   return <div className="investigation-insights">
     <section className="terminal-glass glass-feedback mvp-panel investigation-decision" aria-label="Latest investigation">
       <header><h2>Latest investigation</h2><time dateTime={latest.as_of}>{date.format(new Date(latest.as_of))}</time></header>
       <Link className="investigation-latest glass-feedback" to={runLink(latest)}>
-        <AgentAvatar role="lead" /><div><strong>{stateLabel(latest)}</strong><span>{latest.trigger_text || "Portfolio investigation"}</span></div>
+        <AgentAvatar role="lead" /><div><strong>{stateLabel(latest)}</strong><span>{investigationTitle(latest.trigger_text, latest.kind)}</span></div>
         <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 8h9m-4-4 4 4-4 4" /></svg>
       </Link>
       <dl className="investigation-summary">
@@ -56,17 +62,20 @@ export default function InvestigationOverview({ runs, rebalances, changesUnavail
         <div><dt>Kept as is</dt><dd>{kept}</dd></div>
         <div><dt>Changes proposed</dt><dd>{proposals}</dd></div>
       </dl>
+      {priyaDemo && kept > 0 && <p className="investigation-footnote">
+        * Priya’s reviews found no reason to rebalance. Keeping the same holdings avoided unnecessary trades and costs.
+      </p>}
     </section>
-    <section className="terminal-glass glass-feedback mvp-panel investigation-changes" aria-label="Filled portfolio changes">
+    {showChanges && <section className="terminal-glass glass-feedback mvp-panel investigation-changes" aria-label="Filled portfolio changes">
       <header><h2>Filled portfolio changes</h2>
         {changes.length > 1 && <select className="terminal-field" aria-label="Filled trade batch" value={fillKey(fill)}
           onChange={event => setSelection(event.target.value)}>{changes.map(item => <option key={fillKey(item)} value={fillKey(item)}>
-            {date.format(new Date(item.date))} · {item.trigger_kind === "construction" ? "Starting portfolio" : "Rebalance"}
+            {date.format(new Date(item.date))} · {fillLabel(item)}
           </option>)}</select>}
       </header>
       {fill ? <>
-        <p className="investigation-change-context"><span>{date.format(new Date(fill.date))} · {fill.trigger_kind === "construction" ? "Starting portfolio" : "Rebalance"}</span>
-          <Link className="mvp-action compact" to={runPath(fill.run_id) + "?replay=1"}>View investigation</Link></p>
+        <p className="investigation-change-context"><span>{date.format(new Date(fill.date))} · {fillLabel(fill)}</span>
+          {fill.run_id && <Link className="mvp-action compact" to={runPath(fill.run_id) + "?replay=1"}>View investigation</Link>}</p>
         <div className="investigation-change-table" role="region" aria-label="Holdings that changed" tabIndex={0}>
           <table className="mvp-table"><thead><tr><th scope="col">Holding</th><th scope="col"><FinanceTerm name="Weight before → after" help={finance.weightChange} /></th><th scope="col"><FinanceTerm name="Traded" help={finance.traded} /></th></tr></thead>
             <tbody>{fill.changes.map((change, i) => <tr key={change.ticker + i}>
@@ -79,9 +88,8 @@ export default function InvestigationOverview({ runs, rebalances, changesUnavail
         </div>
         <p className="investigation-change-context"><span>{fill.changes.length} {fill.changes.length === 1 ? "holding" : "holdings"}</span>
           <span>Trading cost {gbp.format(fill.cost_gbp)}</span></p>
-      </> : <p className="mvp-muted">{changesUnavailable ? "Filled portfolio changes are unavailable." :
-        rebalances ? "No filled changes are recorded for these investigations." : "Loading filled portfolio changes…"}</p>}
-    </section>
+      </> : <p className="mvp-muted">Filled portfolio changes are unavailable.</p>}
+    </section>}
     <section className="investigation-gallery" aria-label="Investigations">
       <h2>Investigations</h2>
       <ScrollArrivalList className="investigation-card-grid">
@@ -97,7 +105,7 @@ export default function InvestigationOverview({ runs, rebalances, changesUnavail
                 </div> : <AgentAvatar role="lead" />}
                 <span>{stateLabel(run)}</span>
               </div>
-              <div className="investigation-card-copy"><h3>{run.trigger_text || "Portfolio investigation"}</h3>
+              <div className="investigation-card-copy"><h3>{investigationTitle(run.trigger_text, run.kind)}</h3>
                 <p><time dateTime={run.as_of}>{date.format(new Date(run.as_of))}</time>
                   {holdings.length > 0 && " · " + holdings.length + (holdings.length === 1 ? " holding changed" : " holdings changed")}</p>
               </div>

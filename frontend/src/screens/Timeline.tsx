@@ -10,6 +10,7 @@ import PanelGrip from "../components/PanelGrip";
 import { get } from "../lib/api";
 import { benchmarkNames, type Benchmarks } from "../lib/benchmarkData";
 import type { NewsFeed, PortfolioHistory, PortfolioRebalances, RunSummary } from "../lib/types";
+import { investigationTitle } from "../lib/investigation";
 import { useResource } from "../lib/useResource";
 import { gbp, pct, words } from "./Decisions";
 import { RunRoom } from "./Workspace";
@@ -51,19 +52,22 @@ function ActivityRow({ entry, inspect }: { entry: Activity; inspect?: (id: strin
   const icon = <span className="history-event-icon"><ActivityIcon kind={entry.kind} /></span>;
   if (entry.kind === "Trades") {
     const { item } = entry;
+    const runId = item.run_id;
+    const title = item.trigger_text ? investigationTitle(item.trigger_text, item.trigger_kind) : "Portfolio updated";
     return <li>{icon}<div>
       <small>Paper trades filled</small>
-      <strong>{inspect ? <button type="button" className="mvp-action compact" onClick={() => inspect(item.run_id)}>{item.trigger_text || "Portfolio updated"} ›</button> : <Link className="mvp-action compact" to={runRoute(item.run_id) + "?replay=1"}>{item.trigger_text || "Portfolio updated"} ›</Link>}</strong>
-      <ul className="history-trades">{item.changes.map(change => <li key={change.ticker + change.action}>
+      <strong>{runId ? inspect ? <button type="button" className="mvp-action compact" onClick={() => inspect(runId)}>{title} ›</button> : <Link className="mvp-action compact" to={runRoute(runId) + "?replay=1"}>{title} ›</Link> : title}</strong>
+      <ul className="history-trades">{item.changes.map((change, i) => <li key={change.ticker + change.action + i}>
         <span>{words(change.action)} {tickerLabel(change.ticker)} <small>{pct.format(change.from_weight)} → {pct.format(change.to_weight)}</small></span>
         <strong>{gbp.format(change.amount_gbp)}</strong>
       </li>)}</ul>
       <span>Trading cost {gbp.format(item.cost_gbp)}</span>
     </div></li>;
   }
+  const title = investigationTitle(entry.item.trigger_text, entry.item.kind);
   return <li>{icon}<div>
     <small>{entry.item.kind === "construction" ? "Portfolio build" : words(entry.item.kind)} · {runLabel(entry.item)}</small>
-    <strong>{inspect && entry.item.status !== "running" ? <button type="button" className="mvp-action compact" onClick={() => inspect(entry.item.run_id)}>{entry.item.trigger_text || "Inspect investigation"} ›</button> : <Link className="mvp-action compact" to={runLink(entry.item)}>{entry.item.trigger_text || "Open investigation"} ›</Link>}</strong>
+    <strong>{inspect && entry.item.status !== "running" ? <button type="button" className="mvp-action compact" onClick={() => inspect(entry.item.run_id)}>{title} ›</button> : <Link className="mvp-action compact" to={runLink(entry.item)}>{title} ›</Link>}</strong>
   </div></li>;
 }
 
@@ -264,7 +268,7 @@ export default function TimelineScreen() {
           <button type="button" className="mvp-action" disabled={activeIndex < 1} aria-label="Previous investigation"
             onClick={() => choose(recordings[activeIndex - 1].run_id)}>‹</button>
           <select className="terminal-field" aria-label="Recorded investigation" value={active.run_id} onChange={event => choose(event.target.value)}>
-            {recordings.map(run => <option key={run.run_id} value={run.run_id}>{dateLabel(run.as_of)} · {run.trigger_text || words(run.kind)}</option>)}
+            {recordings.map(run => <option key={run.run_id} value={run.run_id}>{dateLabel(run.as_of)} · {investigationTitle(run.trigger_text, run.kind)}</option>)}
           </select>
           <button type="button" className="mvp-action" disabled={activeIndex >= recordings.length - 1} aria-label="Next investigation"
             onClick={() => choose(recordings[activeIndex + 1].run_id)}>›</button>

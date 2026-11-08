@@ -13,4 +13,4 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
-          script: cd /opt/uclagentverse && git pull && docker compose up -d --build
+          script: cd /opt/uclagentverse && git pull && docker compose up -d --build --force-recreate --wait --wait-timeout 120 --remove-orphans

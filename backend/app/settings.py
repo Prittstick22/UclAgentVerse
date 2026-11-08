@@ -5,8 +5,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.schemas import DemoPersona
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_DIR = BACKEND_DIR.parent
@@ -34,7 +36,8 @@ class Settings(BaseSettings):
     runs_dir: Path = BACKEND_DIR / "runs"
     recorded_run: Path | None = None  # optional immutable historical replay, loaded at startup
     replay_only: bool = False  # portable launcher: browse recording/quiz, never start new investigations
-    demo_persona: Literal["priya", "caroline"] = "priya"  # whose fixed mandate the historical demo/recording uses
+    demo_persona: DemoPersona = "priya"
+    demo_bundles: dict[DemoPersona, Path] = Field(default_factory=dict)  # directories containing recording.sqlite and snapshot/
     static_dir: Path = BACKEND_DIR / "app" / "static"
 
     public_demo: bool = False

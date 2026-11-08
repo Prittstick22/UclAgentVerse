@@ -6,7 +6,7 @@ Owner: **Dev** (deploys). Jin owns the app-side pieces: #12, #78, #11.
 
 - **One DigitalOcean Droplet:** Ubuntu, Basic, **2 GB RAM** (pandas + CVXPY need it), London region (`lon1`). It's billed hourly: destroy it after judging.
 - **Docker Compose with two services:**
-  - **`app`:** our single image (repo-root `Dockerfile`). Stage 1 builds `frontend/`; stage 2 is Python with `backend/`. FastAPI serves `/api/*` and the built UI at `/`, on the same origin.
+  - **`app`:** one image builds the frontend, verifies and packages both recordings, and serves the UI and API from FastAPI on the same origin.
   - **`caddy`:** reverse proxy with automatic HTTPS (Let's Encrypt). It passes SSE through without buffering.
 - **Persistent volume `./var` on the droplet:**
   - `state.sqlite` (events, ledger, memory, LLM cache)
@@ -40,7 +40,7 @@ curl -fsSL https://get.docker.com | sh
 git clone https://github.com/Prittstick22/UclAgentVerse /opt/uclagentverse && cd /opt/uclagentverse
 cp .env.example .env && nano .env      # keys, DOMAIN, DEMO_PASSCODE, TASK_SECRET, PUBLIC_DEMO=1
 mkdir -p var/snapshot var/runs
-docker compose up -d --build
+docker compose up -d --build --wait
 docker compose logs -f app             # wait for "Uvicorn running"
 curl -s https://$DOMAIN/api/health
 ```
@@ -49,26 +49,25 @@ Point the DNS A record (or DuckDNS) at the droplet IP **before** starting Caddy,
 
 ## Deploys
 
-- **Manual:** `ssh root@<ip> 'cd /opt/uclagentverse && git pull && docker compose up -d --build'`.
-- **Automatic:** `.github/workflows/deploy.yml` does the same over SSH on every push to `main`, once these repo secrets are set: `DO_HOST`, `DO_USER`, `DO_SSH_KEY`. It's disabled until the secrets exist.
-- **Copy data to the server:** `scp -r backend/data/snapshot/* root@<ip>:/opt/uclagentverse/var/snapshot/` and the same for `runs/year.sqlite`.
+- **Manual:** `ssh root@<ip> 'cd /opt/uclagentverse && git pull && docker compose up -d --build --force-recreate --wait --remove-orphans'`.
+- **Automatic:** `.github/workflows/deploy.yml` does the same over SSH on pushes to `main` when `DEPLOY_ENABLED=true` and `DO_HOST`, `DO_USER`, `DO_SSH_KEY` are configured.
+- **Live data:** the app prefers the mounted snapshot and live cache under `var/snapshot/`. On a fresh host it uses the bundled market snapshot until a live cache is available. Provider credentials and background refresh are configured separately.
 
 ## The demo never waits on an API call (#78)
 
-- **Demo:** reads only the recorded run (`runs/year.sqlite`) + the baked-in snapshot, with `LLM_MODE=replay`. It works with every external key removed.
+- **Demo:** Priya and Caroline use their own recorded runs and market snapshots, with cached model responses. Both work with every external key removed.
 - **Live mode:** the UI reads only cached data. Cron refreshes it in the background; no request handler calls a provider.
 - **Live agent runs** (passcode) return a `run_id` instantly and stream over SSE.
 - **Warm start:** everything is loaded at container start; one always-on container.
 
 ### App-side setup and verification (#78)
 
-Set `RECORDED_RUN=/app/runs/year.sqlite` (use the actual mounted path). At startup the app
-opens this file with SQLite `mode=ro`, copies it into memory and validates the finished simulation
-and every dated ledger checkpoint. Missing, incomplete or mismatched-persona files (including
-files without the saved initial mandate from #115) fail startup;
-they are never silently replaced with a new run. The source file is never written by playback.
-With `PUBLIC_DEMO=1`, an existing `RUNS_DIR/year.sqlite` is also detected automatically.
-Set the explicit path for the production deployment so a missing file cannot go unnoticed.
+The image configures both bundles in `DEMO_BUNDLES`. Leave this variable unset in the host's
+`.env` to use the built-in paths. The build checks archive and file hashes. Startup opens each
+recording read-only, copies it into memory, and validates the saved mandate and dated checkpoints.
+The deployment smoke test boots the image and checks that both choices open their own portfolio.
+The Caroline subdomain redirects to her onboarding preview on the main site. The deploy workflow
+removes the old standalone Caroline container when upgrading from the split setup.
 
 The historical page starts at the last saved close. Existing start/pause/step controls replay the
 saved events at the selected speed; they do not invoke the simulator, optimiser, LLM or providers.

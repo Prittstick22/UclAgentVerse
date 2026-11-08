@@ -2,15 +2,15 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import FinanceTerm from "../components/FinanceTerm";
 import { chartDateTick, chartValueTick, moneyAxisWidth } from "../lib/chartLabels";
 import { finance } from "../lib/financeTerms";
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import AgentAvatar from "../components/AgentAvatar";
 import InvestigationOverview from "../components/InvestigationOverview";
 import PanelGrip from "../components/PanelGrip";
 import { ShellIcon } from "../components/TerminalShellUi";
-import { api, get, mockEvents, MOCK } from "../lib/api";
+import { get, mockEvents, MOCK } from "../lib/api";
 import { useRunEvents } from "../lib/useRunEvents";
-import { outcomeLabel, searchForStep, sourceTools, toolLabel, type Fact } from "../lib/investigation";
+import { investigationTitle, outcomeLabel, publicNarrative, searchForStep, sourceTools, toolLabel, triggerNewsIds, type Fact } from "../lib/investigation";
 import type { AgentEvent, CorrelationReport, Mode, PortfolioRebalances, RunSummary } from "../lib/types";
 import { useResource } from "../lib/useResource";
 import { EvidenceView, gbp, pct, ProposalDialog, words } from "./Decisions";
@@ -20,9 +20,12 @@ const chartDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "sho
 const route = (id: string) => "/runs/" + encodeURIComponent(id);
 const evidenceFor = (event?: AgentEvent) =>
   event?.type === "calc.result" ? ["calc:" + event.id] : event?.evidence_ids ?? [];
+const documentEvidence = (event?: AgentEvent) => [...new Set(evidenceFor(event).filter(id => !id.startsWith("web:")))];
 
-function AgentSources({ ids }: { ids: string[] }) {
+function AgentSources({ ids, events, debug = false }: { ids: string[]; events?: AgentEvent[]; debug?: boolean }) {
   const [sourceIndex, setSourceIndex] = useState(0);
+  const source = ids[Math.min(sourceIndex, ids.length - 1)];
+  const calculation = events?.find(event => event.type === "calc.result" && "calc:" + event.id === source);
   return <div className="agent-sources">
     {ids.length > 1 && <div className="agent-source-switch">
       <span>Source {sourceIndex + 1} of {ids.length}</span>
@@ -31,7 +34,8 @@ function AgentSources({ ids }: { ids: string[] }) {
       <button type="button" className="mvp-action" aria-label="Next source" disabled={sourceIndex === ids.length - 1}
         onClick={() => setSourceIndex(index => index + 1)}>›</button>
     </div>}
-    <EvidenceView key={ids[sourceIndex]} id={ids[sourceIndex]} />
+    <EvidenceView key={source} id={source} debug={debug} />
+    {calculation && <AgentVisual key={calculation.id} event={calculation} debug={false} />}
   </div>;
 }
 
@@ -82,34 +86,24 @@ function eventLabel(event: AgentEvent) {
     return event.type === "agent.spawn_requested" ? "Asked " + role + " to join" : role + " couldn’t join";
   }
   if (event.type === "agent.spawned") return "Joined the investigation";
-  if (event.type === "agent.status") return event.payload.status === "done" ? "Finished their review" : words(event.title);
-  return event.title;
+  if (event.type === "agent.status") return event.payload.status === "done" ? "Finished their review" : words(publicNarrative(event.title));
+  return publicNarrative(event.title) || "Recorded activity";
 }
 type RunItem = Omit<RunSummary, "agents">;
 
-function RunPicker({ mode }: { mode?: Mode }) {
+function RunPicker({ mode, liveRunsEnabled }: { mode?: Mode; liveRunsEnabled: boolean }) {
   const [params] = useSearchParams();
   const view = params.get("view");
   const legacyTimeline = view === "timeline" || view === "history";
   const runs = useResource("runs:" + mode + ":" + legacyTimeline, signal => legacyTimeline ? Promise.resolve(null) : get<{ items: RunItem[] }>("/runs?limit=100", "runs", signal));
   const rebalances = useResource("run-changes:" + mode + ":" + legacyTimeline, signal => legacyTimeline
     ? Promise.resolve(null) : get<PortfolioRebalances>("/portfolio/rebalances?limit=500", "rebalances", signal));
-  const navigate = useNavigate();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function start() {
-    setBusy(true);
-    setError("");
-    try { const { run_id } = await api.build(); navigate(route(run_id) + "?live=1"); }
-    catch (e) { setError((e as Error).message); setBusy(false); }
-  }
   if (legacyTimeline) return <Navigate replace to={view === "history" ? "/timeline?view=history" : "/timeline"} />;
   return <div className="mvp-page mvp-enter agent-workspace">
     <div className="mvp-toolbar"><h1 data-tour-target="agents-intro">Agent workspace</h1>
-      {mode === "live" && <button className="mvp-action primary" disabled={busy} onClick={() => void start()}>Build my portfolio</button>}</div>
+      {mode === "live" && liveRunsEnabled && <Link className="mvp-action" to="/">Open portfolio</Link>}</div>
     <p className="mvp-muted">Watch the lead and specialists work through an investigation.</p>
-    {error && <p role="alert">{error}</p>}
-    {runs.value?.items.length ? <InvestigationOverview runs={runs.value.items} rebalances={rebalances.value ?? undefined}
+    {runs.value?.items.length ? <InvestigationOverview mode={mode} runs={runs.value.items} rebalances={rebalances.value ?? undefined}
       changesUnavailable={Boolean(rebalances.error)} /> : <section className="terminal-glass mvp-panel">
       <h2>Investigations</h2>
       <p role={runs.error ? "alert" : "status"}>{runs.error ?? (runs.value ? "No investigations recorded yet." : "Loading investigations…")}</p>
@@ -117,11 +111,11 @@ function RunPicker({ mode }: { mode?: Mode }) {
   </div>;
 }
 
-export default function Workspace({ mode }: { mode?: Mode }) {
+export default function Workspace({ mode, liveRunsEnabled }: { mode?: Mode; liveRunsEnabled: boolean }) {
   const { runId } = useParams();
   const [params] = useSearchParams();
   const entry = params.get("live") === "1" && !params.has("seq") && params.get("replay") !== "1" ? "live" : "replay";
-  return runId ? <RunRoom key={runId + ":" + entry} id={runId} mode={mode} /> : <RunPicker mode={mode} />;
+  return runId ? <RunRoom key={runId + ":" + entry} id={runId} mode={mode} /> : <RunPicker mode={mode} liveRunsEnabled={liveRunsEnabled} />;
 }
 
 function useAgentStageMotion(signature: string, animate: boolean) {
@@ -178,8 +172,13 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
   const checkStatus = !MOCK && mode === "live" && !explicitReplay && !wantsLive;
   const runStatus = useResource(id + ":" + checkStatus, signal =>
     checkStatus ? get<RunSummary>(route(id), "run_detail", signal) : Promise.resolve(null));
-  const live = !MOCK && mode === "live" && (wantsLive || (checkStatus && runStatus.value?.status === "running"));
-  const waitingForMode = !MOCK && !explicitReplay && (mode === undefined || (checkStatus && !runStatus.value && !runStatus.error));
+  const proposalToCheck = runStatus.value?.status === "completed" ? runStatus.value.proposal_id : null;
+  const proposalStatus = useResource(proposalToCheck ?? "", signal => proposalToCheck ?
+    get<{ status: string }>("/proposals/" + encodeURIComponent(proposalToCheck), "", signal) : Promise.resolve(null));
+  const live = !MOCK && mode === "live" && (wantsLive || runStatus.value?.status === "running" ||
+    proposalStatus.value?.status === "awaiting_approval");
+  const waitingForMode = !MOCK && !explicitReplay && (mode === undefined || (checkStatus && !runStatus.value && !runStatus.error) ||
+    Boolean(proposalToCheck && !proposalStatus.value && !proposalStatus.error));
   const archive = useResource(id + ":" + live + ":" + waitingForMode, signal => live || waitingForMode ? Promise.resolve(null) :
     MOCK ? Promise.resolve({ items: mockEvents() }) :
       get<{ items: AgentEvent[] }>(route(id) + "/events?format=json", "", signal));
@@ -192,9 +191,8 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
   const [speed, setSpeed] = useState(1);
   const [focused, setFocused] = useState("");
   const [paneSteps, setPaneSteps] = useState<Record<string, number | undefined>>({});
-  const [source, setSource] = useState("");
+  const [sources, setSources] = useState<string[]>([]);
   const [proposalOpen, setProposalOpen] = useState(false);
-  const [resolved, setResolved] = useState(false);
   const events = live ? stream : archive.value?.items ?? [];
   const startIndex = embedded && !autoplay ? Math.max(0, events.findIndex(event => event.type === "agent.spawned")) : 0;
   const lastIndex = events.length - 1;
@@ -205,9 +203,9 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
   const nextSeq = events[index + 1]?.seq;
   const visible = events.slice(0, index + 1);
   const active = visible.at(-1);
-  const activeEvidence = evidenceFor(active).find(id => !id.startsWith("web:"));
+  const triggeringNews = !MOCK ? triggerNewsIds(visible[0]?.trigger_text) : [];
+  const activeEvidence = documentEvidence(active);
   const activityLog = visible.slice(0, -1);
-  const sourceCalculation = visible.find(event => event.type === "calc.result" && "calc:" + event.id === source);
   const agents = visible.filter(event => event.type === "agent.spawned" && event.agent_id);
   const selected = agents.find(agent => agent.agent_id === focused);
   const specialists = new Set(agents.slice(2).map(agent => agent.agent_id));
@@ -257,7 +255,7 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
     window.clearTimeout(playbackTimer.current);
     setCursorSeq(initialSeq);
     setPlaying(false);
-    setSource("");
+    setSources([]);
     setPaneSteps({});
   }, [initialSeq]);
 
@@ -286,19 +284,19 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
     if (!event) return;
     pauseReplay();
     setCursorSeq(event.seq);
-    setSource("");
+    setSources([]);
     setPaneSteps({});
     if (selected && selected.seq > event.seq) setFocused("");
   }
 
-  function inspectEvidence(id: string) {
+  function inspectEvidence(ids: string[]) {
     pauseReplay();
-    setSource(id);
+    setSources(ids);
   }
 
   function inspectAgentStep(id: string, step?: number) {
     pauseReplay();
-    setSource("");
+    setSources([]);
     setPaneSteps(steps => ({ ...steps, [id]: step }));
   }
 
@@ -306,11 +304,11 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
   function activityRow(event: AgentEvent) {
     const actor = agents.find(agent => agent.agent_id === event.agent_id);
     const label = <>{event.type.startsWith("agent.spawn") && typeof event.payload.role === "string" ? <AgentAvatar role={event.payload.role} /> : <StepIcon event={event} />}<span className="agent-event-title">{eventLabel(event)}</span><small>{words(event.role ?? "Portfolio engine")}{debug ? " · " + event.seq : ""}</small></>;
-    const evidenceId = evidenceFor(event).find(id => !id.startsWith("web:"));
+    const evidence = documentEvidence(event);
     const action = !live ? () => jump(events.indexOf(event)) : actor && actor.agent_id ? () => {
       setFocused(actor.agent_id ?? "");
       inspectAgentStep(actor.agent_id ?? "", event.seq);
-    } : evidenceId ? () => inspectEvidence(evidenceId) : undefined;
+    } : evidence.length ? () => inspectEvidence(evidence) : undefined;
     return <li key={event.id} aria-current={event.id === active?.id ? "step" : undefined}>
       {action ? <button onClick={action}>{label}</button> : <div>{label}</div>}
     </li>;
@@ -320,11 +318,16 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
     <div className={embedded ? "agent-room-body" : "agent-room-body resizable-desk"}>
     {!embedded && <aside className="agent-room-side terminal-glass glass-feedback">
       <header><h1>{embedded ? "Investigation" : "Agent workspace"}</h1>{!embedded && <Link className="mvp-action compact" to="/workspace" aria-label="Back to investigations">←</Link>}</header>
-      <div className="agent-room-brief"><strong data-tour-target="run-intro">{visible[0]?.trigger_text || "Investigation"}</strong>
+      <div className="agent-room-brief"><strong data-tour-target="run-intro">{investigationTitle(visible[0]?.trigger_text, visible[0]?.trigger_kind)}</strong>
         <p>{active?.as_of ?? ""} · {waitingForMode ? "Connecting…" : live ? finished ? "Run complete" : "Live investigation" : "Recorded investigation"}</p>
+        {triggeringNews.length > 0 && <button type="button" className="mvp-action accent compact agent-export"
+          onClick={() => inspectEvidence(triggeringNews)}>{triggeringNews.length > 1 ? "Read triggering headlines" : "Read triggering article"}</button>}
         {events.length > 0 && <Link className="mvp-action agent-export" to={route(id) + "/report"}>Export investigation</Link>}
       </div>
-      {live && finished && <div className="agent-room-brief"><Link className="mvp-action" to={route(id) + "?replay=1"}>Replay run</Link></div>}
+      {live && finished && <div className="agent-room-brief mvp-toolbar">
+        {(!proposalId || decided) && <Link className="mvp-action primary" to="/">Back to Home</Link>}
+        <Link className="mvp-action" to={route(id) + "?replay=1"}>Replay run</Link>
+      </div>}
       <div className="agent-room-brief mvp-muted">Participants ({agents.length})</div>
       {agents.map(agent => <button className="agent-participant" key={agent.id} aria-pressed={focused === agent.agent_id}
         onClick={() => setFocused(focused === agent.agent_id ? "" : agent.agent_id ?? "")}>
@@ -339,18 +342,16 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
         <AgentAvatar role={agent.role ?? ""} /><span>{roleName(agent.role)}</span>
       </button>)}
     </div>}
-    {embedded && source && <section className="agent-inline-evidence terminal-glass" data-tour-target="evidence-open">
-      <button type="button" className="mvp-action" onClick={() => setSource("")}>Close evidence</button>
-      <EvidenceView key={source} id={source} debug={debug} />
-      {sourceCalculation && <AgentVisual event={sourceCalculation} debug={false} />}
+    {embedded && sources.length > 0 && <section className="agent-inline-evidence terminal-glass" data-tour-target="evidence-open">
+      <button type="button" className="mvp-action" onClick={() => setSources([])}>Close evidence</button>
+      <AgentSources key={sources.join(",")} ids={sources} events={visible} debug={debug} />
     </section>}
     {archive.error && <p role="alert">{archive.error}</p>}
-    {!agents.length && <section className="terminal-glass mvp-panel agent-opening"><AgentAvatar role="lead" /><h2>Lead agent</h2>
-      <p>{active?.trigger_text || active?.title || (archive.value ? "No recorded events for this run." : "Waiting for investigation events…")}</p></section>}
-    {!panels.length && <div className="agent-empty terminal-glass" role="status">
+    {!panels.length && !archive.error && <div className="agent-empty terminal-glass" role="status">
       <AgentAvatar role="lead" />
-      <strong>{live ? "Connecting to the investigation" : events.length ? "The Lead joins at the next step" : "Waiting for recorded steps"}</strong>
-      <p>{archive.error ?? (live ? "The Lead Agent will appear when the first event arrives." : "The room will show the recorded agents and evidence as soon as they load.")}</p>
+      <strong>{live ? events.length ? "Preparing the investigation" : "Connecting to the investigation"
+        : events.length ? "The Lead joins at the next step" : archive.value ? "No recorded steps" : "Loading recorded steps…"}</strong>
+      {active && <p>{investigationTitle(active.trigger_text || active.title, active.trigger_kind)}</p>}
     </div>}
     <div className="agent-stage" ref={stageRef} data-count={panels.length}>
       {panels.map(agent => {
@@ -373,10 +374,10 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
         const isSourceWork = work?.type === "source.inspect" || (work?.type === "tool.result" && sourceTools.has(String(work.payload.tool)));
         const webSource = isSourceWork ? shown.slice().reverse().find(event =>
           event.type === "source.inspect" && event.payload.kind === "web" && evidenceFor(event).some(id => linkedEvidence.includes(id))) : undefined;
-        const documentIds = !MOCK && isSourceWork ? [...new Set(linkedEvidence.filter(id => !id.startsWith("web:")))] : [];
-        const message = work?.type === "finding" ? work.payload.claim : work?.type === "agent.message" ? work.payload.text : null;
+        const documentIds = !MOCK && isSourceWork ? documentEvidence(work) : [];
+        const message = publicNarrative(work?.type === "finding" ? work.payload.claim : work?.type === "agent.message" ? work.payload.text : null);
         const searchEmpty = work?.type === "tool.result" && work.payload.ok === true && isSourceWork && !linkedEvidence.length;
-        const evidenceLinks = linkedEvidence.filter(id => !documentIds.includes(id) && !id.startsWith("web:"));
+        const evidenceLinks = documentEvidence(work).filter(id => !documentIds.includes(id));
         const checks = agent.role === "lead" ? new Map(visible.filter(event =>
           event.type === "gate.verdict" && (inspected < 0 || event.seq <= (current?.seq ?? 0)) &&
           typeof event.payload.gate === "string").map(event => [String(event.payload.gate), event])) : null;
@@ -395,7 +396,7 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
             {model && <small className="tour-model" data-tour-target={agent.role === "lead" ? "run-model" : undefined}>{model}</small>}</div>
             {embedded && agent !== lead && <button type="button" className="mvp-action" onClick={() => setFocused("")}>Close specialist</button>}</header>
           <AgentWork animate={live || !playing || speed <= 1}>
-            <p className="mvp-muted">{agent.purpose || String(agent.payload.question ?? "")}</p>
+            <p className="mvp-muted">{publicNarrative(agent.purpose || agent.payload.question)}</p>
             <h3 className="agent-step-title" key={"title:" + current?.id}>
               {current?.type === "agent.spawn_requested" && typeof current.payload.role === "string" && <AgentAvatar role={current.payload.role} />}
               <span className="agent-text-reveal">{current ? eventLabel(current) : "Preparing"}</span>
@@ -413,22 +414,24 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
               <span aria-hidden="true"><i /></span>
             </div>}
             {work?.type === "finding" && <FindingBadges finding={work} events={shown} />}
-            {typeof message === "string" && message !== current?.title && <p className="agent-step-note agent-text-reveal" key={work?.id}>{message.slice(0, 800)}</p>}
+            {message && message !== publicNarrative(current?.title) && <p className="agent-step-note agent-text-reveal" key={work?.id}>{message.slice(0, 800)}</p>}
             {calculation && <div className="agent-work-reveal" key={"visual:" + calculation.id}><AgentVisual event={calculation} debug={debug} /></div>}
             {webSource && <div className="agent-work-reveal" key={"web:" + webSource.id}><WebSources event={webSource} /></div>}
             {documentIds.length > 0 && <div className="agent-work-reveal" key={"sources:" + work?.id}><AgentSources ids={documentIds} /></div>}
             {searchEmpty && <p className="mvp-muted">No matching sources were returned.</p>}
+            {work?.type === "tool.result" && work.payload.tool === "get_investment_case" && evidenceLinks.length > 1 &&
+              <p className="mvp-muted">{evidenceLinks.length} recorded investment cases reviewed</p>}
             {!!checks?.size && <ul className="proposal-gates" aria-label="Assurance progress" data-tour-target="assurance">{[...checks].map(([gate, event]) =>
               <li key={gate} data-status={String(event.payload.status)}>{words(gate)} · {words(String(event.payload.status))}</li>)}</ul>}
             {delegated.length > 0 && <div className="agent-delegation" aria-label="Delegated work">{delegated.map(child =>
               <button className="mvp-action" key={child.id} onClick={() => setFocused(child.agent_id ?? "")}>
                 <AgentAvatar role={child.role ?? ""} />
-                <span><b>{words(child.role ?? "Specialist")}</b><small>{child.purpose}</small></span>
+                <span><b>{words(child.role ?? "Specialist")}</b><small>{publicNarrative(child.purpose)}</small></span>
               </button>)}</div>}
-            {evidenceLinks.length > 0 && <div className="agent-evidence-actions">{evidenceLinks.map(id =>
-              <button key={id} type="button" className="mvp-action accent compact" data-tour-target="evidence" onClick={() => inspectEvidence(id)}>
-                <ShellIcon name="quiz" />Inspect evidence
-              </button>)}</div>}
+            {evidenceLinks.length > 0 && <div className="agent-evidence-actions">
+              <button type="button" className="mvp-action accent compact" data-tour-target="evidence" onClick={() => inspectEvidence(evidenceLinks)}>
+                <ShellIcon name="quiz" />{evidenceLinks.length > 1 ? `Inspect evidence (${evidenceLinks.length})` : "Inspect evidence"}
+              </button></div>}
             {selected === agent && debug && <ol className="agent-events">{activity.map(event =>
               <li key={event.id}><button disabled={live} onClick={() => jump(events.indexOf(event))}>{event.seq} · {event.title}</button></li>)}</ol>}
           </AgentWork>
@@ -455,21 +458,21 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
         variable="--agent-specialist-height" min={200} remaining={200} label="Resize specialist workspace heights" />}
     </div>
     {visible.filter(event => event.type === "agent.spawn_denied").map(event =>
-      <p className="agent-refused" key={event.id}>{event.title}{event.purpose && " · " + event.purpose}</p>)}
-    {proposalId && <div className="proposal-nudge terminal-glass"><strong>{proposal?.payload.by === "user_policy" ? "Automatically approved · " + (proposal.payload.fill_date || "Next available close") : resolved || decided ? "Decision recorded" : live ? "Your approval is needed" : proposal?.title}</strong>
-      <button className="mvp-action primary" onClick={() => { setPlaying(false); setProposalOpen(true); }}>Review proposal</button></div>}
+      <p className="agent-refused" key={event.id}>{eventLabel(event)}{event.purpose && " · " + publicNarrative(event.purpose)}</p>)}
+    {proposalId && <div className="proposal-nudge terminal-glass"><strong>{proposal?.payload.by === "user_policy" ? "Automatically approved · " + (proposal.payload.fill_date || "Next available close") : decided ? "Decision recorded" : live ? "Your approval is needed" : publicNarrative(proposal?.title)}</strong>
+      <button className="mvp-action primary" onClick={() => { setPlaying(false); setProposalOpen(true); }}>{live && !decided ? "Review proposal" : "View proposal"}</button></div>}
     </div>
     {!embedded && <aside className="agent-room-side terminal-glass glass-feedback agent-room-activity">
-      <header><h2>{source ? "Evidence" : "Investigation activity"}</h2>
-        {source && <button className="mvp-action" onClick={() => setSource("")}>Close evidence</button>}</header>
-      {source ? <div className="agent-room-evidence" data-tour-target="evidence-open"><EvidenceView key={source} id={source} debug={debug} />
-        {sourceCalculation && <AgentVisual key={sourceCalculation.id} event={sourceCalculation} debug={false} />}
+      <header><h2>{sources.length ? "Evidence" : "Investigation activity"}</h2>
+        {sources.length > 0 && <button className="mvp-action" onClick={() => setSources([])}>Close evidence</button>}</header>
+      {sources.length ? <div className="agent-room-evidence" data-tour-target="evidence-open">
+        <AgentSources key={sources.join(",")} ids={sources} events={visible} debug={debug} />
       </div> : <>
       <div className="agent-activity-split">
       {active && <div className="agent-room-brief agent-current-activity" data-reveal-work={live || (playing && speed <= 1)} key={active.id}><small>{live ? finished ? "Run outcome" : "Now" : "Current step · " + active.seq}</small><strong><StepIcon event={active} /><span className="agent-text-reveal">{eventLabel(active)}</span></strong>
         <SearchScope facts={searchForStep(active, visible)} />
-        {activeEvidence && <button type="button" className="mvp-action accent compact" data-tour-target="evidence" onClick={() => inspectEvidence(activeEvidence)}>
-          <ShellIcon name="quiz" />{activeEvidence.startsWith("calc:") ? "Inspect calculation" : "Open source"}
+        {activeEvidence.length > 0 && <button type="button" className="mvp-action accent compact" data-tour-target="evidence" onClick={() => inspectEvidence(activeEvidence)}>
+          <ShellIcon name="quiz" />{activeEvidence.length > 1 ? `Evidence (${activeEvidence.length})` : activeEvidence[0].startsWith("calc:") ? "Inspect calculation" : "Open source"}
         </button>}
         {debug && <details className="agent-terminal"><summary>Inspect payload</summary><pre>{JSON.stringify(active.payload, null, 2)}</pre></details>}
       </div>}
@@ -499,7 +502,7 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
           aria-label={atEnd && !replayPlaying ? "Replay from start" : undefined} onClick={() => {
           if (replayPlaying) { pauseReplay(); return; }
           if (atEnd) jump(0);
-          setSource("");
+          setSources([]);
           setPlaying(true);
         }}>{replayPlaying ? "Pause" : atEnd ? "Restart" : "Play"}</button>
         <input aria-label="Investigation timeline" aria-valuetext={active ? `Event ${active.seq}, ${index + 1} of ${events.length}` : undefined}
@@ -513,7 +516,7 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
         {exampleCalculation >= 0 && <button type="button" className="mvp-action accent compact tour-example"
           data-tour-target="evidence-example" onClick={() => {
             jump(exampleCalculation);
-            inspectEvidence("calc:" + events[exampleCalculation].id);
+            inspectEvidence(["calc:" + events[exampleCalculation].id]);
           }}>{exampleAllocation >= 0 ? "Open portfolio calculation" : "Open a recorded calculation"}</button>}
         {exampleAssurance >= 0 && <button type="button" className="mvp-action accent compact tour-assurance-example"
           data-tour-target="assurance-example" onClick={() => { jump(exampleAssurance); setFocused(""); }}>Open recorded checks</button>}
@@ -521,7 +524,7 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
       <span className="mvp-muted replay-count">{index + 1} / {events.length} events</span>
     </footer>}
     {proposalOpen && proposalId && <ProposalDialog key={proposalId} id={proposalId} mode={mode}
-      close={() => setProposalOpen(false)} changed={() => setResolved(true)} />}
+      close={() => setProposalOpen(false)} />}
   </div>;
 }
 

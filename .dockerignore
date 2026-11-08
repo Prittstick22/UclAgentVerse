@@ -6,5 +6,9 @@ backend/data
 backend/runs
 backend/*.sqlite
 .env
+**/.env
+**/.env.*
+.demo-data
+.demo-runtime
 .git
 var

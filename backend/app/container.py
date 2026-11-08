@@ -21,7 +21,7 @@ from app.data.snapshot import load_snapshot
 from app.engine.ledger import Ledger
 from app.profile.demo import demo_mandate
 from app.profile.quiz import mandate_for
-from app.schemas import Mandate
+from app.schemas import DemoPersona, Mandate
 from app.settings import Settings, get_settings
 from app.sim import approvals
 
@@ -44,6 +44,7 @@ class AppState:
     proposals: dict = field(default_factory=dict)
     runs: dict = field(default_factory=dict)
     modes: dict[str, AppState] = field(default_factory=dict, repr=False)
+    demo_states: dict[DemoPersona, AppState] = field(default_factory=dict, repr=False)
     live_updates: LiveUpdates | None = field(default=None, repr=False)
     recording: RecordedReplay | None = field(default=None, repr=False)
     activity: PortfolioActivity = field(init=False)
@@ -53,7 +54,10 @@ def build_state(settings: Settings | None = None, db_path: str | None = None) ->
     from app.api.recorded_replay import RecordedEvents, RecordedReplay, recorded_database
 
     s = settings or get_settings()
+    bundle = s.demo_bundles.get(s.demo_persona) if s.app_mode == "historical" else None
     recording_path = s.recorded_run if s.app_mode == "historical" else None
+    if bundle is not None:
+        recording_path = bundle / "recording.sqlite"
     if s.app_mode == "historical" and recording_path is None and s.public_demo:
         candidate = s.runs_dir / "year.sqlite"
         recording_path = candidate if candidate.is_file() else None
@@ -62,6 +66,12 @@ def build_state(settings: Settings | None = None, db_path: str | None = None) ->
     events = RecordedEvents(db, clock) if recording_path is not None else EventBus(db, clock)
     live_dir = s.snapshot_dir / "live"
     snapshot_path = live_dir if s.app_mode == "live" and (live_dir / "prices_daily.parquet").exists() else s.snapshot_dir
+    if bundle is not None:
+        snapshot_path = bundle / "snapshot"
+    elif s.app_mode == "live" and not (snapshot_path / "prices_daily.parquet").exists():
+        seed = s.demo_bundles.get(s.demo_persona)
+        if seed is not None:
+            snapshot_path = seed / "snapshot"
     gw = DataGateway(clock, load_snapshot(snapshot_path), events)
     ledger = Ledger(catalogue={i.ticker: i for i in gw.catalogue(eligible_only=False)})
     llm_settings = s.model_copy(update={"llm_mode": "replay"}) if recording_path is not None else s
@@ -95,5 +105,22 @@ def state_for_mode(state: AppState, mode: str) -> AppState:
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         other = build_state(state.settings.model_copy(update={"app_mode": mode}), db_path=db_path)
         other.modes = state.modes
+        other.demo_states = state.demo_states
         state.modes[mode] = other
     return state.modes[mode]
+
+
+def load_demo_states(state: AppState) -> None:
+    """Load each configured immutable recording once, with its own clock, snapshot and ledger."""
+    if not state.settings.demo_bundles or state.demo_states:
+        return
+    primary = state_for_mode(state, "historical")
+    for persona in dict.fromkeys((primary.settings.demo_persona, *primary.settings.demo_bundles)):
+        demo = primary if persona == primary.settings.demo_persona else build_state(
+            primary.settings.model_copy(update={"demo_persona": persona})
+        )
+        if demo.recording is None:
+            raise ValueError("DEMO_BUNDLES requires a recording for the default DEMO_PERSONA")
+        demo.modes = state.modes
+        demo.demo_states = state.demo_states
+        state.demo_states[persona] = demo

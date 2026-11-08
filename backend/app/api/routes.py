@@ -20,6 +20,7 @@ from app.api.demo_guard import check_budget, guard_agent_run, require_passcode
 from app.api.portfolio import PortfolioView
 from app.api.recorded_replay import controller as sim_controller
 from app.api.run_views import agent_tree, find_evidence, summarize
+from app.api.workspace import WORKSPACE_COOKIE, active_state, demo_for_request
 from app.container import AppState, state_for_mode
 from app.core.events import Event, sse_frame
 from app.data.gateway import AsOfViolation
@@ -31,8 +32,10 @@ from app.profile.mandates import save as save_mandate
 from app.profile.mandates import validate as validate_mandate
 from app.profile.quiz import mandate_for, questions_payload, score
 from app.schemas import (
+    DemoPersona,
     DemoProfile,
     Evidence,
+    Health,
     Mandate,
     Mode,
     NewsFeed,
@@ -58,9 +61,11 @@ log = logging.getLogger(__name__)
 
 
 def S(request: Request, mode: Mode | None = None):
-    state = request.app.state.app
+    state = active_state(request)
     # Legacy/offline states may keep both modes in one log; recorded demos have isolated DBs.
     isolated = any(st.recording is not None for st in state.modes.values())
+    if mode == "historical" and state.demo_states:
+        return demo_for_request(request)
     return state_for_mode(state, mode) if mode is not None and isolated else state
 
 
@@ -70,25 +75,44 @@ def err(status: int, code: str, message: str):
 
 # ------------------------------------------------------------------ system
 @router.get("/health")
-def health(request: Request):
+def health(request: Request) -> Health:
     s = S(request)
-    return {"status": "ok", "mode": s.clock.mode, "as_of": s.clock.as_of_str(), "version": "0.1.0",
-            "llm_mode": s.llm.mode, "data_source": s.gw.snapshot.source_label}
+    return Health(status="ok", mode=s.clock.mode, as_of=s.clock.as_of_str(), version="0.1.0",
+                  llm_mode=s.llm.mode, data_source=s.gw.snapshot.source_label,
+                  live_runs_enabled=not s.settings.replay_only)
 
 
 @router.get("/mode")
 def get_mode(request: Request):
-    s = S(request)
-    return {"mode": s.clock.mode, "as_of": s.clock.as_of_str(), "sim": sim_controller(s).info()}
+    return mode_info(S(request))
+
+
+def mode_info(state: AppState):
+    return {"mode": state.clock.mode, "as_of": state.clock.as_of_str(), "sim": sim_controller(state).info()}
 
 
 class ModeBody(BaseModel):
     mode: Mode
+    persona: DemoPersona | None = None
 
 
 @router.post("/mode")
-def set_mode(body: ModeBody, request: Request):
+def set_mode(body: ModeBody, request: Request, response: Response):
     previous = S(request)
+    if body.mode == "live" and body.persona is not None:
+        err(422, "validation_error", "Choose a demo profile in historical mode.")
+    if previous.demo_states:
+        demo = demo_for_request(request)
+        if body.persona is not None:
+            demo = previous.demo_states.get(body.persona)
+            if demo is None:
+                err(404, "not_found", "This recording is unavailable.")
+        active = demo if body.mode == "historical" else state_for_mode(previous, "live")
+        response.set_cookie(WORKSPACE_COOKIE, f"{body.mode}:{demo.settings.demo_persona}", path="/api",
+                            httponly=True, secure=request.url.scheme == "https", samesite="lax")
+        return mode_info(active)
+    if body.persona is not None and body.persona != previous.settings.demo_persona:
+        err(404, "not_found", "This recording is unavailable.")
     active = state_for_mode(previous, body.mode)
     request.app.state.app = active
     if previous is not active:
@@ -99,7 +123,16 @@ def set_mode(body: ModeBody, request: Request):
 # ------------------------------------------------------------------ profile + mandate
 @router.get("/profile/demo")
 def get_demo_profile(request: Request) -> DemoProfile:
-    return demo_profile(S(request).settings.demo_persona)
+    state = S(request)
+    persona = demo_for_request(request).settings.demo_persona if state.demo_states else state.settings.demo_persona
+    return demo_profile(persona)
+
+
+@router.get("/profile/demos")
+def get_demo_profiles(request: Request) -> dict[DemoPersona, DemoProfile]:
+    state = S(request)
+    personas = state.demo_states or (state.settings.demo_persona,)
+    return {persona: demo_profile(persona) for persona in personas}
 
 
 def require_live_profile(request: Request) -> None:
@@ -168,10 +201,10 @@ async def review_now(request: Request):
 
 
 def _start_portfolio_investigation(s: AppState, kind: str, reason: str) -> dict[str, str]:
-    if kind == "review":
-        active_review = next((run_id for run_id, task in s.runs.items() if task.get_name() == "portfolio-review"), None)
-        if active_review:
-            return {"run_id": active_review}
+    active = next((run_id for run_id, task in s.runs.items()
+                   if not task.done() and (s.clock.mode == "live" or task.get_name() == "portfolio-review")), None)
+    if active:
+        return {"run_id": active}
     run_id = f"run_{uuid.uuid4().hex}"
 
     async def investigate() -> None:

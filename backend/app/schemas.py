@@ -13,6 +13,7 @@ class NewsFeed(BaseModel):
     items: list[NewsItem]
 
 Mode = Literal["historical", "live"]
+DemoPersona = Literal["priya", "caroline"]
 AssetClass = Literal["equity", "bond", "cash", "commodity"]
 ProfileName = Literal["cautious", "balanced", "growth", "adventurous", "aggressive"]
 HomeStatus = Literal["monitoring_normally", "investigating", "awaiting_approval", "monitoring_degraded"]
@@ -23,6 +24,16 @@ TriggerKind = Literal[
 GateName = Literal["injection_guard", "evidence", "numbers", "mandate", "critic", "compliance", "qa", "revalidation"]
 GateStatus = Literal["pending", "pass", "pass_with_flags", "fail", "skipped"]
 Badge = Literal["source_retrieved", "claim_supported", "relationship_uncertain", "calculation_recomputed", "judgement_uncertain"]
+
+
+class Health(BaseModel):
+    status: Literal["ok"]
+    mode: Mode
+    as_of: str
+    version: str
+    llm_mode: str
+    data_source: str
+    live_runs_enabled: bool
 
 
 class Instrument(BaseModel):
@@ -265,7 +276,7 @@ class OrderChange(BaseModel):
 
 class Rebalance(BaseModel):
     date: str
-    run_id: str
+    run_id: str | None
     trigger_kind: TriggerKind
     trigger_text: str
     changes: list[OrderChange]

@@ -26,7 +26,7 @@ Change between historical demo and current paper markets on the Investor profile
 
 ## First visit and investigations
 
-First visit opens setup. Demo shows the locked fictional Priya profile and opens Timeline. Real mode runs the risk questionnaire and saves a paper-portfolio mandate before requesting construction. Return to Profile to edit the mandate or revisit setup.
+First visit opens Stead setup. Choose Priya or Caroline when using the bundled demo launcher, then open their portfolio on Home. Live mode runs the risk questionnaire and saves a paper-portfolio mandate before requesting construction. Return to Profile to edit the mandate or revisit setup.
 
 Home review links and portfolio history markers open the Agent Room. Active runs follow incoming events. Saved runs expose the shared replay player and support event deep links with `/runs/:id?seq=n`. Each agent pane has its own step arrows. In a development build, append `debug=1` to a room URL to inspect raw events and calculation payloads.
 
