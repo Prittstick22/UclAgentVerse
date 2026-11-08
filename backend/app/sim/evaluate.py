@@ -119,7 +119,7 @@ def evaluate(records: dict[str, Path], out: Path) -> dict:
                 if b in res["strategies"]:
                     rows[b] = {"strategy": res["strategies"][b], "run": rows[label]["run"]}
         elif (res["start"], res["end"]) != (meta["start"], meta["end"]):
-            raise ValueError(f"{label} covers {res['start']}–{res['end']}, not {meta['start']}–{meta['end']}")
+            raise ValueError(f"{label} covers {res['start']} to {res['end']}, not {meta['start']} to {meta['end']}")
     metrics = {k: strategy_metrics(v["strategy"]) for k, v in rows.items()}
     finals = {k: v["strategy"]["series"][-1]["nav_gbp"] if v["strategy"]["series"] else 0.0 for k, v in rows.items()}
     result = {"window": [meta["start"], meta["end"]], "run": meta, "label": "simulated, not a forecast",
@@ -141,9 +141,9 @@ def _table(result: dict, metrics: dict[str, Metrics], finals: dict[str, float]) 
     lines = [
         f"### Simulated results, {run['start']} to {run['end']} (held out, after the model's knowledge cutoff)",
         "",
-        (f"Profile: {run['profile']} · £{params()['sim']['capital_gbp']:,} start + "
-        f"£{params()['sim']['monthly_contribution_gbp']}/month · data: {run['data_source']} · "
-        f"approvals: {run['approvals']} · forecast weight lambda = {run['lambda_return']}. **Simulated, not a forecast.**"),
+        (f"Profile: {run['profile']} | £{params()['sim']['capital_gbp']:,} start + "
+        f"£{params()['sim']['monthly_contribution_gbp']}/month | data: {run['data_source']} | "
+        f"approvals: {run['approvals']} | forecast weight lambda = {run['lambda_return']}. **Simulated, not a forecast.**"),
         "",
         "| Strategy | Return (TWR) | Volatility (ann.) | Max drawdown | Sharpe (rf = 0) | Turnover | Costs | Trades | Final value |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
@@ -220,7 +220,7 @@ def _svg(series: dict[str, list[dict]], path: Path, meta: dict) -> Path:
         parts.append(f"<polyline fill='none' stroke='{col}' stroke-width='{3 if name == 'ours' else 1.5}' "
                      f"points='{poly}'/>")
         parts.append(f"<text x='{w - 260}' y='{50 + 16 * i}' fill='{col}'>{LABELS.get(name, name)}</text>")
-    parts.append(f"<text x='{pad}' y='{h - 15}'>£{lo:,.0f}–£{hi:,.0f}</text></svg>")
+    parts.append(f"<text x='{pad}' y='{h - 15}'>£{lo:,.0f} to £{hi:,.0f}</text></svg>")
     path.write_text("".join(parts), encoding="utf-8")
     return path
 
@@ -236,8 +236,11 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
         label, _, path = r.partition("=") if "=" in r else ("ours" if i == 0 else Path(r).stem, "", r)
         records[label if i else "ours"] = Path(path)
     res = evaluate(records, Path(a.out))
-    print((Path(a.out) / "table.md").read_text(encoding="utf-8"))
+    # ASCII on the console (a Windows console or redirect may not encode the pound sign); the files are UTF-8
     print(f"Wrote {a.out}/metrics.json, {a.out}/table.md and {res['chart']}")
+    for k, m in res["metrics"].items():
+        print(f"  {k:22s} return {m['total_return'] * 100:+6.2f}%  max drawdown {m['max_drawdown'] * 100:+6.2f}%  "
+              f"final GBP {res['final_nav_gbp'][k]:,.2f}")
 
 
 if __name__ == "__main__":  # pragma: no cover
