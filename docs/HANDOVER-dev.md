@@ -8,6 +8,14 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 **Model note:** the session switched Opus 5.5 → Sonnet 5.5 at ~05:00 and **back to Opus 5.5** at ~05:10. Use whatever attribution line your own harness gives you. When you post live-run results, say which model produced them.
 
+### Historical smoke result (Codex, 8 Nov ~05:53)
+
+- User completed Live onboarding to the investment-plan review. Live profile is adventurous; historical Priya remains balanced. UI questions: Review every is trading days (default 10); exclusions currently require exact ticker/sleeve codes, not free text. Mo should add help text.
+- Exactly one July 7 construction ran via POST /api/sim/start with start=end=2026-07-07, run_agents=true, approvals=batch_policy. Run `run_1a9f6c1b7c`, proposal `prop_a8faaaa992`: built and approved; all 7 gates passed; 4 holdings each have purpose and evidence IDs. Argon lead + Flash specialists; 13 calls, 55,657 tokens, 80.49 s, estimated $0.1243, budget not exceeded.
+- Stop point honoured: sim finished on July 7. Orders are queued for the next close, not filled. No four-month run or deployment. Mode round-trip verified Live adventurous / historical balanced with historical date unchanged.
+- Artifacts in `backend/runs/smoke/20261108T054104Z/`: construction_result.json, proposal.json, events_construction.json, data_validation.json, logs. This is a smoke attempt, not a publishable final demo recording; the API capture path does not yet persist the initial sim_mandate metadata required by RecordedReplay.
+- Browser link for saved investigation: http://127.0.0.1:5173/runs/run_1a9f6c1b7c . It replays saved events without new Gemini calls. User may inspect it; do not initiate another paid run or advance the simulation without a new instruction.
+
 ### Active local smoke test (Codex, 8 Nov ~05:42)
 
 - Latest main was fast-forwarded to 5bd64b2 (incoming changes were README-only); no application code changed.
