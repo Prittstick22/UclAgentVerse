@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field
 
 from app.config import params
@@ -46,7 +47,8 @@ class Ledger:
 
     # ------------------------------------------------------------- valuation
     def mark_to_market(self, prices: dict[str, float]) -> None:
-        self.last_prices.update({k: float(v) for k, v in prices.items() if v == v})
+        # bad data (NaN, inf, 0 or negative) keeps the last good price instead of corrupting NAV
+        self.last_prices.update({k: float(v) for k, v in prices.items() if math.isfinite(float(v)) and float(v) > 0})
 
     def value(self, ticker: str) -> float:
         return self.positions.get(ticker, Position()).units * self.last_prices.get(ticker, 0.0)
@@ -99,18 +101,22 @@ class Ledger:
                 continue
             inst = self.catalogue.get(t)
             rate = c["trade"] + (c["fx"] if inst and inst.currency == "USD" else 0.0)
-            cost = abs(amount) * rate
             pos = self.positions.setdefault(t, Position())
-            units = amount / price
-            if amount < 0:  # sell
-                units = max(units, -pos.units)
+            if amount < 0:  # sell (never more units than held); cost on what is actually sold
+                units = max(amount / price, -pos.units)
+                if -units * price < min_trade:
+                    continue
+                cost = -units * price * rate
                 avg = pos.cost_basis_gbp / pos.units if pos.units else 0
                 pos.realised_pnl_gbp += -units * (price - avg)
                 pos.cost_basis_gbp += units * avg
                 pos.units += units
                 self.cash_gbp += -units * price - cost
-            else:  # buy
-                spend = min(amount, max(self.cash_gbp - cost, 0))
+            else:  # buy: spend + its cost must fit in the cash we have; cost on what is actually bought
+                spend = min(amount, max(self.cash_gbp, 0.0) / (1 + rate))
+                if spend < min_trade:   # used to record a £0 fill and still charge the full cost (cash < 0)
+                    continue
+                cost = spend * rate
                 units = spend / price
                 pos.units += units
                 pos.cost_basis_gbp += spend

@@ -38,10 +38,10 @@ def test_twr_strips_contributions_hand_check():
 def test_evaluate_writes_table_json_and_chart(recorded, tmp_path):
     _, year, base, _ = recorded
     res = evaluate.evaluate({"ours": year, "ours_no_agents": base}, tmp_path)
-    m = json.loads((tmp_path / "metrics.json").read_text())
+    m = json.loads((tmp_path / "metrics.json").read_text(encoding="utf-8"))
     assert set(m["metrics"]) == {"ours", "ours_no_agents", *evaluate.BENCHMARKS}
     assert m["label"] == "simulated, not a forecast" and m["window"][0] == START
-    table = (tmp_path / "table.md").read_text()
+    table = (tmp_path / "table.md").read_text(encoding="utf-8")
     for name in ("Ours (Gemini agents + engine)", "Ours, engine only (no agents)", "Buy and hold",
                  "One global ETF (VWRP)", "Simulated, not a forecast", "Four months is one short path"):
         assert name in table

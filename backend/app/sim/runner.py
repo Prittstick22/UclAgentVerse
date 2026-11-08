@@ -382,7 +382,7 @@ async def _decide(state: AppState, kind: str, text: str, agents: bool, approvals
 
 
 def main(argv: list[str] | None = None) -> None:  # pragma: no cover
-    p = argparse.ArgumentParser(description="Day-by-day simulator (docs/03 §3)")
+    p = argparse.ArgumentParser(description="Day-by-day simulator (docs/03 section 3)")
     p.add_argument("--start", default=params()["sim"]["start"])
     p.add_argument("--end", default=params()["sim"]["end"])
     g = p.add_mutually_exclusive_group()
@@ -403,11 +403,11 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     r = asyncio.run(run(state, a.start, a.end, agents=a.agents, approvals=a.approvals))
     print(f"Simulated {r.days} trading days {r.start} to {r.end} ({'agents' if a.agents else 'engine only'}, "
           f"{a.profile}). Simulated results, not a forecast.")
-    print(f"NAV £{r.final_nav:,.2f} from £{r.contributions_gbp:,.2f} paid in; {r.fills} fills")
+    print(f"NAV GBP {r.final_nav:,.2f} from GBP {r.contributions_gbp:,.2f} paid in; {r.fills} fills")
     print("Triggers: " + (", ".join(f"{k} {v}" for k, v in sorted(r.trigger_counts.items())) or "none"))
     print("Decisions: " + ", ".join(f"{k} {v}" for k, v in sorted(Counter(x["action"] for x in r.runs).items())))
     for name, nav in r.benchmarks.items():
-        print(f"  {name:20s} £{nav:,.2f}")
+        print(f"  {name:20s} GBP {nav:,.2f}")
 
 
 if __name__ == "__main__":  # pragma: no cover

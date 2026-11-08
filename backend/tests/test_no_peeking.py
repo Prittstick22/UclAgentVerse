@@ -78,9 +78,9 @@ def _rewrite(src: Path, dst: Path, cut: str, how: str) -> Path:
                           ("earnings.jsonl", "date")):
             f = dst / name
             if f.exists():
-                rows = [json.loads(line) for line in f.read_text().splitlines() if line.strip()]
+                rows = [json.loads(line) for line in f.read_text(encoding="utf-8").splitlines() if line.strip()]
                 keep = [r for r in rows if str(r.get(key, ""))[:10] <= cut]
-                f.write_text("".join(json.dumps(r) + "\n" for r in keep))
+                f.write_text("".join(json.dumps(r) + "\n" for r in keep), encoding="utf-8")
     else:  # scramble: an unrelated random walk from the last pre-cut level
         rng = np.random.default_rng(7)
         px = px.sort_values(["ticker", "date"]).reset_index(drop=True)
