@@ -1,8 +1,12 @@
+import sys
 from datetime import date, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.clock import SimClock
 from app.data.gateway import DataGateway
