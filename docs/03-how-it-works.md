@@ -5,7 +5,7 @@
 1. **Landing.** Choose "Historical demo · As of 7 Jul 2026" or "Current markets · Paper portfolio".
 2. **Quiz** (about 8 questions, plain English, £ examples such as "If £10,000 fell to £8,000, would that stop you reaching your goal?").
    - `POST /api/profile/quiz` → profile + mandate.
-   - Conflicting answers produce one follow-up question.
+   - Conflicting answers produce one follow-up question; resubmit the answers with `follow_up_answer: "yes"` or `"no"` to apply the conservative rescore (API/client support; the quiz screen does not yet render this follow-up).
 3. **Mandate review.** Editable ranges, caps, exclusions, cadence. The user selects **Build my portfolio**.
 4. **Agent workspace.** The lead fills the canvas, then moves left as specialists open on the right (max 3 visible, others in a rail). It's a live tree with depth, refused spawns and tool calls.
 5. **Proposal:**
