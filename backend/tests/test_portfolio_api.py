@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.agents.supervisor import RunState
 from app.core.clock import SimClock
-from app.engine.portfolio import record_checkpoint
+from app.engine.portfolio import checkpoints, record_checkpoint
 from app.main import app
 from app.sim.runner import run
 
@@ -34,7 +34,9 @@ def test_portfolio_shows_ledger_and_as_of_case(state, client):
     assert portfolio["cash_gbp"] == round(state.ledger.cash_gbp, 2)
     assert portfolio["contributions_gbp"] == 10000.0
     holdings = {row["ticker"]: row for row in portfolio["holdings"]}
-    assert holdings["VWRP.LSE"]["target_weight"] == TARGETS["VWRP.LSE"]
+    # the #19 loop re-optimises on trigger/review days, so the current target is the last recorded one
+    recorded = checkpoints(state.db, state.clock.mode)[-1].targets
+    assert holdings["VWRP.LSE"]["target_weight"] == recorded.get("VWRP.LSE", 0.0)
     assert holdings["VWRP.LSE"]["purpose"] == "Global diversification"
     assert holdings["VWRP.LSE"]["case_id"] == "case_VWRP.LSE"
     assert holdings["VWRP.LSE"]["price_as_of"] == "2026-07-10"

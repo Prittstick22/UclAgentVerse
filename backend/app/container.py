@@ -7,6 +7,7 @@ from app.agents.fakes import FakeBrain
 from app.agents.llm import LLM
 from app.agents.supervisor import Supervisor
 from app.agents.tools import ToolContext, default_registry
+from app.api.notifications import PortfolioActivity
 from app.config import params
 from app.core.clock import Clock, LiveClock, SimClock
 from app.core.db import DB
@@ -32,6 +33,7 @@ class AppState:
     supervisor: Supervisor
     proposals: dict = field(default_factory=dict)
     runs: dict = field(default_factory=dict)
+    activity: PortfolioActivity = field(init=False)
 
 
 def build_state(settings: Settings | None = None, db_path: str | None = None) -> AppState:
@@ -46,4 +48,5 @@ def build_state(settings: Settings | None = None, db_path: str | None = None) ->
                      mandate=mandate_for("balanced"), llm=llm, supervisor=None)  # type: ignore[arg-type]
     tools = default_registry(ToolContext(gw=gw, events=events, state=state))
     state.supervisor = Supervisor(llm, tools, events)
+    state.activity = PortfolioActivity(state)
     return state

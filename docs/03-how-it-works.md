@@ -87,10 +87,10 @@ for day in calendar.trading_days("2026-07-07", end):
 
 ## 6. Notifications
 
-- **Adjust** → `notification(kind=decision)` + decision card.
-- **Maintain** → digest line, no push.
-- **Data outage** → status "Monitoring degraded" + `notification(kind=coverage)`.
-- **Headline metric:** "This year: X reviews, Y checks, Z decisions asked of you."
+- An adjustment ready for user approval creates one decision notification for its proposal.
+- A completed review or trigger check with a maintain outcome adds the reason to the digest.
+- A held instrument with a stale or missing price creates a coverage notification. The home status shows an investigation first, then a pending decision, then degraded coverage. Status returns to normal when none applies.
+- The home counters show completed reviews, completed checks, decisions requested from the user, and distinct adjustments with executed fills.
 
 ## 7. Replay vs re-run
 
