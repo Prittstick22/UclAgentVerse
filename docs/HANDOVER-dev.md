@@ -4,9 +4,10 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 ## Resume here: current state (keep this section updated)
 
-**Handed over Sun 8 Nov ~01:20** (Dev's Claude credits ran low). `main` is clean, there are **no open Dev branches or PRs**, and nothing is half-done.
+**Codex resumed Sun 8 Nov.** Active branch: `dev/7-fetch-text`. #7 implemented and live-fetched; PR/CI/merge pending. Next: #30 prompts. See `docs/fetch-text.md` for measured coverage and limitations. EDGAR contact has been set in ignored `.env` with Dev's permission.
 
 ### Done
+- **#7 implementation ready:** dated news/filings/earnings fetch, three-line snapshot hook, offline firewall/mapping tests, live snapshot files. Hero candidates to board; PR pending.
 - #3 EODHD bought + verified (every ticker from 2023-01, LSE units OK, delayed quotes OK) · #27 Gemini ping · #54 keys · #55 provider check (PR #81)
 - **#28 agent loop on real Argon (PR #88):** schema retry, Gemini retries + backup keys (`GEMINI_API_KEY_BACKUPS`), per-step token budget, cache-stable prompts, `cost_estimate_usd`/`duration_s` in `run.completed`, `RunSummary` in kv `runs`. About 1,850 tokens and $0.007 per call, about 10 s per call; reruns cost 0 tokens.
 - **#29 core tools (PR #90):** tools wired to engine + gateway; construction runs end `built` with a `Proposal` (live Argon: 6 calls, $0.044). `gw.earnings()` added (past dates only). The `forecast` tool returns `not_available` until Cem's #73 lands (`app.engine.forecast.forecast(gw, tickers, as_of, horizon=10)`).
