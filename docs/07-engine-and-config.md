@@ -53,7 +53,8 @@ Rules:
   - recomputed costs and turnover
 
   Returns a `CheckReport` with `passed`, a `violations[]` list (code, message, ticker, value, limit) and recomputed numbers.
-- **`revalidate`** (pre-execution): price ≤ 3 trading days old, mandate version unchanged, holdings unchanged since the proposal, no identical pending order (duplicate guard).
+  Violation codes: `not_a_number` (NaN, inf or a non-number; checked first, because NaN would slip through every comparison), `sum` (±1e-4: proposals round to 4 dp), `cash_min`, `ineligible`, `units` (currency/quote unit we can't value, e.g. GBX quoted but USD priced), `short`, `excluded` (ticker or sleeve), `concentration` (per fund / per stock), `equity_range`, `bond_range`, `stocks_total`. `recomputed` = equity, bond, stocks, other (e.g. commodity), cash, sum, `ocf_weighted`, plus `fees_gbp_per_year` (with nav), `turnover` (with current weights) and `cost_gbp` (with both). This is what the `calculation_recomputed` badge shows. Commodities have no range of their own; they're limited by the per-fund cap and by what the equity and bond minimums leave.
+- **`revalidate`** (pre-execution, wired into `POST /api/proposals/{id}/approve` by #23): proposal and prices ≤ `risk.stale_after_days` (3) trading days old (`stale_data`), mandate unchanged (`mandate_changed`: version, and in the approval path also the content fingerprint), no trade filled since the proposal (`holdings_changed`), no identical pending order (`duplicate_order`).
 
 ## 4. Ledger (`engine/ledger.py`)
 
