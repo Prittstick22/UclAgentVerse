@@ -130,10 +130,10 @@ interface AgentNode {
 | `PUT /api/mandate` | `Mandate` | `Mandate` (version+1), or 422 `validation_error` | Jin |
 | `GET /api/catalogue` | — | `{instruments: Instrument[]}` | Jin |
 | `POST /api/portfolio/build` | `{mandate_version?: number}` | `{run_id}` (202) | Dev |
-| `GET /api/portfolio` | `?mode` | `Portfolio` | Cem |
-| `GET /api/portfolio/history` | `?mode&start&end` | `{points: {date, nav_gbp, weights: {[ticker]: number}, contributions_gbp}[]}` | Cem |
-| `GET /api/portfolio/pnl` | `?mode&period=since_purchase\|1m\|3m\|ytd\|sim_year` | `{period, rows: {ticker, name, pnl_gbp, pnl_pct, realised_gbp, unrealised_gbp, contribution_to_return}[], total_pnl_gbp}` | Cem |
-| `GET /api/portfolio/rebalances` | `?mode&limit=20` | `{items: {date, run_id, trigger_kind, trigger_text, changes: OrderChange[], cost_gbp}[]}` | Cem |
+| `GET /api/portfolio` | `?mode` | `Portfolio` | Mo |
+| `GET /api/portfolio/history` | `?mode&start&end` | `{points: {date, nav_gbp, weights: {[ticker]: number}, contributions_gbp: number\|null}[]}` | Mo |
+| `GET /api/portfolio/pnl` | `?mode&period=since_purchase\|1m\|3m\|ytd\|sim_year` | `{period, rows: {ticker, name, pnl_gbp, pnl_pct, realised_gbp, unrealised_gbp, contribution_to_return}[], total_pnl_gbp}` | Mo |
+| `GET /api/portfolio/rebalances` | `?mode&limit=20` | `{items: {date, run_id, trigger_kind, trigger_text, changes: OrderChange[], cost_gbp}[]}` | Mo |
 | `GET /api/benchmarks` | `?mode` | `{series: {[name]: {date, nav_gbp}[]}, metrics: {[name]: Metrics}, periods: {development: [start, end], held_out: [start, end]}}`, where `Metrics = {total_return, vol_annual, max_drawdown, sharpe, turnover, costs_gbp, trades}`; names: `ours`, `buy_and_hold`, `quarterly_rebalance`, `global_etf`, `mechanical_5pct` | Cem |
 | `GET /api/risk/correlation` | `?mode&as_of&lookback&tickers` (`lookback` default = params `optimiser.lookback`, 504; `as_of` = any past date, future → 400 `asof_violation`) | `{as_of, lookback, tickers: string[], matrix: number[][], avg_pairwise: number, callouts: {a, b, corr, text}[], history_days: number, short_history: boolean}` (`short_history` = fewer than 252 return rows were available; used anyway, flagged) | Cem |
 | `GET /api/runs` | `?mode&kind&limit` | `{items: RunSummary[]}` (agents omitted) | Jin |
@@ -151,6 +151,14 @@ interface AgentNode {
 | `GET /api/sim/status` | — | `{sim, as_of, progress: number}` | Cem |
 | `POST /api/chat` | `{message, conversation_id?}` | `{conversation_id, run_id, answer, citations: string[], proposal_id: string\|null}` | Dev |
 | `POST /api/tasks/live-eod` · `POST /api/tasks/live-news` | header `X-Task-Secret` | `{ok, fetched, stale: string[]}` | Jin |
+
+Live refresh tasks (#11) run in the background. Their immediate response keeps
+the existing `{ok, fetched, stale}` shape: `ok` means accepted, `fetched` is
+zero before the worker finishes, and `stale` describes the cache at acceptance.
+Completion uses existing `tool.result` events; failures create coverage
+notifications. No GET request calls a provider. See [live mode](live-mode.md).
+
+Portfolio dates are inclusive and capped at the active `as_of`. History points from older `clock.tick` recordings use `null` when contributions were never recorded. Portfolio detail or period P&L returns `409 validation_error` when the available recording lacks the ledger data needed for the response. Rebalances list filled approvals newest first and use the recorded execution date and costs.
 
 ## 3. Events (SSE)
 

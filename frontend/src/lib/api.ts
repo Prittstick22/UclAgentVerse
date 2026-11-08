@@ -1,5 +1,5 @@
 // API client. In mock mode (VITE_MOCK=1, default in dev) it serves ../fixtures/*.json, so the UI works without a backend.
-import type { AgentEvent, CorrelationReport, Health, Mandate, Portfolio, ProfileResult, Question, RunSummary } from "./types";
+import type { AgentEvent, CorrelationReport, Health, Mandate, Mode, Notification, Portfolio, ProfileResult, Question, RunSummary } from "./types";
 
 export const MOCK = import.meta.env.VITE_MOCK === "1";
 
@@ -25,14 +25,19 @@ async function post<T>(path: string, body: unknown, mock: string): Promise<T> {
 
 export const api = {
   health: () => get<Health>("/health", "health"),
+  setMode: (mode: Mode) => post<{ mode: Mode }>("/mode", { mode }, "health"),
   questions: () => get<{ questions: Question[] }>("/profile/questions", "questions"),
   quiz: (answers: Record<string, string>) => post<{ profile: ProfileResult; mandate: Mandate }>("/profile/quiz", { answers }, "quiz_result"),
   mandate: () => get<Mandate>("/mandate", "mandate"),
   portfolio: () => get<Portfolio>("/portfolio", "portfolio"),
+  notifications: () => get<{ items: Notification[] }>("/notifications", "notifications"),
+  markNotificationRead: (id: string) => MOCK ? Promise.resolve({ ok: true })
+    : post<{ ok: true }>(`/notifications/${encodeURIComponent(id)}/read`, {}, "notifications"),
   correlation: () => get<CorrelationReport>("/risk/correlation", "correlation"),
-  runs: () => get<{ items: RunSummary[] }>("/runs", "runs"),
+  runs: () => get<{ items: Omit<RunSummary, "agents">[] }>("/runs", "runs"),
+  runDetail: (runId: string) => get<RunSummary>(`/runs/${encodeURIComponent(runId)}`, "run_detail"),
   build: () => post<{ run_id: string }>("/portfolio/build", {}, "runs").then((r) => ("run_id" in r ? r : { run_id: "mock" })),
-  // TODO(#fe-*): pnl, rebalances, benchmarks, proposals, approve/decline, notifications, evidence, chat, sim controls
+  // TODO(#fe-*): pnl, rebalances, benchmarks, proposals, approve/decline, evidence, chat, sim controls
 };
 
 export const mockEvents = (): AgentEvent[] => fx<AgentEvent[]>("events_construction");

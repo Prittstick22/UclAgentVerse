@@ -1,5 +1,78 @@
 {
  "period": "since_purchase",
- "rows": [],
- "total_pnl_gbp": 0.0
+ "rows": [
+  {
+   "ticker": "IGLS.LSE",
+   "name": "iShares UK Gilts 0-5yr UCITS ETF",
+   "pnl_gbp": -2.74,
+   "pnl_pct": -0.0022891232975637077,
+   "realised_gbp": 0.0,
+   "unrealised_gbp": -2.74,
+   "contribution_to_return": -0.0002744658833778885
+  },
+  {
+   "ticker": "VAGS.LSE",
+   "name": "Vanguard Global Aggregate Bond UCITS ETF GBP Hedged (Acc)",
+   "pnl_gbp": -5.21,
+   "pnl_pct": -0.003675122658419148,
+   "realised_gbp": 0.0,
+   "unrealised_gbp": -5.21,
+   "contribution_to_return": -0.0005207648806979932
+  },
+  {
+   "ticker": "VERG.LSE",
+   "name": "Vanguard FTSE Developed Europe ex UK UCITS ETF (Acc)",
+   "pnl_gbp": -19.1,
+   "pnl_pct": -0.013160236901990629,
+   "realised_gbp": 0.0,
+   "unrealised_gbp": -19.1,
+   "contribution_to_return": -0.0019095503744788402
+  },
+  {
+   "ticker": "VFEG.LSE",
+   "name": "Vanguard FTSE Emerging Markets UCITS ETF (Acc)",
+   "pnl_gbp": -17.58,
+   "pnl_pct": -0.03709439048388488,
+   "realised_gbp": 0.0,
+   "unrealised_gbp": -17.58,
+   "contribution_to_return": -0.0017582741089361435
+  },
+  {
+   "ticker": "VGOV.LSE",
+   "name": "Vanguard UK Gilt UCITS ETF",
+   "pnl_gbp": 7.8,
+   "pnl_pct": 0.004157766460687365,
+   "realised_gbp": 0.0,
+   "unrealised_gbp": 7.8,
+   "contribution_to_return": 0.0007804127646710185
+  },
+  {
+   "ticker": "VUAG.LSE",
+   "name": "Vanguard S&P 500 UCITS ETF (Acc)",
+   "pnl_gbp": -35.34,
+   "pnl_pct": -0.02151099398244491,
+   "realised_gbp": 0.0,
+   "unrealised_gbp": -35.34,
+   "contribution_to_return": -0.0035342563113156984
+  },
+  {
+   "ticker": "VUKG.LSE",
+   "name": "Vanguard FTSE 100 UCITS ETF (Acc)",
+   "pnl_gbp": -33.8,
+   "pnl_pct": -0.037637399105548024,
+   "realised_gbp": 0.0,
+   "unrealised_gbp": -33.8,
+   "contribution_to_return": -0.0033798384396782127
+  },
+  {
+   "ticker": "VWRP.LSE",
+   "name": "Vanguard FTSE All-World UCITS ETF (Acc)",
+   "pnl_gbp": -7.96,
+   "pnl_pct": -0.015583001562982358,
+   "realised_gbp": 0.0,
+   "unrealised_gbp": -7.96,
+   "contribution_to_return": -0.0007962913798683985
+  }
+ ],
+ "total_pnl_gbp": -113.93
 }
