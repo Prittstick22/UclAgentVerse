@@ -64,7 +64,9 @@ def build_targets(state: AppState, current: dict[str, float] | None = None) -> d
 
 
 def _forecast_mu(state: AppState) -> pd.Series | None:
-    """2-week walk-forward estimate (#73). Until engine/forecast.py exists, no forecast term is used."""
+    """2-week walk-forward estimate (#73). `--no-forecast` (state.forecast_off) = the lambda_return 0 ablation."""
+    if getattr(state, "forecast_off", False):
+        return None
     try:
         from app.engine import forecast  # type: ignore[attr-defined]
     except ImportError:
@@ -132,6 +134,7 @@ class Simulation:
         self.prev_day: pd.Timestamp | None = None
         self.i = 0
         self.capital = float(prm["sim"]["capital_gbp"])
+        self.flows: dict[str, float] = {}         # date -> contribution (for time-weighted returns)
 
     @property
     def done(self) -> bool:
@@ -169,6 +172,7 @@ class Simulation:
         if self.prev_day is not None and day.month != self.prev_day.month:
             contribution = float(prm["sim"]["monthly_contribution_gbp"])
             led.deposit(contribution)
+            self.flows[date] = contribution
             if self.nav_at_last_review is not None:  # new money is not a gain: don't let it hide a NAV drop
                 self.nav_at_last_review += contribution
             if not led.pending and self.targets:
@@ -184,7 +188,8 @@ class Simulation:
         bench_contribution = contribution
         if invested and not self.bench:  # benchmarks start on the day we are first invested, same prices
             # led.nav() already includes today's contribution, so they must not get it again in step()
-            self.bench = make_benchmarks(led.catalogue, self.targets or {}, led.nav(), date, prices,
+            # same money in as ours (not our NAV after our trading costs: they pay their own)
+            self.bench = make_benchmarks(led.catalogue, self.targets or {}, led.contributions_gbp, date, prices,
                                          prm["benchmark_global_etf"])
             bench_contribution = 0.0
             self.review_prices, self.nav_at_last_review = dict(prices), led.nav()
@@ -241,6 +246,7 @@ class Simulation:
             res.final_nav = round(led.nav(), 2)
             res.contributions_gbp = round(led.contributions_gbp, 2)
             res.benchmarks = {b.name: round(b.ledger.nav(), 2) for b in self.bench}
+            save_results(self)
 
     async def _construct(self, date: str) -> None:
         """Day 0: the starting portfolio. Agents build it (construction run + proposal + approval policy);
@@ -285,6 +291,37 @@ class Simulation:
         while not self.done:
             await self.step()
         return self.res
+
+
+RESULTS_NS = "sim_results"
+
+
+def _strategy(series: list[tuple[str, float]], flows: dict[str, float], ledger) -> dict:
+    fills = ledger.fills
+    initial = fills[0].date if fills else None          # the initial build from cash is not "turnover"
+    return {"series": [{"date": d, "nav_gbp": v} for d, v in series], "flows": flows,
+            "costs_gbp": round(ledger.costs_paid_gbp, 2), "fees_gbp": round(ledger.fees_paid_gbp, 2),
+            "trades": len(fills), "traded_gbp": round(sum(f.amount_gbp for f in fills if f.date != initial), 2)}
+
+
+def save_results(sim: Simulation) -> dict:
+    """Everything the evaluation (#24) and /api/benchmarks need, stored in the run's own SQLite (kv)."""
+    import json
+
+    state, res = sim.state, sim.res
+    strategies = {"ours": _strategy(res.nav_series, sim.flows, state.ledger)}
+    for b in sim.bench:
+        # every strategy starts from the same cash on day 0, so day 1's return includes its own build costs
+        series = b.nav_series if b.nav_series and b.nav_series[0][0] == res.start else \
+            [(res.start, round(sim.capital, 2)), *b.nav_series]
+        strategies[b.name] = _strategy(series, sim.flows, b.ledger)
+    out = {"start": res.start, "end": res.end, "days": res.days, "agents": sim.agents, "approvals": sim.approvals,
+           "forecast": not getattr(state, "forecast_off", False),
+           "profile": state.mandate.profile, "lambda_return": params()["forecast"]["lambda_return"],
+           "data_source": state.gw.snapshot.source_label, "runs": res.runs,
+           "trigger_counts": dict(res.trigger_counts), "strategies": strategies}
+    state.db.put(RESULTS_NS, "latest", json.dumps(out))
+    return out
 
 
 async def run(state: AppState, start: str, end: str | None = None, agents: bool = False,
@@ -353,6 +390,8 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     g.add_argument("--no-agents", dest="agents", action="store_false", help="engine-only baseline (default)")
     p.add_argument("--profile", default="balanced", choices=["cautious", "balanced", "growth", "adventurous"])
     p.add_argument("--approvals", default="manual", choices=["manual", "batch_policy"])
+    p.add_argument("--no-forecast", action="store_true",
+                   help="ablation: no 2-week forecast term (same as forecast.lambda_return 0); params stay frozen")
     p.add_argument("--record", default=None, help="SQLite file for the event log (replaced if it exists)")
     a = p.parse_args(argv)
     if a.record:
@@ -360,6 +399,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
         Path(a.record).unlink(missing_ok=True)
     state = build_state(db_path=a.record)
     state.mandate = mandate_for(a.profile)
+    state.forecast_off = a.no_forecast
     r = asyncio.run(run(state, a.start, a.end, agents=a.agents, approvals=a.approvals))
     print(f"Simulated {r.days} trading days {r.start} → {r.end} ({'agents' if a.agents else 'engine only'}, "
           f"{a.profile}). Simulated results, not a forecast.")
