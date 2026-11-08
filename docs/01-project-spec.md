@@ -77,7 +77,7 @@
 - eval table
 
 **Tier 3, only if ahead:**
-- retrospective reviewer + one tested memory rule
+- retrospective reviewer: 0–3 advisory lessons after every agent run (none if nothing to advise) (advice, not rules)
 - dependency look-through with passage-cited edges
 - candidate-instrument review queue
 - correlation network view
@@ -106,7 +106,7 @@
 | Unseen-data testing | 25% | Benchmarks after costs; the whole Jul–Nov 2026 window is after Argon's reported Mar 2026 knowledge cutoff (held-out); agents vs same-engine-without-agents shows what Gemini adds; params frozen before the run |
 | Relevance and impact | 20% | Two concrete problems; "26 reviews, N checks, only Z decisions asked of you" |
 | Controls and oversight | 15% | Coded limits, gateway firewall, injection guard, approval gate, refused spawns, all logged |
-| Ambition and technical quality | 15% | Lead-decided sub-agent trees, assurance roles, agent-designed monitors, tested memory rule |
+| Ambition and technical quality | 15% | Lead-decided sub-agent trees, assurance roles, agent-designed monitors, lessons learned from past runs |
 
 ## 8. Success for the weekend
 
