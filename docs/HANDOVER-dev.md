@@ -4,10 +4,10 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 ## Resume here: current state (keep this section updated)
 
-**Codex resumed Sun 8 Nov.** Active branch: `dev/7-fetch-text`. #7 implemented and live-fetched; PR/CI/merge pending. Next: #30 prompts. See `docs/fetch-text.md` for measured coverage and limitations. EDGAR contact has been set in ignored `.env` with Dev's permission.
+**Checkpoint Sun 8 Nov:** #7 is merged in PR #93 (`db8c36a`), both CI jobs passed and the issue is closed. The requested rollback was stopped before any revert command ran; Dev subsequently confirmed the EDGAR integration is okay. Active branch: `dev/30-construction-prompts`; no #30 implementation changes yet. Next: #30 prompts and a timed deliberate live construction check. See `docs/fetch-text.md` for measured coverage and limitations. EDGAR contact is configured in ignored `.env`; no additional credentials are needed.
 
 ### Done
-- **#7 implementation ready:** dated news/filings/earnings fetch, three-line snapshot hook, offline firewall/mapping tests, live snapshot files. Hero candidates to board; PR pending.
+- **#7 complete (PR #93 merged):** dated news/filings/earnings fetch, three-line snapshot hook preserving Jin's #6, 58 offline backend tests passing and frontend build/CI passing. Live-fetched news, 29 filings and 3 earnings rows; sparse evidence and provider limits documented in `docs/fetch-text.md`. AAPL/NVDA hero candidates posted to the board for Cem/Jin. Local text files remain ignored and need separate snapshot sharing.
 - #3 EODHD bought + verified (every ticker from 2023-01, LSE units OK, delayed quotes OK) · #27 Gemini ping · #54 keys · #55 provider check (PR #81)
 - **#28 agent loop on real Argon (PR #88):** schema retry, Gemini retries + backup keys (`GEMINI_API_KEY_BACKUPS`), per-step token budget, cache-stable prompts, `cost_estimate_usd`/`duration_s` in `run.completed`, `RunSummary` in kv `runs`. About 1,850 tokens and $0.007 per call, about 10 s per call; reruns cost 0 tokens.
 - **#29 core tools (PR #90):** tools wired to engine + gateway; construction runs end `built` with a `Proposal` (live Argon: 6 calls, $0.044). `gw.earnings()` added (past dates only). The `forecast` tool returns `not_available` until Cem's #73 lands (`app.engine.forecast.forecast(gw, tickers, as_of, horizon=10)`).
@@ -15,7 +15,7 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 - **#60 finance kit reviewed:** see `docs/finance-kit.md`. The organisers' kit is at `../agentverse/` (outside the repo, never commit it). Their hidden **challenge** mode is how unseen-data testing is likely judged; the packs that fit us are `markets` and `real-markets`.
 
 ### Next, in order (mvp before feature)
-1. **#7 news / filings / earnings fetch** (`gh issue view 7`). Branch `dev/7-fetch-text`.
+1. **#7 complete: PR #93 merged.** The implementation plan below is retained as reference; do not redo it. Next active issue is #30.
    - New `backend/scripts/fetch_text.py` with steps `news`, `filings`, `earnings`. Only a **3-line hook** in `backend/scripts/fetch_snapshot.py` (Jin is editing that file for #6 prices; don't touch the rest).
    - Add `EODHD.news(symbol, start, end, limit, offset)` to `backend/app/data/adapters/eodhd.py` (`GET https://eodhd.com/api/news?s=<TICKER>&from=&to=&limit=&offset=&api_token=&fmt=json`; returns `[{date, title, content, link, symbols, sentiment?}]`). Reuse `Finnhub.company_news` / `Finnhub.earnings_calendar` (`adapters/finnhub.py`) and `Edgar.submissions` / `Edgar.document` (`adapters/edgar.py`).
    - **News:** Finnhub `company_news` for each US stock (catalogue `kind == "stock"`, `.US`), month by month from 2026-06-01 to today, using the plain symbol (`AAPL`); EODHD news for each `.LSE` stock over the same window. Map to the `NewsItem` schema (`backend/app/data/models.py`), `source` = `finnhub` / `eodhd`, dedupe by URL. **`available_at`**: if published on a weekday at or before 16:30 Europe/London, that time; otherwise the next weekday at 16:30 London (the `SimClock` observes each day at 16:30, `backend/app/core/clock.py`). Append the labelled synthetic injection item from `backend/scripts/make_synthetic_snapshot.py` (`news_syn_inject`, `synthetic: true`).
