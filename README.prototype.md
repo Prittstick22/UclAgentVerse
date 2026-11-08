@@ -68,7 +68,15 @@ Install Python 3.12 and Node.js 22 LTS before running the commands below:
 - Node.js 22 LTS: [nodejs.org/en/download](https://nodejs.org/en/download)
 
 On Windows, select **Add Python to PATH** and **Python Launcher** in the Python
-installer. Open a new terminal after installation, then verify the versions:
+installer. If Python 3.12 is not installed, PowerShell users with Windows
+Package Manager can install it with:
+
+```powershell
+winget install --id Python.Python.3.12 -e
+```
+
+Alternatively, use the Python download link above. After installation, close
+and reopen PowerShell, then verify the versions:
 
 ```powershell
 py -3.12 --version
