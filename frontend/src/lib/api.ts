@@ -108,7 +108,12 @@ async function retryWithPasscode<T>(send: (credential: string) => Promise<T>, pr
   }
 }
 
-async function post<T>(path: string, body: unknown, mock: string): Promise<T> {
+export async function put<T>(path: string, body: T, mock: string): Promise<T> {
+  if (MOCK) return body ?? fx<T>(mock);
+  return request<T>(path, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+
+export async function post<T>(path: string, body: unknown, mock: string): Promise<T> {
   if (MOCK) return fx<T>(mock);
   const protectedAction = canAskForPasscode(path, body);
   const previousPasscode = protectedAction ? passcode : undefined;

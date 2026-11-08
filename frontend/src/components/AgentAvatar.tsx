@@ -13,6 +13,17 @@ export function BrandMark() {
 
 const portraits = {
   lead: <LeadGlyph />,
+  bond_scout: <>
+    <path d="M10 22 24 11l14 11-3 13H13Z" fill="#203431" />
+    <rect x="15" y="22" width="18" height="14" rx="5" fill="#edf3e7" />
+    <circle cx="20" cy="28" r="2" fill="#203431" /><circle cx="28" cy="28" r="2" fill="#203431" />
+    <path d="M21 32h6" stroke="#203431" strokeWidth="1.5" strokeLinecap="round" />
+  </>,
+  stock_analyst: <>
+    <path d="M11 26V13l10 5h6l10-5v13c0 9-6 13-13 13S11 35 11 26Z" fill="#412b25" />
+    <path d="M15 27c1-6 7-7 9-2 2-5 8-4 9 2l-9 9Z" fill="#fff1dd" />
+    <circle cx="19" cy="25" r="1.7" fill="#412b25" /><circle cx="29" cy="25" r="1.7" fill="#412b25" />
+  </>,
   risk_analyst: (
     <>
       <path d="M10 20c0-4.5 1-8.2 3-10.6.7-.8 2-.8 2.7 0l4.2 4.1a18 18 0 0 1 8.2 0l4.2-4.1c.7-.8 2-.8 2.7 0 2 2.4 3 6.1 3 10.6v5.7c0 7.9-6.7 13.1-14 16.3-7.3-3.2-14-8.4-14-16.3Z" fill="#f3fff4" />

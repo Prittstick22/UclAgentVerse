@@ -23,3 +23,11 @@ The desktop Home places the holdings watchlist and allocation on the left, perfo
 The holding connections view uses the portfolio's current tickers. Matrix cells can be inspected by pointer or keyboard. In historical mode, the date slider fetches a report at the selected date and keeps the last loaded report visible while the request completes. The fixture preview has one correlation date and one P&L period.
 
 Change between historical demo and current paper markets on the Investor profile screen. Protected requests may prompt for the public demo passcode, which is kept in memory until the page reloads.
+
+## First visit and investigations
+
+First visit opens setup. Demo shows the locked fictional Priya profile and routes to the recorded timeline. Real mode runs the risk questionnaire and saves a paper-portfolio mandate before requesting construction. Return to Profile to edit the mandate or revisit setup.
+
+Home review links and Timeline markers open the Agent Room. The room replays saved event sequences, and active live runs stream events as they arrive. The shared player supports event deep links with /runs/:id?seq=n. Calculations and source links come from event payloads and the evidence endpoint.
+
+The Agent Room and Home can open the same proposal dialog. Current-market decisions use the manual approve or decline endpoint. The historical recording is read-only.
