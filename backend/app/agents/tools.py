@@ -129,6 +129,18 @@ def _lookback_start(ctx: ToolContext, days: int) -> str:
     return str(idx[max(0, len(idx) - days - 1)].date())
 
 
+def _forecast_mu(ctx: ToolContext, run: Any, tickers: list[str]) -> tuple[pd.Series | None, str | None]:
+    """Engine 2-week forecast (#73) for the optimiser's bounded tilt; None if the module is missing."""
+    try:
+        from app.engine import forecast as fc
+    except ImportError:
+        return None, None
+    res = fc.forecast(ctx.gw, tickers, ctx.gw.clock.as_of_str())
+    eid = _calc(ctx, run, "forecast_2w", {"tickers": tickers, "horizon": res.horizon_days},
+                {"mu": res.mu, "skipped": res.skipped, "label": res.label}, "2-week estimate (not a promise)")
+    return (pd.Series(res.mu, dtype=float) if res.mu else None), eid
+
+
 def _trades(ctx: ToolContext, target: dict[str, float]) -> tuple[list[OrderChange], float, float]:
     """Trade list, cost £ and turnover, by replaying the rebalance on a throwaway copy of the ledger (engine code)."""
     led: Ledger = ctx.state.ledger
@@ -243,22 +255,16 @@ async def earnings_calendar(ctx: ToolContext, args: dict, run: Any) -> dict:
 
 # ---------------------------------------------------------------------- engine tools
 async def risk_stats(ctx: ToolContext, args: dict, run: Any) -> dict:
+    """Engine risk stats (engine.risk.risk_stats): vol, max drawdown, beta, concentration, history flag."""
     w, cash, label = _weights_from(ctx, args, run)
-    tickers = list(w)
-    cov = _cov(ctx, tickers, "tool.risk_stats")
-    ws = pd.Series(w)
-    vol = risk.portfolio_vol(ws, cov)
-    lookback = params()["optimiser"]["lookback"]
-    res = bt.run(ctx.gw, w, start=_lookback_start(ctx, lookback), rebalance="quarterly")
-    nav = pd.Series([v for _, v in res.nav], index=pd.to_datetime([d for d, _ in res.nav]))
-    mkt_tickers = list(dict.fromkeys([*tickers, MARKET]))
-    rets = risk.log_returns(ctx.gw.prices(mkt_tickers, caller="tool.risk_stats").tail(lookback + 1))
-    port_ret = (rets[tickers] * ws.reindex(tickers)).sum(axis=1)
-    out = {"vol_annual": _r(vol), "max_drawdown": _r(risk.max_drawdown(nav)),
-           "beta_vs_global_equity": _r(risk.beta(port_ret, rets[MARKET])), "herfindahl": _r(risk.herfindahl(ws)),
-           "largest": max(w, key=w.get), "cash_weight": _r(cash)}
+    bench = params()["benchmark_global_etf"]
+    prices = ctx.gw.prices(list(dict.fromkeys([*w, bench])), caller="tool.risk_stats")
+    rs = risk.risk_stats(w, prices, benchmark=bench)
+    out = {"vol_annual": _r(rs.vol), "max_drawdown": _r(rs.max_drawdown), "beta_vs_global_equity": _r(rs.beta),
+           "herfindahl": _r(rs.herfindahl), "largest": max(w, key=w.get), "cash_weight": _r(cash),
+           "history_days": rs.history_days, "short_history": rs.short_history, "label": rs.label}
     eid = _calc(ctx, run, "risk_stats", {"weights": _round_w(w), "label": label}, out, f"Risk stats for {label}")
-    return {"ok": True, "summary": f"{label}: vol {vol:.1%}/yr, max drawdown {out['max_drawdown']:.1%} (historical)",
+    return {"ok": True, "summary": f"{label}: vol {rs.vol:.1%}/yr, max drawdown {rs.max_drawdown:.1%} (historical)",
             **out, "evidence_ids": [eid]}
 
 
@@ -284,13 +290,14 @@ async def build_options(ctx: ToolContext, args: dict, run: Any) -> dict:
     if not insts:
         return {"ok": False, "error": "no_candidates", "summary": "none of the tickers are eligible"}
     cov = _cov(ctx, [i.ticker for i in insts], "tool.build_options")
+    mu, fc_eid = _forecast_mu(ctx, run, [i.ticker for i in insts])   # same bounded tilt as the sim (#73)
     current = ctx.state.ledger.weights()
     lookback_start = _lookback_start(ctx, params()["optimiser"]["lookback"])
     options: dict[str, PortfolioOption] = {}
     summary_rows, eids, failed = [], [], []
     for variant in VARIANTS:
         res = optimiser.optimise(optimiser.OptimiseRequest(mandate=ctx.state.mandate, instruments=insts, cov=cov,
-                                                           current_weights=current, variant=variant))
+                                                           current_weights=current, variant=variant, mu=mu))
         if res.status != "optimal":
             failed.append({"variant": variant, "status": res.status, "why": res.binding_constraints})
             continue
@@ -313,8 +320,9 @@ async def build_options(ctx: ToolContext, args: dict, run: Any) -> dict:
     scratch["options"] = options
     if not options:
         return {"ok": False, "error": "infeasible", "summary": "no option satisfies the mandate", "failed": failed}
-    return {"ok": True, "summary": f"built {len(options)} options: {', '.join(options)}", "options": summary_rows,
-            "failed": failed, "evidence_ids": eids}
+    return {"ok": True, "summary": f"built {len(options)} options: {', '.join(options)}"
+                                   + (" (with the bounded 2-week forecast tilt)" if mu is not None else ""),
+            "options": summary_rows, "failed": failed, "evidence_ids": eids + ([fc_eid] if fc_eid else [])}
 
 
 async def cost_turnover(ctx: ToolContext, args: dict, run: Any) -> dict:
