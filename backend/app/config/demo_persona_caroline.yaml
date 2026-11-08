@@ -1,0 +1,29 @@
+# Second, HIGHER-RISK historical demo persona (scenario, same window 7 Jul -> 6 Nov 2026). Fictional person, not real data.
+# Its recorded run uses:  python -m app.sim.runner ... --persona caroline   (profile: aggressive, from policy.yaml)
+# Priya (demo_persona.yaml) is the recorded balanced demo and is never changed by this scenario.
+# `aggressive` is a scenario profile beyond the quiz: the quiz's top band is adventurous, so Caroline's answers score
+# to adventurous (tests/test_demo_persona.py checks this, with no conflict) and the scenario then uses the stock-heavy
+# aggressive policy: about 60% single stocks + 40% equity ETFs, no bonds, 2% cash floor.
+name: Caroline
+age: 38
+story: >-
+  Caroline is a senior engineer in Manchester with a secure, well-paid job, a full emergency fund and a workplace
+  pension already on track. She has invested for years, wants £10,000 plus £200 a month to grow over twenty years or
+  more, and is comfortable owning individual companies and riding out big falls.
+profile: aggressive
+synthetic: true                 # fictional persona (AGENTS.md rule 7)
+goal:
+  name: Long-term growth
+  target_date: "2046-07-01"
+  starting_amount_gbp: 10000
+  monthly_contribution_gbp: 200
+exclusions: []
+answers:                        # quiz question id -> option id (backend/app/profile/quiz.py)
+  horizon: gt15                 # more than 15 years away                  (capacity)
+  emergency: "yes"              # 3+ months saved                          (capacity)
+  loss_goal: "no"               # a 20% fall would not stop her goal       (capacity)
+  income: steady                # very steady salary                       (capacity)
+  reaction: buy                 # would invest more after a fall           (tolerance)
+  swings: widest                # accepts £7,000 to £13,500 on £10,000     (tolerance)
+  experience: "yes"             # invests regularly                        (context)
+  worry: rarely                 # rarely checks when markets fall          (tolerance)

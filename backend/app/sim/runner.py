@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from app.config import params
+from app.config import PERSONA_FILES, params, policy
 from app.container import AppState, build_state
 from app.core.clock import SimClock
 from app.engine import optimiser, risk
@@ -398,7 +398,10 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     g = p.add_mutually_exclusive_group()
     g.add_argument("--agents", dest="agents", action="store_true", help="hand reviews/triggers to the supervisor")
     g.add_argument("--no-agents", dest="agents", action="store_false", help="engine-only baseline (default)")
-    p.add_argument("--profile", default="balanced", choices=["cautious", "balanced", "growth", "adventurous"])
+    p.add_argument("--profile", default=None, choices=list(policy()),
+                   help="default: the persona's profile (Priya = balanced, Caroline = aggressive)")
+    p.add_argument("--persona", default="priya", choices=list(PERSONA_FILES),
+                   help="whose fixed demo mandate to record (default priya; the recorded demo)")
     p.add_argument("--approvals", default="manual", choices=["manual", "batch_policy"])
     p.add_argument("--no-agent-views", action="store_true",
                    help="ablation: agents may not nudge the forecast with views (#74); params stay frozen")
@@ -410,7 +413,8 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
         Path(a.record).parent.mkdir(parents=True, exist_ok=True)
         Path(a.record).unlink(missing_ok=True)
     state = build_state(db_path=a.record)
-    persona_mandate = demo_mandate()
+    persona_mandate = demo_mandate(a.persona)
+    a.profile = a.profile or persona_mandate.profile
     state.mandate = persona_mandate if a.profile == persona_mandate.profile else mandate_for(a.profile)
     state.db.put("sim_mandate", "initial", state.mandate.model_dump_json())
     state.forecast_off = a.no_forecast

@@ -21,7 +21,7 @@
 ```ts
 type Mode = "historical" | "live";
 type AssetClass = "equity" | "bond" | "cash" | "commodity";
-type ProfileName = "cautious" | "balanced" | "growth" | "adventurous";
+type ProfileName = "cautious" | "balanced" | "growth" | "adventurous" | "aggressive";   // aggressive = scenario only (Caroline), not from the quiz
 type HomeStatus = "monitoring_normally" | "investigating" | "awaiting_approval" | "monitoring_degraded";
 type TriggerKind = "construction" | "review" | "drift" | "cap_breach" | "price_move" | "nav_drop" | "news" | "corr_regime" | "chat" | "retrospective" | "manual";
 type GateName = "injection_guard" | "evidence" | "numbers" | "mandate" | "critic" | "compliance" | "qa" | "revalidation";
@@ -48,7 +48,7 @@ interface Mandate {
   profile: ProfileName;
   goal: { name: string; target_date: string; starting_amount_gbp: number; monthly_contribution_gbp: number };
   ranges: { equity: [number, number]; bond: [number, number]; cash_min: number };
-  caps: { per_fund: number; per_stock: number; stocks_total: number };
+  caps: { per_fund: number; per_stock: number; stocks_total: number; stocks_min?: number };   // stocks_min: floor on single stocks, default 0
   exclusions: string[];      // tickers or sleeves
   review_every_n_days: number;           // 10 = fortnightly
   triggers: { drift_pp: number; price_move_day: number; price_move_since_review: number; nav_drop: number; news_relevance: number };

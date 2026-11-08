@@ -3,7 +3,7 @@
 
 export type Mode = "historical" | "live";
 export type AssetClass = "equity" | "bond" | "cash" | "commodity";
-export type ProfileName = "cautious" | "balanced" | "growth" | "adventurous";
+export type ProfileName = "cautious" | "balanced" | "growth" | "adventurous" | "aggressive";
 export type HomeStatus = "monitoring_normally" | "investigating" | "awaiting_approval" | "monitoring_degraded";
 export type TriggerKind =
   | "construction" | "review" | "drift" | "cap_breach" | "price_move" | "nav_drop" | "news"
@@ -34,7 +34,7 @@ export interface Goal { name: string; target_date: string; starting_amount_gbp: 
 export interface Mandate {
   version: number; profile: ProfileName; goal: Goal;
   ranges: { equity: [number, number]; bond: [number, number]; cash_min: number };
-  caps: { per_fund: number; per_stock: number; stocks_total: number };
+  caps: { per_fund: number; per_stock: number; stocks_total: number; stocks_min?: number };
   exclusions: string[]; review_every_n_days: number;
   triggers: { drift_pp: number; price_move_day: number; price_move_since_review: number; nav_drop: number; news_relevance: number };
   approval: { require_user_approval: boolean; batch_auto_approve_turnover_max: number };

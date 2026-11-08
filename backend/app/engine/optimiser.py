@@ -155,9 +155,11 @@ def _solve(req: OptimiseRequest, insts: list[Instrument], margin: float, floor: 
         "equity_min": is_eq @ w >= eq_lo + e,
         "equity_max": is_eq @ w <= eq_hi - e,
         "bond_min": is_bd @ w >= bd_lo + e,
-        "bond_max": is_bd @ w <= bd_hi - e,
+        "bond_max": is_bd @ w <= max(bd_hi - e, 0.0),
         "stocks_total": is_stock @ w <= max(m.caps.stocks_total - e, 0.0),
     }
+    if m.caps.stocks_min > 0:
+        named["stocks_min"] = is_stock @ w >= m.caps.stocks_min + e
     if floor:
         named["min_holding"] = w >= floor
     if anchor is not None:
@@ -236,6 +238,11 @@ def _diagnose(m: Mandate, insts: list[Instrument]) -> list[str]:
                 reasons.append(f"The {prof} profile needs at least {lo:.0%} in {word}, but the candidates can hold "
                                f"at most {most:.0%} ({' and '.join(parts)}). Add {fund} "
                                "or remove an exclusion.")
+    stocks = [i for i in insts if i.kind == "stock"]
+    if m.caps.stocks_min > min(len(stocks) * m.caps.per_stock, m.caps.stocks_total) + 1e-9:
+        reasons.append(f"The {prof} profile needs at least {m.caps.stocks_min:.0%} in single stocks, but the "
+                       f"candidates can hold at most {min(len(stocks) * m.caps.per_stock, m.caps.stocks_total):.0%} "
+                       f"({len(stocks)} stocks at up to {m.caps.per_stock:.0%} each). Add stocks or remove an exclusion.")
     if m.ranges.equity[0] + m.ranges.bond[0] + m.ranges.cash_min > 1 + 1e-9:
         reasons.append(f"The minimums for shares ({m.ranges.equity[0]:.0%}), bonds ({m.ranges.bond[0]:.0%}) "
                        f"and cash ({m.ranges.cash_min:.0%}) add up to more than 100%.")

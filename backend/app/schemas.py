@@ -14,7 +14,7 @@ class NewsFeed(BaseModel):
 
 Mode = Literal["historical", "live"]
 AssetClass = Literal["equity", "bond", "cash", "commodity"]
-ProfileName = Literal["cautious", "balanced", "growth", "adventurous"]
+ProfileName = Literal["cautious", "balanced", "growth", "adventurous", "aggressive"]
 HomeStatus = Literal["monitoring_normally", "investigating", "awaiting_approval", "monitoring_degraded"]
 TriggerKind = Literal[
     "construction", "review", "drift", "cap_breach", "price_move", "nav_drop", "news",
@@ -58,6 +58,7 @@ class Caps(BaseModel):
     per_fund: float
     per_stock: float
     stocks_total: float
+    stocks_min: float = 0.0      # floor on single stocks in total (only the aggressive scenario profile uses it)
 
 
 class Triggers(BaseModel):
