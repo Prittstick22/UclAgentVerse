@@ -101,7 +101,7 @@ python3.12 -m venv .venv
 .venv/bin/python -m pip install -e './backend[dev]'
 .venv/bin/python backend/scripts/make_synthetic_snapshot.py --out backend/data/readme-synthetic
 env -u RECORDED_RUN APP_MODE=historical LLM_MODE=fake PUBLIC_DEMO=0 SNAPSHOT_DIR="$PWD/backend/data/readme-synthetic" STATE_DB="$PWD/backend/readme-state.sqlite" .venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
-npm --prefix frontend ci && VITE_MOCK=0 npm --prefix frontend run dev -- --host 127.0.0.1
+npm --prefix frontend install && VITE_MOCK=0 npm --prefix frontend run dev -- --host 127.0.0.1
 ```
 
 Command 4 stays running: execute command 5 in a **second terminal** at the same
@@ -112,10 +112,10 @@ http://127.0.0.1:8000/api/health; expect `llm_mode: fake` and a synthetic data s
 
 ```powershell
 py -3.12 -m venv .venv
-& ./.venv/test/Scripts/python.exe -m pip install -e './backend[dev]'
-& ./.venv/test/Scripts/python.exe backend/scripts/make_synthetic_snapshot.py --out backend/data/readme-synthetic
+& ./.venv/Scripts/python.exe -m pip install -e './backend[dev]'
+& ./.venv/Scripts/python.exe backend/scripts/make_synthetic_snapshot.py --out backend/data/readme-synthetic
 Remove-Item Env:RECORDED_RUN -ErrorAction SilentlyContinue; $env:APP_MODE='historical'; $env:LLM_MODE='fake'; $env:PUBLIC_DEMO='0'; $env:SNAPSHOT_DIR=(Join-Path $PWD 'backend/data/readme-synthetic'); $env:STATE_DB=(Join-Path $PWD 'backend/readme-state.sqlite'); & ./.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
-npm --prefix frontend ci; if ($LASTEXITCODE -eq 0) { $env:VITE_MOCK='0'; npm --prefix frontend run dev -- --host 127.0.0.1 }
+npm --prefix frontend install; if ($LASTEXITCODE -eq 0) { $env:VITE_MOCK='0'; npm --prefix frontend run dev -- --host 127.0.0.1 }
 ```
 
 Run command 5 in a second PowerShell terminal at the repository root while the
