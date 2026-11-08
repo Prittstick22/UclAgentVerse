@@ -177,7 +177,7 @@ class PortfolioView:
         runs = {e.run_id: e for e in events if e.type == "run.started"}
         approval_by_run: dict[str, str | None] = {}
         approval_by_proposal: dict[str, str] = {}
-        fills: dict[tuple[str, str, str | None], list[Event]] = defaultdict(list)
+        fills: dict[tuple[str, str | None, str | None], list[Event]] = defaultdict(list)
         for event in events:
             proposal_id = event.payload.get("proposal_id")
             if event.type == "approval.decided" and event.payload.get("decision") in ("approve", "approved"):
@@ -195,7 +195,10 @@ class PortfolioView:
                 else:
                     run_id = event.run_id if event.run_id in approval_by_run else None
                     proposal_id = approval_by_run.get(run_id) if run_id else None
-                if run_id:
+                # Early recording formats have actual fills and checkpoints but no link to a run.
+                unlinked_recording_fill = (self.mode == "historical" and self.state.recording is not None
+                                           and not event.run_id and not proposal_id)
+                if run_id or unlinked_recording_fill:
                     fills[event.payload.get("date", event.as_of), run_id, proposal_id].append(event)
 
         points = self._points()

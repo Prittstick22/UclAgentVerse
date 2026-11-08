@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
@@ -12,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.demo_guard import RateLimitMiddleware
 from app.api.routes import router
-from app.container import build_state, state_for_mode
+from app.container import build_state, load_demo_states, state_for_mode
 from app.settings import get_settings
 
 
@@ -21,10 +22,13 @@ async def lifespan(app: FastAPI):
     if not hasattr(app.state, "app"):
         app.state.app = build_state()
     state_for_mode(app.state.app, "live" if app.state.app.clock.mode == "historical" else "historical")
+    load_demo_states(app.state.app)
     try:
         yield
     finally:
-        for state in app.state.app.modes.values():
+        root = app.state.app
+        states = root.demo_states or root.modes
+        for state in states.values():
             if state.recording is not None:
                 await state.recording.pause()
 
@@ -52,12 +56,23 @@ async def http_error(_: Request, exc: HTTPException):
     return JSONResponse(status_code=exc.status_code, content=body)
 
 
-# Serve the built frontend (Docker copies frontend/dist → app/static)
-_static = get_settings().static_dir
-if _static.exists():
-    app.mount("/assets", StaticFiles(directory=_static / "assets"), name="assets")
+def mount_frontend(app: FastAPI, directory: Path) -> None:
+    """Serve the built frontend without treating missing API routes as browser navigation."""
+    root = directory.resolve()
+    app.mount("/assets", StaticFiles(directory=root / "assets"), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
-        f = _static / path
-        return FileResponse(f if f.is_file() else _static / "index.html")
+        if path == "api" or path.startswith("api/"):
+            return JSONResponse({"error": {"code": "not_found", "message": "API endpoint not found.", "details": {}}},
+                                status_code=404)
+        file = (root / path).resolve()
+        if file.is_relative_to(root) and file.is_file():
+            return FileResponse(file)
+        return FileResponse(root / "index.html")
+
+
+# Docker copies frontend/dist into app/static.
+_static = get_settings().static_dir
+if _static.exists():
+    mount_frontend(app, _static)

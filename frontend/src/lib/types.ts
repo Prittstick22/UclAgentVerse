@@ -2,6 +2,7 @@
 // Change only together with those files + a board `contract-change` post.
 
 export type Mode = "historical" | "live";
+export type DemoPersona = "priya" | "caroline";
 export type AssetClass = "equity" | "bond" | "cash" | "commodity";
 export type ProfileName = "cautious" | "balanced" | "growth" | "adventurous" | "aggressive";
 export type HomeStatus = "monitoring_normally" | "investigating" | "awaiting_approval" | "monitoring_degraded";
@@ -12,7 +13,7 @@ export type GateName = "injection_guard" | "evidence" | "numbers" | "mandate" | 
 export type GateStatus = "pending" | "pass" | "pass_with_flags" | "fail" | "skipped";
 export type Badge = "source_retrieved" | "claim_supported" | "relationship_uncertain" | "calculation_recomputed" | "judgement_uncertain";
 
-export interface Health { status: string; mode: Mode; as_of: string; version: string; llm_mode: string; data_source: string }
+export interface Health { status: string; mode: Mode; as_of: string; version: string; llm_mode: string; data_source: string; live_runs_enabled?: boolean }
 
 export interface NewsItem {
   id: string; tickers: string[]; headline: string; summary: string; url: string | null;
@@ -76,7 +77,7 @@ export interface PortfolioPnl {
 }
 
 export interface PortfolioRebalances {
-  items: { date: string; run_id: string; trigger_kind: TriggerKind; trigger_text: string;
+  items: { date: string; run_id: string | null; trigger_kind: TriggerKind; trigger_text: string;
     changes: OrderChange[]; cost_gbp: number }[];
 }
 

@@ -1,5 +1,5 @@
 // API client. In mock mode (VITE_MOCK=1, default in dev) it serves ../fixtures/*.json, so the UI works without a backend.
-import type { AgentEvent, CorrelationReport, Health, Mandate, Mode, Notification, Portfolio, ProfileResult, Question, RunSummary } from "./types";
+import type { AgentEvent, CorrelationReport, DemoPersona, DemoProfile, Health, Mandate, Mode, Notification, Portfolio, ProfileResult, Question, RunSummary } from "./types";
 
 const fixtureMode = import.meta.env.VITE_MOCK;
 export const MOCK = fixtureMode === "1" || (fixtureMode === undefined && import.meta.env.DEV);
@@ -133,9 +133,25 @@ export async function post<T>(path: string, body: unknown, mock: string): Promis
   }
 }
 
+async function loadDemos(signal: AbortSignal): Promise<Partial<Record<DemoPersona, DemoProfile>>> {
+  if (MOCK) return { priya: fx<DemoProfile>("demo_profile") };
+  try {
+    const profiles = await request<Partial<Record<DemoPersona, DemoProfile>>>("/profile/demos", { signal });
+    if (profiles?.priya || profiles?.caroline) return profiles;
+  } catch (error) {
+    // Older servers either return 404 or serve index.html for the unknown API path.
+    if (signal.aborted || !(error instanceof ApiError) || (error.status !== 404 && error.code !== "invalid_response")) throw error;
+    const profile = await request<DemoProfile>("/profile/demo", { signal });
+    const persona = profile?.name?.toLowerCase();
+    if (persona === "priya" || persona === "caroline") return { [persona]: profile };
+  }
+  throw new Error("No demo profiles are available.");
+}
+
 export const api = {
   health: (signal?: AbortSignal) => get<Health>("/health", "health", signal),
-  setMode: (mode: Mode) => post<Pick<Health, "mode" | "as_of">>("/mode", { mode }, "health"),
+  setMode: (mode: Mode, persona?: DemoPersona) => post<Pick<Health, "mode" | "as_of">>("/mode", { mode, persona }, "health"),
+  demos: loadDemos,
   questions: () => get<{ questions: Question[] }>("/profile/questions", "questions"),
   quiz: (answers: Record<string, string>, followUpAnswer?: "yes" | "no") => post<{ profile: ProfileResult; mandate: Mandate }>("/profile/quiz", { answers, follow_up_answer: followUpAnswer }, "quiz_result"),
   mandate: () => get<Mandate>("/mandate", "mandate"),

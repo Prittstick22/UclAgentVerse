@@ -21,6 +21,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.api.workspace import active_state, demo_for_request
 from app.profile.demo import persona_name
 
 PASSCODE_HEADER = "X-Demo-Passcode"
@@ -34,7 +35,7 @@ def _error(status: int, code: str, message: str, details: dict | None = None) ->
 # ------------------------------------------------------------------ passcode
 def require_passcode(request: Request) -> None:
     """Raise 401 unless the request carries the demo passcode. No-op outside the public demo."""
-    s = request.app.state.app.settings
+    s = active_state(request).settings
     if not s.public_demo:
         return
     given = request.headers.get(PASSCODE_HEADER, "")
@@ -44,12 +45,13 @@ def require_passcode(request: Request) -> None:
 
 def guard_agent_run(request: Request) -> None:
     """Checks before starting an agent run: passcode + budget when Gemini is live in the public demo."""
-    state = request.app.state.app
+    state = active_state(request)
     if state.recording is not None:
         return  # historical actions select an existing recording, never spend tokens
     s = state.settings
     if s.replay_only:
-        raise _error(409, "conflict", f"This offline demo replays {persona_name(s.demo_persona)}. New Live investigations need a separately configured Live startup.")
+        name = persona_name(demo_for_request(request).settings.demo_persona) if state.demo_states else persona_name(s.demo_persona)
+        raise _error(409, "conflict", f"This offline demo replays {name}. New Live investigations need a separately configured Live startup.")
     if not s.public_demo or s.llm_mode != "live":
         return   # fake / replay cost nothing
     require_passcode(request)

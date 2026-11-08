@@ -58,6 +58,29 @@ test("structured rate-limit errors reach the shell and an aborted read stays sil
   }
 });
 
+test("demo selection falls back to the profile served by older backends without a global error", async () => {
+  const errors = [];
+  const detach = attachApiFeedback({ showError: (error) => errors.push(error) });
+  const { signal } = new AbortController();
+  try {
+    for (const legacyStatus of [200, 404]) {
+      const requests = [];
+      globalThis.fetch = async (path) => {
+        requests.push(path);
+        if (path === "/api/profile/demos") {
+          return new Response("<!doctype html>", { status: legacyStatus, headers: { "Content-Type": "text/html" } });
+        }
+        return Response.json({ name: "Caroline" });
+      };
+      assert.deepEqual(await api.demos(signal), { caroline: { name: "Caroline" } });
+      assert.deepEqual(requests, ["/api/profile/demos", "/api/profile/demo"]);
+    }
+    assert.deepEqual(errors, []);
+  } finally {
+    detach();
+  }
+});
+
 test("portfolio P&L requires the requested period and correlations use held symbols", async () => {
   const requests = [];
   globalThis.fetch = async (path, { signal }) => {

@@ -23,3 +23,34 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+  deployment-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t stead-smoke .
+      - name: Verify packaged demos and API routing
+        run: |
+          docker run -d --name stead-smoke -p 127.0.0.1:8000:8000 -e PUBLIC_DEMO=1 -e LLM_MODE=replay stead-smoke
+          base=http://127.0.0.1:8000
+          for attempt in {1..40}; do
+            if curl -fs "$base/api/health"; then break; fi
+            sleep 1
+          done
+          curl -fsS "$base/api/health"
+          curl -fsS "$base/onboarding" | grep -F '<title>Stead'
+          curl -fsS "$base/api/profile/demos" | jq -e 'keys == ["caroline", "priya"]'
+          for persona in priya caroline; do
+            cookies=$(mktemp)
+            curl -fsS -c "$cookies" -H 'Content-Type: application/json' \
+              -d "{\"mode\":\"historical\",\"persona\":\"$persona\"}" "$base/api/mode"
+            curl -fsS -b "$cookies" "$base/api/profile/demo" | jq -e --arg persona "$persona" '(.name | ascii_downcase) == $persona'
+            curl -fsS -b "$cookies" "$base/api/portfolio" | jq -e '.holdings | length > 0'
+            rm "$cookies"
+          done
+          code=$(curl -sS -o /tmp/stead-404.json -w '%{http_code}' "$base/api/unknown")
+          test "$code" = 404
+          jq -e '.error.code == "not_found"' /tmp/stead-404.json
+      - if: always()
+        run: |
+          docker logs stead-smoke || true
+          docker rm -f stead-smoke || true

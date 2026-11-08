@@ -1,6 +1,6 @@
 # Run the recorded demo on your machine
 
-Every clone includes the compressed, verified Priya recording and its market snapshot. No data download, API key, `.env`, paid model call or new portfolio construction is needed for replay.
+Every clone includes the verified Priya and Caroline recordings and their market snapshots. Replay works offline from the bundled data.
 
 Prerequisites: **Python 3.11+ and Node.js 20+ with npm**. Use `python3` instead of `python` where required on macOS/Linux. First setup needs internet access for software dependencies; subsequent replay works offline.
 
@@ -11,7 +11,7 @@ git pull
 python scripts/demo.py --setup
 ```
 
-Open **http://127.0.0.1:8000/** and choose **Demo → Open demo timeline → Home**. In Dev's workspace, use VS Code's integrated browser. Other teammates can use their normal browser.
+Open **http://127.0.0.1:8000/** and choose **Watch a demo → Priya or Caroline → Explore demo**. To switch profiles, return to setup from **Profile → Change mode or retake questions**.
 
 Later starts:
 
@@ -21,7 +21,7 @@ python scripts/demo.py
 
 If port 8000 is occupied, use `python scripts/demo.py --port 8002` and open the printed URL. The launcher does not stop another service. Ctrl+C stops this demo server.
 
-Verify the bundle without installing dependencies or starting a server:
+Verify both bundles without installing dependencies or starting a server:
 
 ```bash
 python scripts/demo.py --check
@@ -31,14 +31,14 @@ The archive is checked against `manifest.json`, extracted into ignored `.demo-da
 
 ## Caroline (higher-risk scenario)
 
-A second, separate recording follows **Caroline** (aggressive profile: about 60% single stocks, 40% equity ETFs, no bonds) over the same window. It is a different run, with its own captured requests and responses, and it never replaces Priya's. Its bundle is `demo/caroline.manifest.json` plus `demo/assets/caroline-*.zip`, added when the capture has been validated and packaged (see below). Until then `--persona caroline` stops with a "No such file" error.
+A second recording follows **Caroline** (aggressive profile with about 60% single stocks, 40% equity ETFs and no bonds) over the same window. Her bundle is `demo/caroline.manifest.json` plus `demo/assets/caroline-*.zip` and contains 23 saved investigations.
 
 ```bash
-python scripts/demo.py --persona caroline     # same setup, same port options; Priya remains the default
-python scripts/demo.py --persona caroline --check
+python scripts/demo.py --persona caroline     # start with Caroline as the default
+python scripts/demo.py --persona caroline --check  # verify only Caroline's bundle
 ```
 
-One server replays one persona (`DEMO_PERSONA`, set by the launcher). Nothing in the frontend or API shapes changes: `/api/profile/demo` returns whoever the server is replaying.
+The launcher serves both recordings from one server. The selection is remembered for the browser session. For a manually configured server, set `DEMO_BUNDLES` to a JSON map such as `{"priya":"/data/demo/priya","caroline":"/data/demo/caroline"}`. Each directory must contain the verified `recording.sqlite` and `snapshot/` from that bundle. `DEMO_PERSONA` sets the default.
 
 **Adding Caroline's recording** (Dev, after the paid capture; see [capture workflow](../docs/demo-capture.md)):
 
@@ -83,6 +83,6 @@ Paper trading and historical simulated results only; not a forecast or financial
 
 ## Live mode
 
-This launcher forces replay and clears provider credentials in its child process without editing `.env`. Live questionnaire testing is available, but **new Live investigations are explicitly disabled**. Configured Live operation uses the normal project startup, its own credentials and separate state. The portable launcher never consumes model credits.
+This launcher forces replay and clears provider credentials in its child process. It presents the recorded demos in onboarding. To build a new live paper portfolio or test the full live setup, use the normal project startup with its own configuration and state.
 
 The bundle is versioned and immutable. Do not overwrite it with a new capture. See [capture workflow](../docs/demo-capture.md) and [agent handoff](../handoff/README.md).

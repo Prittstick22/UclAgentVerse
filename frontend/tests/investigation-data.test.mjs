@@ -4,11 +4,21 @@ import { after, test } from "node:test";
 import { createServer } from "vite";
 
 const vite = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false, ws: false } });
-const { publicSteps, recordedValuePoints, searchForStep, searchScope } = await vite.ssrLoadModule("/src/lib/investigation.ts");
+const { investigationTitle, publicNarrative, publicSteps, recordedValuePoints, searchForStep, searchScope, triggerNewsIds } = await vite.ssrLoadModule("/src/lib/investigation.ts");
 after(() => vite.close());
 
 const event = (seq, type, payload, overrides = {}) => ({
   id: "event-" + seq, seq, type, payload, agent_id: "lead", role: "lead", evidence_ids: [], ...overrides,
+});
+
+test("recorded triggers keep readable copy and retain article IDs for evidence lookup only", () => {
+  const id = "news_finnhub_fd1837630b320f604902";
+  const news = `**AAPL.US news (3 event headlines today), e.g. 'Apple Soars 6% After Earnings' (${id})**`;
+  assert.equal(investigationTitle(news, "news"), "AAPL news review");
+  assert.equal(investigationTitle("AZN.LSE rose 7.0% today; " + news, "price_move"), "AZN rose 7.0% today · AAPL news");
+  assert.deepEqual(triggerNewsIds(news), [id]);
+  assert.equal(publicNarrative(`**Apple kept its guidance** [${id}, case:AAPL.US:v2].`), "Apple kept its guidance.");
+  assert.equal(publicNarrative("The company reported 6.0% growth."), "The company reported 6.0% growth.");
 });
 
 test("searches expose the actual query or ticker scope for the matching agent only", () => {

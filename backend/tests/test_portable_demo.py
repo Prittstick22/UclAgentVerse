@@ -9,10 +9,11 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.container import build_state
-from app.main import app
+from app.main import app, mount_frontend
 from app.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -46,6 +47,7 @@ def test_complete_bundle_replays_without_keys_or_external_calls(fresh_bundle, mo
         app.state.rate_limiter = None
         with TestClient(app) as client:
             health = client.get("/api/health").json()
+            assert health["live_runs_enabled"] is False
             assert health["as_of"] == manifest["end"] and health["llm_mode"] == "replay"
             portfolio = client.get("/api/portfolio").json()
             assert len(portfolio["holdings"]) == 4
@@ -64,6 +66,7 @@ def test_complete_bundle_replays_without_keys_or_external_calls(fresh_bundle, mo
             assert client.post("/api/sim/step", json={"days": 1000}).status_code == 200
             assert client.get("/api/portfolio").json() == portfolio
             assert client.post("/api/mode", json={"mode": "live"}).status_code == 200
+            assert client.get("/api/health").json()["live_runs_enabled"] is False
             assert client.get("/api/profile/questions").status_code == 200
             for path in ("/api/portfolio/build", "/api/portfolio/review"):
                 response = client.post(path)
@@ -116,3 +119,13 @@ def test_launcher_environment_overrides_host_keys_and_mode(tmp_path, monkeypatch
     assert Path(env["RECORDED_RUN"]) == tmp_path / "bundle/recording.sqlite"
     assert Path(env["STATIC_DIR"]) == tmp_path / "frontend/dist"
     assert not (tmp_path / ".env").exists()
+def test_frontend_navigation_does_not_swallow_unknown_api_routes(tmp_path):
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<title>Stead</title>", encoding="utf-8")
+    web = FastAPI()
+    mount_frontend(web, tmp_path)
+    with TestClient(web) as client:
+        assert client.get("/onboarding").text == "<title>Stead</title>"
+        missing = client.get("/api/unknown")
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "not_found"

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { chartDateTick, chartValueTick, moneyAxisWidth } from "../lib/chartLabels";
 import { get, mockEvents, MOCK } from "../lib/api";
+import { publicNarrative } from "../lib/investigation";
 import type { AgentEvent, Badge, GateName, GateResult, GateStatus } from "../lib/types";
 import { useResource } from "../lib/useResource";
 import "./proposal-evidence.css";
@@ -73,14 +74,17 @@ export function EvidenceView({ id, debug = false }: { id: string; debug?: boolea
   if (!evidence.value) return <p role={evidence.error ? "alert" : "status"}>{evidence.error ?? "Loading evidence…"}</p>;
   const item = evidence.value;
   const url = item.url && /^https?:\/\//i.test(item.url) ? item.url : null;
+  const generated = /^(?:case|proposal|calc):/.test(id);
+  const source = ({ agent_investment_case: "Investment case", agent_proposal: "Portfolio proposal" } as Record<string, string>)[item.source] ?? item.source;
+  const excerpt = generated ? publicNarrative(item.excerpt) : item.excerpt;
   return <div className="evidence-box">
-    <strong>{item.title}</strong>
-    <p className="evidence-source">{item.source}
+    <strong>{generated ? publicNarrative(item.title) : item.title}</strong>
+    <p className="evidence-source">{source}
       {item.published_at && <> · Published <time dateTime={item.published_at}>{item.published_at.slice(0, 10)}</time></>}
       {" · Available "}<time dateTime={item.available_at}>{item.available_at.slice(0, 10)}</time>
     </p>
     {item.quarantined ? <p>This source was quarantined by the assurance gate.</p> : <>
-      {item.excerpt && <blockquote>{item.excerpt}</blockquote>}
+      {excerpt && <blockquote>{excerpt}</blockquote>}
       {id.startsWith("calc:") && <CalculationDetails data={item.data} />}
       {item.data != null && debug && import.meta.env.DEV && <pre>{JSON.stringify(item.data, null, 2)}</pre>}
       {url && <a className="mvp-action accent compact" href={url} target="_blank" rel="noreferrer">Open source ↗</a>}

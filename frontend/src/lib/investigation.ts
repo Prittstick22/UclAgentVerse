@@ -19,6 +19,32 @@ const number = (value: unknown): value is number => typeof value === "number" &&
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const percent = new Intl.NumberFormat("en-GB", { style: "percent", maximumFractionDigits: 2 });
 export const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
+const newsCitation = /\bnews_[\w-]+_[a-f0-9]{8,}\b/gi;
+export const triggerNewsIds = (value: unknown) => [...new Set(text(value).match(newsCitation) ?? [])];
+const citationToken = String.raw`(?:news|filing|earnings)_[\w-]+_[a-f0-9]{8,}|(?:case|calc|web):[\w.:-]+|(?:prop|run|finding)_[a-f0-9]{8,}`;
+const bracketedCitations = new RegExp(String.raw`\s*[([]\s*(?:${citationToken})(?:\s*[,;]\s*(?:${citationToken}))*\s*[)\]]`, "gi");
+const bareCitations = new RegExp(String.raw`\b(?:${citationToken})\b`, "gi");
+
+export function publicNarrative(value: unknown) {
+  return text(value).replace(bracketedCitations, "").replace(bareCitations, "")
+    .replace(/\*\*|__|`/g, "").replace(/[ \t]{2,}/g, " ").replace(/\s+([,.;])/g, "$1").trim();
+}
+
+export function investigationTitle(value: unknown, kind?: RunSummary["kind"] | null) {
+  const description = publicNarrative(value);
+  const newsTrigger = /\b([A-Z\d-]+)(?:\.(?:US|LSE))? news \((\d+) event headlines? today\)/g;
+  const news = [...description.matchAll(newsTrigger)];
+  if (news.length) {
+    const symbols = [...new Set(news.map(match => match[1]))];
+    if (kind === "news" || description.startsWith(news[0][0])) {
+      return symbols.join(", ") + " news review";
+    }
+    const otherTriggers = description.slice(0, news[0].index).replace(/;\s*$/, "")
+      .replace(/\b([A-Z\d-]+)\.(?:US|LSE)\b/g, "$1");
+    return otherTriggers + " · " + symbols.join(", ") + " news";
+  }
+  return description.replace(/\b([A-Z\d-]+)\.(?:US|LSE)\b/g, "$1") || "Portfolio investigation";
+}
 export const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const strings = (value: unknown) => Array.isArray(value) ? value.map(text).filter(Boolean) : [];

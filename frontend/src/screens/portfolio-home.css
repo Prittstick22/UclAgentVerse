@@ -19,8 +19,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.portfolio-home:has(.portfolio-summary-error) {
-  grid-template-areas: "error error error" "watch center review";
+.portfolio-home:has(.portfolio-summary-banner) {
+  grid-template-areas: "banner banner banner" "watch center review";
   grid-template-rows: auto minmax(466px, 1fr);
 }
 .portfolio-center {
@@ -67,8 +67,8 @@
 .portfolio-empty, .portfolio-inline-error { padding: 12px; color: var(--terminal-muted); }
 .portfolio-inline-error { color: var(--terminal-negative); }
 
-.portfolio-summary-error {
-  grid-area: error;
+.portfolio-summary-banner { grid-area: banner; display: grid; gap: 4px; }
+.portfolio-summary-error, .portfolio-summary-notice {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -76,10 +76,9 @@
   padding: 8px 12px;
   border: 1px solid var(--terminal-edge);
   border-radius: 8px;
-  color: var(--terminal-negative);
   background: var(--terminal-surface);
 }
-.portfolio-summary-error button { color: var(--terminal-text); text-decoration: underline; text-underline-offset: 3px; }
+.portfolio-summary-error { color: var(--terminal-negative); }
 
 .portfolio-watchlist { grid-area: watch; display: flex; flex-direction: column; }
 .portfolio-watch-labels {
