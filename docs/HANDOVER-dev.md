@@ -10,6 +10,8 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 ### Latest: fixed-build final UI retest ready (Codex, 8 Nov ~06:35)
 
+- Follow-up verification: user's subsequent pull reached 2ba7223, which only adds the handover above. GitHub main has no newer application commits than 3c4545c and no open PRs at this check. Running :5173 serves the isolated build's exact JS/CSS asset names (index-Cx2nwKCG.js / index-BkqFSRAS.css); no restart or new run performed. Explain that the handover is our session record, and guide Demo -> Open demo timeline -> Home for holding charts; onboarding is not the main redesigned dashboard.
+
 - Dev requested another shutdown/pull/restart, specifically expecting holding selection charts and improved UI. Stopped only our owned standard backend (38660/41920) and Vite (40592), then fast-forwarded main 98d48a6 -> 3c4545c.
 - Incoming changes include frontend overhaul plus backend holding prices, news and live approval opt-in. Read Mo's board notes. Asset clicks now select Performance and GET /api/portfolio/holdings/{ticker}/prices; Portfolio button restores whole-portfolio graph. No frozen config changes.
 - Checks: 44 focused backend tests passed (holding prices/news/live policy/recorded replay/approve-decline/contracts), 7 frontend tests passed, production build passed. Generated tsbuildinfo restored if tracked; no source edits by Codex.
