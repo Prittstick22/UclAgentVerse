@@ -66,7 +66,7 @@ def build_state(settings: Settings | None = None, db_path: str | None = None) ->
     ledger = Ledger(catalogue={i.ticker: i for i in gw.catalogue(eligible_only=False)})
     llm_settings = s.model_copy(update={"llm_mode": "replay"}) if recording_path is not None else s
     llm = LLM(db, llm_settings, fake=FakeBrain())
-    mandate = demo_mandate() if s.app_mode == "historical" else mandate_for("balanced")
+    mandate = demo_mandate(s.demo_persona) if s.app_mode == "historical" else mandate_for("balanced")
     if s.app_mode == "live" and (stored_mandate := db.get("mandate", "latest")) is not None:
         mandate = Mandate.model_validate_json(stored_mandate)
     state = AppState(settings=s, clock=clock, db=db, events=events, gw=gw, ledger=ledger,

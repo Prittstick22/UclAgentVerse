@@ -12,7 +12,7 @@ from pathlib import Path
 from app.agents.llm import LLMError
 from app.api.run_views import find_evidence
 from app.container import build_state
-from app.profile.demo import demo_mandate
+from app.profile.demo import demo_mandate, persona_name
 from app.schemas import Mandate
 from app.settings import Settings
 from app.sim.evaluate import BENCHMARKS
@@ -97,8 +97,9 @@ def validate_state(state, start: str, end: str, *, agents: bool) -> dict:
     if not state.ledger.fills or not state.ledger.positions:
         raise CaptureError("Recording has no invested portfolio")
     raw = state.db.get("sim_mandate", "initial")
-    if not raw or Mandate.model_validate_json(raw) != demo_mandate():
-        raise CaptureError("Initial mandate does not match Priya")
+    persona = state.settings.demo_persona
+    if not raw or Mandate.model_validate_json(raw) != demo_mandate(persona):
+        raise CaptureError(f"Initial mandate does not match {persona_name(persona)}")
     if any(event["type"] in ("agent.status", "run.completed") and event.get("status") == "failed"
            or event["type"] == "budget.exceeded" for event in events):
         raise CaptureError("Recording contains a technical agent failure or exhausted run limit")
@@ -155,7 +156,7 @@ async def capture(settings: Settings, out: Path, budget_file: Path, limit: float
         settings = settings.model_copy(update={"app_mode": "historical", "recorded_run": None,
                                                "public_demo": False, "state_db": out / "recording.sqlite"})
         state = build_state(settings, db_path=str(out / "recording.sqlite"))
-        state.mandate = demo_mandate()
+        state.mandate = demo_mandate(settings.demo_persona)
         state.db.put("sim_mandate", "initial", state.mandate.model_dump_json())
         check_real_inputs(state)
         before = input_hashes(settings.snapshot_dir)

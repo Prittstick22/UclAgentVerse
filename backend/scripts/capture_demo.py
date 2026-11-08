@@ -21,11 +21,13 @@ def main() -> None:
     parser.add_argument("--start", default="2026-07-07")
     parser.add_argument("--end", default="2026-11-06")
     parser.add_argument("--env-file", type=Path)
+    parser.add_argument("--persona", choices=["priya", "caroline"], default="priya",
+                        help="whose fixed mandate to record (Priya is the finished balanced demo)")
     parser.add_argument("--engine-only", action="store_true")
     args = parser.parse_args()
     kwargs = {"_env_file": args.env_file} if args.env_file else {}
     settings = Settings(**kwargs, app_mode="historical", llm_mode="fake" if args.engine_only else "live",
-                        snapshot_dir=args.snapshot, gemini_model_deep="gemini-4-argon",
+                        snapshot_dir=args.snapshot, demo_persona=args.persona, gemini_model_deep="gemini-4-argon",
                         gemini_model_fast="gemini-3.8-flash")
     try:
         report = asyncio.run(capture(settings, args.out, args.budget_file, args.budget_usd,

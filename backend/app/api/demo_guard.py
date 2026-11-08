@@ -21,6 +21,8 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.profile.demo import persona_name
+
 PASSCODE_HEADER = "X-Demo-Passcode"
 
 
@@ -47,7 +49,7 @@ def guard_agent_run(request: Request) -> None:
         return  # historical actions select an existing recording, never spend tokens
     s = state.settings
     if s.replay_only:
-        raise _error(409, "conflict", "This offline demo replays Priya. New Live investigations need a separately configured Live startup.")
+        raise _error(409, "conflict", f"This offline demo replays {persona_name(s.demo_persona)}. New Live investigations need a separately configured Live startup.")
     if not s.public_demo or s.llm_mode != "live":
         return   # fake / replay cost nothing
     require_passcode(request)

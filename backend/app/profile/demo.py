@@ -17,3 +17,7 @@ def demo_profile(name: str = "priya") -> DemoProfile:
         result=score(persona["answers"]),
         mandate=demo_mandate(name),
     )
+
+
+def persona_name(name: str = "priya") -> str:
+    return demo_persona(name)["name"]
