@@ -36,6 +36,8 @@ Each review looks **10 trading days ahead using only data up to that day**:
 Rules:
 - It's always labelled **"estimate, not a promise"** and emitted as a `calc.result` (`forecast_2w`) so it's traceable.
 - `forecast.lambda_return: 0` reproduces the no-forecast optimiser. Report both in the evaluation (ablation).
+- **The forecast may only lean the portfolio, never rebuild it.** `mu` enters the optimiser scaled to the 2-week horizon (×10/252). The optimiser first solves without the forecast; the forecast may then move each holding at most `max_tilt_per_holding` (3 pp) and the portfolio at most `max_tilt_total` (10%, one-way) from that answer. All mandate limits still apply.
+- **`lambda_return` is chosen on development data only** (before 7 Jul 2026), never on sim-window results: `python -m app.engine.forecast --calibrate`. Rule, fixed in advance: at each fortnightly development review and for every profile, measure the share of the portfolio the forecast moves on its own (caps off); pick the largest grid value whose median is ≤ 10% for all profiles. The tilt caps are a hard backstop on top.
 - (Feature #74) Agent views (direction + confidence + evidence) become **capped** tilts on `mu` via code. Views without supported evidence are dropped.
 - Walk-forward integrity is proven by `test_no_peeking` (#72): deleting or scrambling all data after day t changes nothing up to t.
 
@@ -102,7 +104,7 @@ Rules:
 | costs | trade 0.0010 · fx 0.0015 (labelled assumptions) |
 | batch_auto_approve_turnover_max | 0.10 |
 | optimiser | λ_track 5 · λ_turn 1 · λ_fee 1 · lookback 504 · min_lookback 252 |
-| forecast | horizon_days 10 · ewma_halflife_days 10 · shrink 0.5 · lambda_return 1.0 · max_view_tilt 0.02 |
+| forecast | horizon_days 10 · ewma_halflife_days 10 · shrink 0.5 · lambda_return 0.05 (calibrated, development data only) · max_tilt_per_holding 0.03 · max_tilt_total 0.10 · max_view_tilt 0.02 |
 | periods | development 2023-01-02 → 2026-07-06 (pre-sim, sanity checks only) · held_out 2026-07-07 → end |
 
 **Freeze rule:** sanity-check on 2023–2025 data only; freeze before the full-year run (09-build-plan). Don't tune on sim-year results.

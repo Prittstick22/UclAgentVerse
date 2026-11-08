@@ -154,3 +154,17 @@ def test_run_refuses_a_ledger_that_already_has_money(state):
     asyncio.run(runner.run(state, START, end))
     with pytest.raises(ValueError, match="fresh ledger"):
         asyncio.run(runner.run(state, START, end))   # used to deposit the capital a second time
+
+
+def test_forecast_is_used_and_recorded_on_decision_days(state):
+    r = _run(state)
+    calcs = [e for e in state.events.history(limit=100000)
+             if e.type == "calc.result" and e.payload["name"] == "forecast_2w"]
+    assert len(calcs) == len(r.runs)   # construction + every review/trigger decision
+    assert calcs[0].payload["outputs"]["label"] == "estimate, not a promise"
+
+
+def test_fund_fee_changes_during_the_sim_are_applied(state):
+    _run(state)
+    hist = next(i for i in state.gw.catalogue() if i.ticker == "VWRP.LSE")
+    assert state.ledger.catalogue["VWRP.LSE"].ocf == hist.ocf   # latest OCF as of the last sim day, not day 0

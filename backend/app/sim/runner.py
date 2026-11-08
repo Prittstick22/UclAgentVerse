@@ -67,9 +67,13 @@ def _forecast_mu(state: AppState) -> pd.Series | None:
         from app.engine import forecast  # type: ignore[attr-defined]
     except ImportError:
         return None
-    out = forecast.forecast(state.gw, [i.ticker for i in state.gw.catalogue()], state.clock.as_of_str())
-    mu = getattr(out, "mu", out)
-    return pd.Series(mu) if mu is not None else None
+    tickers = [i.ticker for i in state.gw.catalogue()]
+    out = forecast.forecast(state.gw, tickers, state.clock.as_of_str())
+    state.events.emit("calc.result", title="2-week estimate (not a promise)",   # traceable, like the agent tool
+                      payload={"name": "forecast_2w", "inputs": {"tickers": tickers, "horizon": out.horizon_days},
+                               "outputs": {"mu": out.mu, "portfolio": out.portfolio.model_dump() if out.portfolio else None,
+                                           "skipped": out.skipped, "label": out.label}})
+    return pd.Series(out.mu, dtype=float)
 
 
 def _avg_corr(px: pd.DataFrame) -> float | None:
@@ -124,6 +128,8 @@ async def run(state: AppState, start: str, end: str | None = None, agents: bool 
     for i, day in enumerate(days):
         date = str(day.date())
         clock.set(date)
+        # fees as known today (e.g. VWRP's OCF cut on 28 Jul 2026); benchmarks share this dict
+        led.catalogue.update({i.ticker: i for i in gw.catalogue(eligible_only=False)})
         prices = {k: float(v) for k, v in gw.latest_prices().items() if pd.notna(v)}
         for f in led.fill_pending(date, prices):
             res.fills += 1
