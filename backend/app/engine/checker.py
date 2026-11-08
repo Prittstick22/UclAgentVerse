@@ -4,10 +4,16 @@ Never imports the optimiser. This is the hard stop that agents cannot override.
 """
 from __future__ import annotations
 
+import math
+import numbers
+
 from pydantic import BaseModel, Field
 
 from app.config import params
 from app.schemas import Instrument, Mandate
+
+SUM_TOL = 1e-4   # proposals round weights to 4 dp; a real mistake is far bigger than this
+VALID_UNITS = {("GBP", "GBP"), ("GBP", "GBX"), ("USD", "USD")}   # (currency, quote_unit) we can value
 
 
 class Violation(BaseModel):
@@ -27,20 +33,36 @@ class CheckReport(BaseModel):
 def check_proposal(weights: dict[str, float], cash_weight: float, mandate: Mandate,
                    catalogue: list[Instrument], current_weights: dict[str, float] | None = None,
                    nav_gbp: float | None = None) -> CheckReport:
+    """Every mandate rule in docs/07 §3, recomputed from scratch. Violation codes: not_a_number, sum, cash_min,
+    ineligible, units, short, excluded, concentration, equity_range, bond_range, stocks_total."""
     by_ticker = {i.ticker: i for i in catalogue}
     v: list[Violation] = []
+    def number(x) -> bool:   # bool is an int in Python: True would otherwise count as a 100% weight
+        return isinstance(x, numbers.Real) and not isinstance(x, bool) and math.isfinite(x)
+
+    bad = [t for t, w in weights.items() if not number(w)]
+    if bad or not number(cash_weight):
+        # NaN slips through every < / > comparison below, so stop here
+        v.append(Violation(code="not_a_number", message=f"Weights must be numbers (bad: {bad or ['cash']})",
+                           ticker=bad[0] if bad else None))
+        return CheckReport(passed=False, violations=v, recomputed={})
     total = sum(weights.values()) + cash_weight
-    if abs(total - 1.0) > 1e-4:
+    if abs(total - 1.0) > SUM_TOL:
         v.append(Violation(code="sum", message=f"Weights + cash sum to {total:.4f}, not 1", value=total, limit=1.0))
     if cash_weight < mandate.ranges.cash_min - 1e-6:
         v.append(Violation(code="cash_min", message=f"Cash {cash_weight:.1%} below minimum {mandate.ranges.cash_min:.0%}",
                            value=cash_weight, limit=mandate.ranges.cash_min))
     eq = bd = stocks = 0.0
     for t, w in weights.items():
+        if w == 0:   # not held: an excluded or retired ticker listed at 0% is not a violation
+            continue
         inst = by_ticker.get(t)
         if inst is None or not inst.eligible:
             v.append(Violation(code="ineligible", message=f"{t} is not an eligible catalogue instrument", ticker=t))
             continue
+        if (inst.currency, inst.quote_unit) not in VALID_UNITS:
+            v.append(Violation(code="units", message=f"{t} is quoted in {inst.quote_unit} but priced in {inst.currency}"
+                               ": its value can't be trusted", ticker=t))
         if w < -1e-9:
             v.append(Violation(code="short", message=f"Negative weight for {t}", ticker=t, value=w, limit=0))
         if t in mandate.exclusions or inst.sleeve in mandate.exclusions:
@@ -63,7 +85,11 @@ def check_proposal(weights: dict[str, float], cash_weight: float, mandate: Manda
         v.append(Violation(code="stocks_total", message=f"Single stocks {stocks:.1%} above {mandate.caps.stocks_total:.0%}",
                            value=stocks, limit=mandate.caps.stocks_total))
 
-    recomputed: dict = {"equity": eq, "bond": bd, "stocks": stocks, "cash": cash_weight, "sum": total}
+    ocf = sum(w * by_ticker[t].ocf for t, w in weights.items() if t in by_ticker)
+    recomputed: dict = {"equity": eq, "bond": bd, "stocks": stocks, "cash": cash_weight, "sum": total,
+                        "other": round(total - cash_weight - eq - bd, 10), "ocf_weighted": ocf}
+    if nav_gbp is not None:
+        recomputed["fees_gbp_per_year"] = round(ocf * nav_gbp, 2)
     if current_weights is not None:
         keys = set(weights) | set(current_weights)
         turnover = sum(abs(weights.get(k, 0) - current_weights.get(k, 0)) for k in keys) / 2
