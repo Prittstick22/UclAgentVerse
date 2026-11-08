@@ -37,6 +37,8 @@ class OptimiseRequest(BaseModel):
     current_weights: dict[str, float] = Field(default_factory=dict)
     variant: Variant = "recommended"
     mu: pd.Series | None = None            # annualised expected returns from engine/forecast.py (#73); None = no forecast
+    lambda_return: float | None = None     # override params forecast.lambda_return (calibration / ablation only)
+    tilt_caps: bool = True                 # bound the forecast's effect (params forecast.max_tilt_*); off only to calibrate
 
 
 class OptimiseResult(BaseModel):
@@ -67,11 +69,20 @@ def optimise(req: OptimiseRequest) -> OptimiseResult:
         return OptimiseResult(status="error", variant=req.variant,
                               binding_constraints=["The return forecast contains an infinite value."])
 
+    # The forecast may only LEAN the portfolio: solve without it first, then let it move each holding at most
+    # max_tilt_per_holding and the whole portfolio at most max_tilt_total away from that answer.
+    anchor: dict[str, float] | None = None
+    if _forecast_on(req) and req.tilt_caps:
+        base = optimise(req.model_copy(update={"mu": None}))
+        if base.status != "optimal":
+            return base
+        anchor = base.weights
+
     # Solve slightly inside every limit; if the limits only just fit (e.g. one fund capped at exactly
     # the equity minimum), the margin would make it infeasible, so retry on the exact limits.
-    result = _solve(req, insts, margin=MARGIN)
+    result = _solve(req, insts, margin=MARGIN, anchor=anchor)
     if result == "infeasible":
-        result = _solve(req, insts, margin=0.0)
+        result = _solve(req, insts, margin=0.0, anchor=anchor)
     if result == "error":
         return OptimiseResult(status="error", variant=req.variant,
                               binding_constraints=["The solver failed on this problem. Try again or check the inputs."])
@@ -81,7 +92,7 @@ def optimise(req: OptimiseRequest) -> OptimiseResult:
     # Dust: re-solve without it (kept holdings floored at MIN_WEIGHT) instead of deleting it afterwards,
     # which used to push e.g. equity to 59.998% under a 60% minimum. If that fails, keep the dust.
     if keep and len(keep) < len(insts):
-        again = _solve(req, keep, margin=result[2], floor=MIN_WEIGHT)
+        again = _solve(req, keep, margin=result[2], floor=MIN_WEIGHT, anchor=anchor)
         if not isinstance(again, str):
             insts, result = keep, again
     return _result(req, insts, result[0], result[1])
@@ -90,8 +101,18 @@ def optimise(req: OptimiseRequest) -> OptimiseResult:
 Solved = tuple[np.ndarray, dict[str, cp.Constraint], float]
 
 
-def _solve(req: OptimiseRequest, insts: list[Instrument], margin: float, floor: float = 0.0
-           ) -> Solved | Literal["infeasible", "error"]:
+def _lambda_return(req: OptimiseRequest) -> float:
+    if req.lambda_return is not None:
+        return float(req.lambda_return)
+    return float(params().get("forecast", {}).get("lambda_return", 0.0))
+
+
+def _forecast_on(req: OptimiseRequest) -> bool:
+    return req.mu is not None and _lambda_return(req) != 0.0
+
+
+def _solve(req: OptimiseRequest, insts: list[Instrument], margin: float, floor: float = 0.0,
+           anchor: dict[str, float] | None = None) -> Solved | Literal["infeasible", "error"]:
     p, costs, m = params()["optimiser"], params()["costs"], req.mandate
     tickers = [i.ticker for i in insts]
     n = len(tickers)
@@ -120,10 +141,12 @@ def _solve(req: OptimiseRequest, insts: list[Instrument], margin: float, floor: 
     track = cp.square(is_eq @ w - eq_target) + cp.square(is_bd @ w - bd_target)
     objective = (lam_risk * cp.quad_form(w, cp.psd_wrap(cov)) + lam_track * track
                  + lam_turn * cp.sum(cp.multiply(trade_cost, cp.abs(w - w_now))) + lam_fee * ocf @ w)
-    lam_ret = float(params().get("forecast", {}).get("lambda_return", 0.0))
-    if req.mu is not None and lam_ret:
-        mu = req.mu.reindex(tickers).fillna(0.0).values  # no estimate = no tilt
-        objective = objective - lam_ret * mu @ w
+    fc = params().get("forecast", {})
+    if _forecast_on(req):
+        # mu is annualised; the forecast is a 2-week estimate, so use the return expected over that horizon
+        horizon = float(fc.get("horizon_days", 10)) / 252.0
+        mu = req.mu.reindex(tickers).fillna(0.0).values * horizon  # no estimate = no tilt
+        objective = objective - _lambda_return(req) * mu @ w
     e = margin
     named = {
         "sum_to_one": cp.sum(w) + cash == 1,
@@ -137,6 +160,14 @@ def _solve(req: OptimiseRequest, insts: list[Instrument], margin: float, floor: 
     }
     if floor:
         named["min_holding"] = w >= floor
+    if anchor is not None:
+        a = np.array([anchor.get(t, 0.0) for t in tickers])
+        dropped = [x for t, x in anchor.items() if t not in tickers]   # e.g. dust removed: sold in full
+        if any(x > float(fc["max_tilt_per_holding"]) for x in dropped):
+            return "infeasible"
+        named["forecast_tilt_per_holding"] = cp.abs(w - a) <= float(fc["max_tilt_per_holding"])
+        named["forecast_tilt_total"] = ((cp.sum(cp.abs(w - a)) + sum(dropped)) / 2
+                                        <= float(fc["max_tilt_total"]))
     prob = cp.Problem(cp.Minimize(objective), list(named.values()))
     for solver in SOLVERS:
         if solver not in cp.installed_solvers():
