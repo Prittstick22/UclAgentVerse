@@ -8,14 +8,21 @@ export default function Home() {
   const [p, setP] = useState<Portfolio | null>(null);
   const [corr, setCorr] = useState<CorrelationReport | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [portfolioError, setPortfolioError] = useState("");
   const [notificationError, setNotificationError] = useState("");
   const refreshVersion = useRef(0);
 
   const refresh = useCallback(() => {
     const version = ++refreshVersion.current;
-    Promise.all([api.portfolio(), api.notifications()]).then(([portfolio, { items }]) => {
+    api.portfolio().then((portfolio) => {
       if (refreshVersion.current !== version) return;
       setP(portfolio);
+      setPortfolioError("");
+    }).catch(() => {
+      if (refreshVersion.current === version) setPortfolioError("Couldn't load the portfolio summary.");
+    });
+    api.notifications().then(({ items }) => {
+      if (refreshVersion.current !== version) return;
       setNotifications(items);
       setNotificationError("");
     }).catch(() => {
@@ -60,6 +67,7 @@ export default function Home() {
         <Stat label="Decisions asked of you" value={String(p?.counters.decisions_asked ?? 0)} />
         <Stat label="Adjustments" value={String(p?.counters.adjustments ?? 0)} />
       </div>
+      {portfolioError && <p role="alert">{portfolioError}</p>}
       {notificationError && <p role="alert">{notificationError}</p>}
       <ActivityList title="Notifications" items={attention} markRead={markRead} />
       <ActivityList title="Activity digest" items={digest} markRead={markRead} />
