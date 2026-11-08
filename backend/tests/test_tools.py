@@ -39,7 +39,9 @@ def test_no_tool_reads_past_as_of(state, tool, args):
 def test_build_options_then_check_cost_risk_backtest(state):
     out, run = call(state, "build_options")
     assert out["ok"] and set(run.scratch["options"]) == {"recommended", "lower_cost", "lower_risk"}
-    assert len(calc_events(state)) == 3 and all(CALC.match(e) for e in out["evidence_ids"])
+    names = [e.payload["name"] for e in calc_events(state)]
+    assert names.count("optimise") == 3 and names.count("forecast_2w") == 1   # same bounded tilt as the sim
+    assert all(CALC.match(e) for e in out["evidence_ids"])
     for tool in ("check_proposal", "cost_turnover", "risk_stats", "backtest"):
         res, _ = call(state, tool, {"option": "recommended"}, run=run)
         assert res["ok"] and CALC.match(res["evidence_ids"][0]), (tool, res)
