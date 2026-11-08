@@ -1,10 +1,10 @@
-# Dev: what to do now (updated Sun 8 Nov 00:30)
+# Dev: what to do now (updated Sun 8 Nov 01:15)
 
 Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for example while Dev's Claude credits reset. Read `AGENTS.md` first; the team timeline is in `docs/09-build-plan.md`. **Goal: one public link with demo + live mode, everything working by 09:00. The demo never waits on an API call. Submit by 12:20.**
 
 ## Resume here: current state (keep this section updated)
 
-**Done:** #3 EODHD bought + verified · #27 Gemini ping · #54 keys · #55 provider check (PR #81) · **#28 agent loop on real Argon (PR #88)**: schema retry, Gemini retries + backup keys (`GEMINI_API_KEY_BACKUPS`), per-step token budget, cache-stable prompts, cost in `run.completed`. Measured: about 1,850 tokens and $0.007 per call, about 10 s per call; a rerun costs 0 tokens. Nothing is half-done. Results are in the board posts `...-all-provider-keys-work-...` and `...-agent-loop-live-on-argon-...`.
+**Done:** #3 EODHD bought + verified · #27 Gemini ping · #54 keys · #55 provider check (PR #81) · **#28 agent loop on real Argon (PR #88)**: schema retry, Gemini retries + backup keys (`GEMINI_API_KEY_BACKUPS`), per-step token budget, cache-stable prompts, cost in `run.completed`. Measured: about 1,850 tokens and $0.007 per call, about 10 s per call; a rerun costs 0 tokens. Nothing is half-done. Results are in the board posts `...-all-provider-keys-work-...` and `...-agent-loop-live-on-argon-...`. · **#29 core tools (PR #90)**: construction runs end `built` with a Proposal (live Argon: 6 calls, $0.044); `gw.earnings` added; `forecast` tool waits on Cem's #73.
 
 **Environment on Dev's PC (Windows, Git Bash + PowerShell):**
 - `.env` in the repo root has every key (git-ignored, **never print or commit it**). `LLM_MODE=live`. `GEMINI_MODEL_DEEP` and `GEMINI_MODEL_FAST` are **both `gemini-4-argon`** (team decision: Argon for every agent). Fallback if rate limits bite: `GEMINI_MODEL_FAST=gemini-3.8-flash`.
@@ -17,7 +17,7 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 - **Alpha Vantage is not used anywhere** (its news endpoint is premium-only and we won't pay $49.99). **News = Finnhub (US) + EODHD `/api/news` (UK)**. Removed from code, docs and issues; Jin was told on the board.
 - Alpaca is deferred: #80 (feature, decide at the end). DigitalOcean (#56) will be done by Dev later, but must be ready before Jin's 03:00 dry run.
 
-**Next, in order:** #29 core tools (`backend/app/agents/tools.py`: most are `not_implemented` stubs; wire them to `backend/app/engine/` and `DataGateway`, including Cem's `forecast` from #73) → #30 construction plan + prompts (`agents/prompts/*.md`; in the live test the lead asked for a non-existent `scout` role, so prompts must list the exact role names from `roles.py`) → #31 / #20 / #37. A construction run ends `investigate_further` until `build_options` exists.
+**Next, in order:** **#7** news/filings/earnings fetch (taken from Jin; plan: new `backend/scripts/fetch_text.py` + 3-line hook in `fetch_snapshot.py`, `EODHD.news` adapter, offline tests, then a real fetch + hero-event shortlist on the board) → #30 prompts (`agents/prompts/*.md`; the lead still asks for a non-existent `scout` role) → #31 / #20 / #37.
 
 **Rules a fresh agent must not break:** data only via `DataGateway` with `as_of`; numbers only from `backend/app/engine/`; emit an event for every step; contract changes need a board post; branch `dev/<issue>-<slug>`, PR with `Closes #n`; self-merge only when CI is green and the change stays in Dev's folders.
 
