@@ -8,6 +8,15 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 **Model note:** the session switched Opus 5.5 → Sonnet 5.5 at ~05:00 and **back to Opus 5.5** at ~05:10. Use whatever attribution line your own harness gives you. When you post live-run results, say which model produced them.
 
+### Latest: user-driven restart/retest ready (Codex, 8 Nov ~06:23)
+
+- Dev asked to stop the old app, pull main, and restart so he can control the UI. Stopped only our owned continuation/backend processes (38720/32200) and Vite (40940). Fast-forwarded main to 98d48a6. Incoming changes were README, handover and board ONLY; no frontend application changes beyond already-tested #132/#133.
+- New isolated directory: `backend/runs/smoke/retest-20261108T062020Z/`. Copied verified market files and SQLite-backed up the completed 41-day continuation into recorded.sqlite. Original source remains intact. `retest.json` stores its SHA256; unchanged after validation/startup.
+- Restarted STANDARD app.main:app, not the auto-running continuation helper. RECORDED_RUN points to the new recorded.sqlite, APP_MODE=historical, LLM_MODE=live globally; recorded historical state forces cache-only replay. Demo DB is read-only on disk and copied into memory. Public Live uses a separate fresh mode database and real models if a build is later authorised.
+- Current health: historical, 1 Sep 2026, llm_mode=replay, data_source=eodhd; 4 holdings, GBP 10,549.34 NAV. No new paid Gemini run started for retest. Backend server 38660 / launcher 41920; frontend 40592. Verify identities before stopping. Logs are in retest/logs.
+- VS Code integrated browser is open at http://127.0.0.1:5173/onboarding . USER CONTROLS IT. Do not click through or open external browser tabs unless requested. Suggested first route: Demo -> Open demo timeline -> Home, inspect Connections/Performance/Split view, Timeline, Benchmarks and saved agent evidence. Playback/navigation is safe. User should NOT click Real Build, approve/decline new proposals or save plan edits until explicitly moving to that test phase. If testing Live onboarding, stop at plan review before Build.
+- Do not treat existing asset-selection behavior as fixed: asset clicks currently focus Positions rather than selecting an individual asset performance chart. This remains an acknowledged UI gap.
+
 ### Latest: five historical runs completed (Codex, 8 Nov ~06:08)
 
 - Dev authorised continuing Priya through history to five runs total, not four independent new starting portfolios. Completed initial build plus reviews on 21 Jul, 4 Aug, 18 Aug and 1 Sep 2026. All four reviews chose maintain. Simulation is STOPPED at 1 Sep after 41 trading days; do not extend without another instruction.
