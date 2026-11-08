@@ -97,6 +97,8 @@ schema_retry: 1
 
 Every tool is our code. It goes through `DataGateway` (as_of-enforced), emits `tool.call` and `tool.result` (plus `source.inspect`/`calc.result`), and returns compact JSON plus `evidence_ids`.
 
+**Implemented (#29):** `get_catalogue`, `get_prices`, `correlation_lattice`, `risk_stats`, `backtest`, `build_options` (= `optimise` for all three variants; options kept in the run), `cost_turnover`, `check_proposal`, `exposure`, `forecast` (returns `not_available` until #73), `search_news`, `search_filings`, `earnings_calendar` (past dates only), `get/save_investment_case`, `propose_adjustment`, `web_search` (live only; refused in historical mode). Portfolio tools take `weights` ({ticker: weight}) **or** `option` (a `build_options` label) and otherwise use current holdings. `cost_turnover` replays the rebalance on a copy of the engine ledger, so costs are the ledger's own. **Not yet:** `overlap`, `pnl_breakdown`, `create_monitor` (#36), `get_run_history`, `get_fx`, `macro_series` (#64).
+
 | Tool | What it does | Backed by | Roles |
 |---|---|---|---|
 | `get_catalogue(filters)` | Eligible instruments: fees, acc/dist, asset class, sleeve | gateway | scouts, lead, stock_analyst |
