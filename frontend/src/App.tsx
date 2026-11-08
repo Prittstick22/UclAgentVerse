@@ -6,6 +6,7 @@ import Quiz from "./screens/Quiz";
 import Workspace from "./screens/Workspace";
 import Home from "./screens/Home";
 import Placeholder from "./screens/Placeholder";
+import dataSourcesUrl from "../../docs/DATA_SOURCES.md?url";
 
 const NAV = [
   ["/", "Home"], ["/quiz", "Quiz"], ["/workspace", "Agents"], ["/timeline", "Timeline"],
@@ -40,6 +41,7 @@ export default function App() {
       </main>
       <footer className="px-6 py-2 text-xs text-slate-500 border-t border-slate-800">
         Paper portfolio · Not financial advice · {health?.data_source === "synthetic" ? "SYNTHETIC data" : health?.data_source}
+        {" · "}<a className="underline hover:text-slate-300" href={dataSourcesUrl} download="DATA_SOURCES.md">Data sources</a>
       </footer>
     </div>
   );
