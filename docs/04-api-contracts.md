@@ -119,15 +119,23 @@ interface AgentNode {
 
 ## 2. Endpoints
 
+Profile notes (#115): historical mode follows the fixed fictional Priya persona. `GET /api/mandate`
+returns her mandate; both profile edit endpoints refuse changes with 409 `validation_error` and
+message `This demo follows Priya. Switch to live mode to create your own profile.` Live quiz and
+mandate editing are unchanged. `GET /api/profile/demo` is read-only in either mode and never
+changes the visitor's live mandate. Its `result` uses the existing quiz scoring and its `mandate`
+uses the persona's configured goal, profile and exclusions. No provider or LLM is called.
+
 | Method + path | Body / query | Response | Owner |
 |---|---|---|---|
 | `GET /api/health` | — | `{status:"ok", mode, as_of, version, llm_mode, data_source}` | Jin |
 | `GET /api/mode` | — | `{mode, as_of, sim:{running, speed, start, end}}` | Jin |
 | `POST /api/mode` | `{mode}` | same as GET | Jin |
 | `GET /api/profile/questions` | — | `{questions: Question[]}`, where `Question = {id, text, help, measures: "tolerance"\|"capacity"\|"context", options: {id, label}[]}` | Jin |
-| `POST /api/profile/quiz` | `{answers: {[qid]: option_id}, goal: Mandate.goal, exclusions: string[]}` | `{profile: {name, tolerance_score, capacity_score, conflict: boolean, follow_up_question: string\|null, explanation: string}, mandate: Mandate}` | Jin |
+| `GET /api/profile/demo` | — (available in both modes, read-only) | `DemoProfile = {name: string, age: number, story: string, profile: ProfileName, goal: Goal, answers: Record<string,string>, synthetic: true, result: ProfileResult, mandate: Mandate}` | Jin |
+| `POST /api/profile/quiz` | `{answers: {[qid]: option_id}, goal: Mandate.goal, exclusions: string[]}` | `{profile: {name, tolerance_score, capacity_score, conflict: boolean, follow_up_question: string\|null, explanation: string}, mandate: Mandate}`; historical mode: 409 `validation_error` | Jin |
 | `GET /api/mandate` | — | `Mandate` | Jin |
-| `PUT /api/mandate` | `Mandate` | `Mandate` (version+1), or 422 `validation_error` | Jin |
+| `PUT /api/mandate` | `Mandate` | `Mandate` (version+1), or 422 `validation_error`; historical mode: 409 `validation_error` | Jin |
 | `GET /api/catalogue` | — | `{instruments: Instrument[]}` | Jin |
 | `POST /api/portfolio/build` | `{mandate_version?: number}` | `{run_id}` (202) | Dev |
 | `GET /api/portfolio` | `?mode` | `Portfolio` | Mo |

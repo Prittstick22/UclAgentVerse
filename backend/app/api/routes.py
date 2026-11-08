@@ -24,8 +24,10 @@ from app.data.gateway import AsOfViolation
 from app.data.live import updates
 from app.engine import risk
 from app.engine.portfolio import PortfolioDataUnavailable
+from app.profile.demo import demo_profile
 from app.profile.quiz import mandate_for, questions_payload, score
 from app.schemas import (
+    DemoProfile,
     Evidence,
     Goal,
     Mandate,
@@ -86,6 +88,16 @@ def set_mode(body: ModeBody, request: Request):
 
 
 # ------------------------------------------------------------------ profile + mandate
+@router.get("/profile/demo")
+def get_demo_profile() -> DemoProfile:
+    return demo_profile()
+
+
+def require_live_profile(request: Request) -> None:
+    if S(request).clock.mode == "historical":
+        err(409, "validation_error", "This demo follows Priya. Switch to live mode to create your own profile.")
+
+
 @router.get("/profile/questions")
 def profile_questions():
     return {"questions": questions_payload()}
@@ -97,7 +109,7 @@ class QuizBody(BaseModel):
     exclusions: list[str] = []
 
 
-@router.post("/profile/quiz")
+@router.post("/profile/quiz", dependencies=[Depends(require_live_profile)])
 def profile_quiz(body: QuizBody, request: Request):
     result = score(body.answers)
     mandate = mandate_for(result.name, body.goal, body.exclusions)
@@ -110,7 +122,7 @@ def get_mandate(request: Request) -> Mandate:
     return S(request).mandate
 
 
-@router.put("/mandate")
+@router.put("/mandate", dependencies=[Depends(require_live_profile)])
 def put_mandate(body: Mandate, request: Request) -> Mandate:
     s = S(request)
     body.version = s.mandate.version + 1  # TODO(#mandate): validate ranges vs policy limits

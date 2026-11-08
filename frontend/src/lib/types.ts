@@ -27,6 +27,10 @@ export interface Mandate {
   approval: { require_user_approval: boolean; batch_auto_approve_turnover_max: number };
 }
 export interface ProfileResult { name: ProfileName; tolerance_score: number; capacity_score: number; conflict: boolean; follow_up_question: string | null; explanation: string }
+export interface DemoProfile {
+  name: string; age: number; story: string; profile: ProfileName; goal: Goal;
+  answers: Record<string, string>; synthetic: true; result: ProfileResult; mandate: Mandate;
+}
 
 export interface Holding {
   ticker: string; name: string; asset_class: AssetClass; units: number; price_gbp: number; value_gbp: number;

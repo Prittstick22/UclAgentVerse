@@ -78,6 +78,27 @@ class Mandate(BaseModel):
     approval: Approval = Field(default_factory=Approval)
 
 
+class ProfileResult(BaseModel):
+    name: ProfileName
+    tolerance_score: float
+    capacity_score: float
+    conflict: bool
+    follow_up_question: str | None
+    explanation: str
+
+
+class DemoProfile(BaseModel):
+    name: str
+    age: int
+    story: str
+    profile: ProfileName
+    goal: Goal
+    answers: dict[str, str]
+    synthetic: Literal[True]
+    result: ProfileResult
+    mandate: Mandate
+
+
 class Holding(BaseModel):
     ticker: str
     name: str

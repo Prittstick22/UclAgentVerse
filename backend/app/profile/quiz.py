@@ -4,10 +4,8 @@ Prototype policy, NOT a suitability assessment. Questions phrased in £ where po
 """
 from __future__ import annotations
 
-from pydantic import BaseModel
-
 from app.config import params, policy
-from app.schemas import Approval, Caps, Goal, Mandate, ProfileName, Ranges, Triggers
+from app.schemas import Approval, Caps, Goal, Mandate, ProfileName, ProfileResult, Ranges, Triggers
 
 QUESTIONS = [
     {"id": "horizon", "measures": "capacity", "text": "When might you need this money?",
@@ -33,15 +31,6 @@ QUESTIONS = [
 ]
 
 BANDS: list[tuple[float, ProfileName]] = [(0.30, "cautious"), (0.55, "balanced"), (0.80, "growth"), (1.01, "adventurous")]
-
-
-class ProfileResult(BaseModel):
-    name: ProfileName
-    tolerance_score: float
-    capacity_score: float
-    conflict: bool
-    follow_up_question: str | None
-    explanation: str
 
 
 def questions_payload() -> list[dict]:

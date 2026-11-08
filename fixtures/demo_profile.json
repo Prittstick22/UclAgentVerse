@@ -1,0 +1,70 @@
+{
+ "name": "Priya",
+ "age": 26,
+ "story": "Priya started her first full-time job in London two years ago. She has built up \u00a310,000 in savings plus a small emergency pot, and can put aside \u00a3200 a month. She has never invested before and wants her money to grow towards a flat deposit in about ten years, but a big fall would worry her.",
+ "profile": "balanced",
+ "goal": {
+  "name": "Flat deposit",
+  "target_date": "2036-07-01",
+  "starting_amount_gbp": 10000.0,
+  "monthly_contribution_gbp": 200.0
+ },
+ "answers": {
+  "horizon": "7to15",
+  "emergency": "some",
+  "loss_goal": "maybe",
+  "income": "steady",
+  "reaction": "hold",
+  "swings": "mid",
+  "experience": "never",
+  "worry": "daily"
+ },
+ "synthetic": true,
+ "result": {
+  "name": "balanced",
+  "tolerance_score": 0.417,
+  "capacity_score": 0.688,
+  "conflict": false,
+  "follow_up_question": null,
+  "explanation": "We used the lower of your comfort with risk (42%) and your ability to absorb a loss (69%), so your profile is balanced. This is a prototype policy, not a suitability assessment."
+ },
+ "mandate": {
+  "version": 1,
+  "profile": "balanced",
+  "goal": {
+   "name": "Flat deposit",
+   "target_date": "2036-07-01",
+   "starting_amount_gbp": 10000.0,
+   "monthly_contribution_gbp": 200.0
+  },
+  "ranges": {
+   "equity": [
+    0.4,
+    0.6
+   ],
+   "bond": [
+    0.35,
+    0.55
+   ],
+   "cash_min": 0.03
+  },
+  "caps": {
+   "per_fund": 0.5,
+   "per_stock": 0.03,
+   "stocks_total": 0.1
+  },
+  "exclusions": [],
+  "review_every_n_days": 10,
+  "triggers": {
+   "drift_pp": 0.05,
+   "price_move_day": 0.05,
+   "price_move_since_review": 0.1,
+   "nav_drop": 0.05,
+   "news_relevance": 0.7
+  },
+  "approval": {
+   "require_user_approval": true,
+   "batch_auto_approve_turnover_max": 0.1
+  }
+ }
+}
