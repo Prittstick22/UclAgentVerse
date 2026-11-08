@@ -94,32 +94,58 @@ python -m venv .venv
 If neither command finds Python 3.12, install it from the link above and reopen
 PowerShell. Do not use a different Python version for this walkthrough.
 
-### macOS / Linux — five commands
+### macOS / Linux
+
+Paste this into a terminal from **any folder**. It clones the repository into
+your home folder and starts the API:
 
 ```bash
+REPO_ROOT="$HOME/UclAgentVerse-public-demo"
+if [ ! -d "$REPO_ROOT/.git" ]; then git clone https://github.com/Prittstick22/UclAgentVerse.git "$REPO_ROOT"; fi
+cd "$REPO_ROOT"
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -e './backend[dev]'
 .venv/bin/python backend/scripts/make_synthetic_snapshot.py --out backend/data/readme-synthetic
 env -u RECORDED_RUN APP_MODE=historical LLM_MODE=fake PUBLIC_DEMO=0 SNAPSHOT_DIR="$PWD/backend/data/readme-synthetic" STATE_DB="$PWD/backend/readme-state.sqlite" .venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
-npm --prefix frontend install && VITE_MOCK=0 npm --prefix frontend run dev -- --host 127.0.0.1
 ```
 
-Command 4 stays running: execute command 5 in a **second terminal** at the same
-repository root. Then open http://localhost:5173. The API health endpoint is
+The API command stays running. In a **second terminal**, paste this from any
+folder to start the frontend:
+
+```bash
+REPO_ROOT="$HOME/UclAgentVerse-public-demo"
+cd "$REPO_ROOT/frontend"
+npm install && VITE_MOCK=0 npm run dev -- --host 127.0.0.1
+```
+
+Then open http://localhost:5173. The API health endpoint is
 http://127.0.0.1:8000/api/health; expect `llm_mode: fake` and a synthetic data source.
 
-### Windows PowerShell — five commands
+### Windows PowerShell
+
+Paste this into PowerShell from **any folder**. It clones the repository into
+your home folder and starts the API:
 
 ```powershell
+$repoRoot = Join-Path $HOME 'UclAgentVerse-public-demo'
+if (!(Test-Path (Join-Path $repoRoot '.git'))) { git clone https://github.com/Prittstick22/UclAgentVerse.git $repoRoot }
+Set-Location $repoRoot
 py -3.12 -m venv .venv
 & ./.venv/Scripts/python.exe -m pip install -e './backend[dev]'
 & ./.venv/Scripts/python.exe backend/scripts/make_synthetic_snapshot.py --out backend/data/readme-synthetic
 Remove-Item Env:RECORDED_RUN -ErrorAction SilentlyContinue; $env:APP_MODE='historical'; $env:LLM_MODE='fake'; $env:PUBLIC_DEMO='0'; $env:SNAPSHOT_DIR=(Join-Path $PWD 'backend/data/readme-synthetic'); $env:STATE_DB=(Join-Path $PWD 'backend/readme-state.sqlite'); & ./.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
-Set-Location .\frontend; npm install; if ($LASTEXITCODE -eq 0) { $env:VITE_MOCK='0'; npm run dev -- --host 127.0.0.1 }
 ```
 
-Run command 5 in a second PowerShell terminal at the repository root while the
-API stays running. These commands use separate local snapshot/state paths and
+The API command stays running. In a **second PowerShell terminal**, paste this
+from any folder to start the frontend:
+
+```powershell
+$repoRoot = Join-Path $HOME 'UclAgentVerse-public-demo'
+Set-Location (Join-Path $repoRoot 'frontend')
+npm install; if ($LASTEXITCODE -eq 0) { $env:VITE_MOCK='0'; npm run dev -- --host 127.0.0.1 }
+```
+
+These commands use separate local snapshot/state paths and
 do not overwrite the default market snapshot. `RECORDED_RUN` must be unset for
 this walkthrough; remove a nonempty value from any existing root/backend `.env`
 if adapting the instructions to an existing checkout. No `.env` is required for
