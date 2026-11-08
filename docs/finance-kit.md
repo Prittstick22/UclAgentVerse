@@ -55,3 +55,19 @@ It reads every `.py .js .mjs .cjs .ts .tsx .jsx .ipynb .sh` file in `--project`,
 - **Argon API notes:** Argon **ignores `temperature`** (deprecation warning). Reasoning depth is `thinking_level` (`low` | `medium` default | `high`) on the Interactions API. Implicit prefix caching gives a 95% input discount automatically. Pricing is $2 in / $10 out per 1M tokens to 30 Nov 2026 (matches `agents.yaml`).
 - **Best Use of Gemini prize** wants 2+ modalities in one loop. A cheap fit for us, *only if MVP is done*: read the decision card aloud with `gemini-3.8-flash-tts`, or have the news analyst read an earnings webcast. Not planned yet.
 - **Pre-submission:** feature freeze 2 h before the deadline; audit the repo and history for secrets.
+
+
+## Results (#61, Sun 8 Nov ~05:00): organisers' hidden challenge
+Adapter: `backend/app/eval/finance_kit_adapter.py`, run as `cd backend && .venv/Scripts/python -m app.eval.finance_kit_adapter`. It's a deterministic risk-discipline rule decided from the visible history only: stay invested; step aside on a 15% drawdown from the 60-bar peak or when 20-bar volatility exceeds 2× its earlier level; re-enter when calm (< 1.5×) and above the 20-bar average. Constants were fixed before any challenge run. Plain numpy (not the pandas/scikit-learn engine functions) for speed; no LLM per step. `cashflow` / `transactions` → `unsupported_task`.
+
+Command (from `backend/`): `python ../../agentverse/finance/bench.py challenge --pack <markets|real-markets> --cases 60 --project .. --output ../eval/finance-kit/challenge-<pack> --adapter <venv python> -m app.eval.finance_kit_adapter`
+
+| Run (fresh secret seed each) | Paths | Wins / losses / ties vs buy-and-hold | Beat cash | Mean max drawdown | Sign-test p | Kit verdict |
+|---|---|---|---|---|---|---|
+| **`markets`** (synthetic; `eval/finance-kit/challenge-markets/`) | 60 | 24 / 11 / 25 | 28 | 11.96% | 0.041 | "Not distinguishable from buy-and-hold" |
+| **`real-markets`** (real Binance windows, anonymised; `…/challenge-real-markets/`) | 60 | 14 / 14 / 32 | 31 | 10.88% | 1.00 | "Not distinguishable from buy-and-hold" |
+| *Disclosed:* first `markets` run, made **before the adapter was committed** (`…/challenge-markets-precommit/`) | 60 | 24 / 6 / 30 | n/a | n/a | 0.0014 | superseded: the report's commit hash didn't contain the adapter, so we committed and re-ran **once per pack**. Not quoted as a result. |
+
+All runs: 0 execution errors, 0 cases not run, **provenance review: none flagged**. Seed commitments and reveals are in each folder (`COMMITMENT.txt`, `SEED-REVEAL.txt`). The "uncommitted changes" count in each report is the run's own output folder inside the project.
+
+**Honest reading:** on real price paths the rule is **indistinguishable from buy-and-hold** (14 wins, 14 losses). It mostly stays invested and occasionally steps aside, which is the point for a beginner product: no claimed edge, controlled drawdowns, no look-ahead. On the synthetic paths it won more than it lost (p ≈ 0.04), but the kit itself calls that not distinguishable, and synthetic paths aren't a real-world benchmark. **Tell the organisers to run `markets` / `real-markets`** (README #70 and the submission form); `mixed` is two-thirds cashflow/transactions, which we answer as unsupported.

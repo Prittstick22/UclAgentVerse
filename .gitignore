@@ -23,7 +23,9 @@ node_modules/
 frontend/dist/
 # misc
 .DS_Store
-eval/
+# generated evaluation outputs (repo root only); finance-kit challenge evidence IS committed (#61)
+/eval/*
+!/eval/finance-kit/
 archive/
 provider-report.md
 
