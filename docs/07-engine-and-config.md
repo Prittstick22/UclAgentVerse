@@ -59,9 +59,10 @@ Rules:
 ## 4. Ledger (`engine/ledger.py`)
 
 - **State:** positions (units, cost basis), GBP cash, pending orders, realised P&L, fills log.
-- **Fills** happen at the close of t+1, with cost = `trade_cost × amount` + `fx_cost × amount` (USD instruments).
+- **Fills** happen at the close of t+1, with cost = `trade_cost × amount` + `fx_cost × amount` (USD instruments), charged on the amount **actually** traded: a sell never exceeds the units held, a buy is capped so that it plus its cost fits in the cash (cash never goes negative), and trades under `min_trade_gbp` (£25) are skipped. Sells run before buys. Each fill emits `order.filled {ticker, action, units, price_gbp, amount_gbp, cost_gbp}` (simulator).
+- **Contributions** are invested by target with buys only (never a rebalance). They are cash flows, not returns: TWR strips them (`engine/metrics.py`).
 - **Fund fees** accrue daily as `OCF/365 × value`.
-- **P&L per holding:** unrealised, realised and contribution to return over a period.
+- **P&L per holding:** unrealised (value − average cost basis), realised (on sells, at average cost; trading costs are counted separately in `costs_paid_gbp`) and contribution to return. Per period (since_purchase / 1m / 3m / ytd / sim_year) from the daily ledger checkpoints (`engine/portfolio.py`, `/api/portfolio/pnl`).
 
 ## 5. Metrics, backtest, exposure
 

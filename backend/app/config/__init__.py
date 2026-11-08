@@ -28,3 +28,9 @@ def agents() -> dict:
 @lru_cache
 def catalogue_raw() -> list[dict]:
     return json.loads((CONFIG_DIR / "catalogue.json").read_text())["instruments"]
+
+
+@lru_cache
+def demo_persona() -> dict:
+    """Fixed fictional persona for the historical demo (locked profile; the recorded run uses it)."""
+    return yaml.safe_load((CONFIG_DIR / "demo_persona.yaml").read_text(encoding="utf-8"))

@@ -1,0 +1,27 @@
+# Fixed demo persona for the HISTORICAL demo (7 Jul -> 6 Nov 2026 replay). Fictional person, not real data.
+# The recorded 4-month run MUST use this persona's profile:  python -m app.sim.runner ... --profile balanced
+# Historical mode is locked to this persona (no quiz/mandate edits); visitors take the real quiz in LIVE mode.
+# tests/test_demo_persona.py checks these answers score exactly to `profile` with no conflict.
+name: Priya
+age: 26
+story: >-
+  Priya started her first full-time job in London two years ago. She has built up £10,000 in savings plus a small
+  emergency pot, and can put aside £200 a month. She has never invested before and wants her money to grow towards a
+  flat deposit in about ten years, but a big fall would worry her.
+profile: balanced
+synthetic: true                 # fictional persona (AGENTS.md rule 7)
+goal:
+  name: Flat deposit
+  target_date: "2036-07-01"
+  starting_amount_gbp: 10000
+  monthly_contribution_gbp: 200
+exclusions: []
+answers:                        # quiz question id -> option id (backend/app/profile/quiz.py)
+  horizon: 7to15                # needs the money in 7-15 years            (capacity)
+  emergency: some               # 1-2 months of spending saved             (capacity)
+  loss_goal: maybe              # a 20% fall would set her back            (capacity)
+  income: steady                # very steady salary                       (capacity)
+  reaction: hold                # would wait out a fall                    (tolerance)
+  swings: mid                   # accepts £9,000 to £11,200 on £10,000     (tolerance)
+  experience: never             # never invested                           (context)
+  worry: daily                  # would check daily and worry              (tolerance)
