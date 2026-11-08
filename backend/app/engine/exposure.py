@@ -7,18 +7,22 @@ from __future__ import annotations
 
 import math
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ExposureResult(BaseModel):
     entity: str
-    total: float
+    total: float | None
+    known_total: float = 0.0
+    missing: list[str] = Field(default_factory=list)
+    coverage: dict[str, float] = Field(default_factory=dict)
     direct: float
     via_funds: dict[str, float]
     note: str = "Ownership exposure, not a predicted loss."
 
 
-def look_through(portfolio_weights: dict[str, float], etf_holdings: dict[str, list[dict]], entity: str) -> ExposureResult:
+def look_through(portfolio_weights: dict[str, float], etf_holdings: dict[str, list[dict]], entity: str,
+                 funds: set[str] | None = None) -> ExposureResult:
     direct = portfolio_weights.get(entity, 0.0)
     via: dict[str, float] = {}
     for fund, w_fund in portfolio_weights.items():
@@ -26,7 +30,18 @@ def look_through(portfolio_weights: dict[str, float], etf_holdings: dict[str, li
         for h, w in weights:
             if entity in (h.get("ticker"), h.get("name")):
                 via[fund] = via.get(fund, 0.0) + w_fund * w   # a company listed twice (2 share classes) adds up
-    return ExposureResult(entity=entity, total=direct + sum(via.values()), direct=direct, via_funds=via)
+    funds = funds if funds is not None else set(etf_holdings)
+    coverage = {fund: min(1.0, sum(weight for _, weight in _clean_weights(etf_holdings.get(fund, []))))
+                for fund in funds if portfolio_weights.get(fund, 0) > 0}
+    missing = sorted(fund for fund, covered in coverage.items() if covered == 0)
+    known = direct + sum(via.values())
+    note = "Ownership exposure, not a predicted loss."
+    if missing:
+        note += " Total is unknown because fund constituents are unavailable; known_total is only the known portion."
+    elif any(covered < 1 - 1e-6 for covered in coverage.values()):
+        note += " A lower bound: supplied fund constituents cover only part of the funds."
+    return ExposureResult(entity=entity, total=None if missing else known, known_total=known,
+                          direct=direct, via_funds=via, missing=missing, coverage=coverage, note=note)
 
 
 # ---------------------------------------------------------------------- overlap (#25)

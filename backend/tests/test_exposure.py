@@ -33,6 +33,19 @@ def test_no_data_is_unknown_not_zero():
     assert r.overlap is None and r.missing == ["NO_DATA_FUND"] and r.common == []
 
 
+def test_missing_fund_constituents_do_not_hide_known_direct_exposure():
+    result = exposure.look_through({"X": 0.1, "UNKNOWN": 0.9}, {}, "X", funds={"UNKNOWN"})
+    assert result.total is None and result.known_total == 0.1 and result.direct == 0.1
+    assert result.missing == ["UNKNOWN"] and result.coverage == {"UNKNOWN": 0}
+    assert "unknown" in result.note
+
+
+def test_partial_fund_constituents_are_a_lower_bound():
+    result = exposure.look_through({"FUND_A": 1}, HOLD, "X")
+    assert result.total == 0.3 and result.known_total == 0.3
+    assert result.coverage == {"FUND_A": 0.5} and "lower bound" in result.note
+
+
 def test_name_matching_when_no_ticker_and_duplicate_lines_add_up():
     r = exposure.overlap("FUND_N", "FUND_M", HOLD)
     assert r.overlap == pytest.approx(0.07)                       # 5% + 2% Acme in N, 10% in M -> min = 7%

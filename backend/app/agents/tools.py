@@ -386,10 +386,13 @@ async def exposure_tool(ctx: ToolContext, args: dict, run: Any) -> dict:
         raise ValueError("pass `entity` (a ticker or company name)")
     w, _, label = _weights_from(ctx, args, run)
     holdings = {t: ctx.gw.etf_holdings(t) for t in w}
-    res = exposure.look_through(w, holdings, entity)
+    funds = {item.ticker for item in ctx.gw.catalogue(eligible_only=False) if item.kind == "etf"}
+    res = exposure.look_through(w, holdings, entity, funds=funds)
     out = res.model_dump()
     eid = _calc(ctx, run, "exposure", {"entity": entity, "label": label}, out, f"Exposure to {entity}")
-    return {"ok": True, "summary": f"{label}: {res.total:.1%} exposure to {entity} (ownership, not a predicted loss)",
+    summary = (f"{label}: total exposure to {entity} is unknown; fund constituents are unavailable"
+               if res.total is None else f"{label}: {res.total:.1%} known exposure to {entity} ({res.note})")
+    return {"ok": True, "summary": summary,
             **out, "evidence_ids": [eid]}
 
 
