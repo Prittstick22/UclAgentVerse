@@ -33,7 +33,8 @@ export const api = {
   markNotificationRead: (id: string) => MOCK ? Promise.resolve({ ok: true })
     : post<{ ok: true }>(`/notifications/${encodeURIComponent(id)}/read`, {}, "notifications"),
   correlation: () => get<CorrelationReport>("/risk/correlation", "correlation"),
-  runs: () => get<{ items: RunSummary[] }>("/runs", "runs"),
+  runs: () => get<{ items: Omit<RunSummary, "agents">[] }>("/runs", "runs"),
+  runDetail: (runId: string) => get<RunSummary>(`/runs/${encodeURIComponent(runId)}`, "run_detail"),
   build: () => post<{ run_id: string }>("/portfolio/build", {}, "runs").then((r) => ("run_id" in r ? r : { run_id: "mock" })),
   // TODO(#fe-*): pnl, rebalances, benchmarks, proposals, approve/decline, evidence, chat, sim controls
 };

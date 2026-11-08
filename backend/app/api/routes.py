@@ -6,21 +6,23 @@ frontend can integrate now. Replace each TODO in its issue.
 from __future__ import annotations
 
 import asyncio
-import json
-
+import logging
+import uuid
 from datetime import date
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.core.events import sse_frame
+from app.api.run_views import agent_tree, find_evidence, summarize
+from app.core.events import Event, sse_frame
 from app.data.gateway import AsOfViolation
 from app.engine import risk
 from app.profile.quiz import mandate_for, questions_payload, score
-from app.schemas import Goal, Mandate, Mode, Notifications, Portfolio
+from app.schemas import Evidence, Goal, Mandate, Mode, Notifications, Portfolio, RunSummary, TriggerKind
 
 router = APIRouter(prefix="/api")
+log = logging.getLogger(__name__)
 
 
 def S(request: Request):
@@ -95,15 +97,19 @@ def catalogue(request: Request):
 
 # ------------------------------------------------------------------ portfolio
 @router.post("/portfolio/build", status_code=202)
-async def build(request: Request, background: BackgroundTasks):
+async def build(request: Request):
     s = S(request)
-    task = asyncio.create_task(s.supervisor.start("construction", "User asked to build a portfolio"))
-    await asyncio.sleep(0)  # let run.started emit so we can return its id
-    runs = s.events.history(None)
-    started = [e for e in runs if e.type == "run.started"]
-    background.add_task(lambda: None)
-    s.runs["latest_task"] = task
-    return {"run_id": started[-1].run_id if started else None}
+    run_id = f"run_{uuid.uuid4().hex}"
+    task = asyncio.create_task(s.supervisor.start("construction", "User asked to build a portfolio", run_id=run_id))
+    s.runs[run_id] = task
+
+    def finished(task: asyncio.Task) -> None:
+        s.runs.pop(run_id, None)
+        if not task.cancelled() and task.exception() is not None:
+            log.error("Portfolio build %s failed", run_id, exc_info=task.exception())
+
+    task.add_done_callback(finished)
+    return {"run_id": run_id}
 
 
 @router.get("/portfolio")
@@ -163,37 +169,36 @@ def correlation(request: Request, lookback: int | None = None, tickers: str | No
 
 
 # ------------------------------------------------------------------ runs + events
-@router.get("/runs")
-def runs(request: Request, limit: int = 50):
-    evs = [e for e in S(request).events.history(None) if e.type in ("run.started", "run.completed")]
-    by_run: dict[str, dict] = {}
-    for e in evs:
-        r = by_run.setdefault(e.run_id, {"run_id": e.run_id, "kind": e.trigger_kind, "trigger_text": e.trigger_text,
-                                         "as_of": e.as_of, "status": "running", "outcome": None,
-                                         "started_at": e.ts_wall, "finished_at": None, "agents": [],
-                                         "proposal_id": None})
-        if e.type == "run.completed":
-            r.update(status="completed", outcome=e.payload.get("outcome"), finished_at=e.ts_wall,
-                     proposal_id=e.payload.get("proposal_id"))
-    return {"items": list(by_run.values())[-limit:]}
+@router.get("/runs", response_model_exclude={"items": {"__all__": {"agents"}}})
+def runs(request: Request, limit: int = 50, mode: Mode | None = None,
+         kind: TriggerKind | None = None) -> dict[str, list[RunSummary]]:
+    s = S(request)
+    rows = s.db.execute(
+        """SELECT json FROM events
+           WHERE run_id IS NOT NULL AND mode = ? AND type IN ('run.started', 'run.completed')
+           ORDER BY ts_wall""",
+        (mode or s.clock.mode,),
+    )
+    events = [Event.model_validate_json(row[0]) for row in rows]
+    completed = {event.run_id: event for event in events if event.type == "run.completed"}
+    items = [summarize(event, completed.get(event.run_id)) for event in events if event.type == "run.started"]
+    if kind:
+        items = [item for item in items if item.kind == kind]
+    return {"items": items[-limit:] if limit > 0 else []}
 
 
 @router.get("/runs/{run_id}")
-def run_detail(run_id: str, request: Request):
-    items = runs(request, limit=10_000)["items"]
-    for r in items:
-        if r["run_id"] == run_id:
-            agents = {}
-            for e in S(request).events.history(run_id):  # TODO(#runs-api): badges from gate verdicts
-                if e.type == "agent.spawned":
-                    agents[e.agent_id] = {"agent_id": e.agent_id, "parent_agent_id": e.parent_agent_id,
-                                          "depth": e.depth, "role": e.role, "model": e.payload.get("model"),
-                                          "question": e.payload.get("question"), "purpose": e.purpose,
-                                          "status": "running", "badges": []}
-                if e.type == "agent.status" and e.agent_id in agents:
-                    agents[e.agent_id]["status"] = "done"
-            return {**r, "agents": list(agents.values())}
-    err(404, "not_found", f"run {run_id} not found")
+def run_detail(run_id: str, request: Request) -> RunSummary:
+    s = S(request)
+    events = s.events.history(run_id)
+    start = next((event for event in events if event.type == "run.started"), None)
+    if start is None:
+        err(404, "not_found", f"run {run_id} not found")
+    completed = next((event for event in reversed(events) if event.type == "run.completed"), None)
+    summary = summarize(start, completed)
+    max_depth = start.payload.get("limits", {}).get("max_depth", s.supervisor.cfg["max_depth"])
+    summary.agents = agent_tree(events, max_depth)
+    return summary
 
 
 @router.get("/runs/{run_id}/events")
@@ -216,7 +221,7 @@ async def run_events(run_id: str, request: Request, after: int = 0, format: str 
                     e = await asyncio.wait_for(q.get(), timeout=15)
                     if e.seq > last:
                         yield sse_frame(e)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     yield ": ping\n\n"
         finally:
             bus.unsubscribe(q)
@@ -235,7 +240,7 @@ async def all_events(request: Request):
             while not await request.is_disconnected():
                 try:
                     yield sse_frame(await asyncio.wait_for(q.get(), timeout=15))
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     yield ": ping\n\n"
         finally:
             bus.unsubscribe(q)
@@ -263,8 +268,12 @@ def decline(proposal_id: str, request: Request):
 
 
 @router.get("/evidence/{evidence_id}")
-def evidence(evidence_id: str, request: Request):
-    err(404, "not_found", "TODO(#evidence): look up news/filing/calc by id")
+def evidence(evidence_id: str, request: Request) -> Evidence:
+    s = S(request)
+    item = find_evidence(s.gw, s.db, evidence_id)
+    if item is None:
+        err(404, "not_found", "evidence not found")
+    return item
 
 
 @router.get("/notifications")
@@ -333,6 +342,3 @@ def live_news(request: Request):
     if not s.settings.task_secret or request.headers.get("X-Task-Secret") != s.settings.task_secret:
         err(401, "unauthorized", "bad task secret")
     return {"ok": False, "fetched": 0, "stale": []}  # TODO(#11)
-
-
-_ = json  # keep import for handlers that need it
