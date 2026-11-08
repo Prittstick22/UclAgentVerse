@@ -93,6 +93,8 @@ class LLM:
         self.backoff_s = 2.0
         self._sleep = asyncio.sleep
         self.live_calls = 0
+        self.before_live_call: Callable[[], None] | None = None
+        self.on_spend: Callable[[float, int], None] | None = None
 
     def model_for(self, deep: bool) -> str:
         return self.s.gemini_model_deep if deep else self.s.gemini_model_fast
@@ -204,6 +206,8 @@ class LLM:
         while True:
             last: Exception | None = None
             for attempt in range(self.max_retries + 1):
+                if self.before_live_call:
+                    self.before_live_call()
                 client = self._client_or_raise()
                 t = time.perf_counter()
                 try:
@@ -212,14 +216,14 @@ class LLM:
                     return resp, (time.perf_counter() - t) * 1000
                 except Exception as e:
                     if not _is_transient(e):
-                        raise LLMError(f"{type(e).__name__}: {str(e)[:200]}") from e
+                        raise LLMError(f"Provider request failed: {type(e).__name__} (status {_status_code(e)})") from None
                     last = e
                     if attempt < self.max_retries:
                         await self._sleep(self.backoff_s * (2 ** attempt))
             # retries used up: a persistent 429 means this key's quota is gone → try a backup key
             if _status_code(last) == 429 and self._rotate_key():
                 continue
-            raise LLMError(f"gave up after {self.max_retries + 1} attempts: {type(last).__name__}: {str(last)[:200]}")
+            raise LLMError(f"gave up after {self.max_retries + 1} attempts: {type(last).__name__} (status {_status_code(last)})")
 
     def _record_spend(self, cost: float, tokens: int) -> None:
         # Billing day = wall-clock UTC (this is about real money, not simulated business logic).
@@ -228,6 +232,8 @@ class LLM:
         before = cur["usd"]
         cur = {"usd": before + cost, "tokens": cur["tokens"] + tokens, "calls": cur["calls"] + 1}
         self.db.put("llm_spend", day, json.dumps(cur))
+        if self.on_spend:
+            self.on_spend(cost, tokens)
         if before <= self.s.daily_llm_budget_usd < cur["usd"]:
             log.warning("LLM spend today passed DAILY_LLM_BUDGET_USD=%.2f (now $%.2f, %d calls)",
                         self.s.daily_llm_budget_usd, cur["usd"], cur["calls"])

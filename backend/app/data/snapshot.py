@@ -54,10 +54,10 @@ def load_snapshot(path: Path) -> Snapshot:
 
     def jsonl(name: str) -> list[dict]:
         f = path / name
-        return [json.loads(line) for line in f.read_text().splitlines() if line.strip()] if f.exists() else []
+        return [json.loads(line) for line in f.read_text(encoding="utf-8").splitlines() if line.strip()] if f.exists() else []
 
     holdings = {row["etf"]: row["holdings"] for row in jsonl("etf_holdings.jsonl")}
-    manifest = json.loads((path / "manifest.json").read_text()) if (path / "manifest.json").exists() else {}
+    manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8")) if (path / "manifest.json").exists() else {}
     return Snapshot(
         prices=prices,
         fx=fx,

@@ -199,6 +199,8 @@ Sim notes: `start` replays from a fresh ledger as a background task at `speed` t
 
 Evidence notes: resolves `calc:<event id>`, news/filing/passage IDs, `catalogue`, `case:<ticker>:v<version>`, `proposal:<id>`, `earnings:<ticker>` and `web:<hash>`. Saved artefacts require a successful tool/source event in the active mode available at or before its clock. The catalogue is the gateway's current as-of eligible reference list. Cases resolve the exact saved version (new saves preserve version history); an older recording missing that version returns 404 rather than substituting a later case. Case/proposal sources are labelled as agent artefacts, not external market evidence. Proposal evidence excludes mutable approval/selection/gate state. Web evidence exposes recorded source links; it does not invent missing article text. Unknown, missing and future evidence remains 404.
 
+Exposure calculation data: total is null when any held fund lacks constituent data; known_total, missing and coverage describe the known portion. Partial published constituents are a lower bound. Never display missing exposure/overlap as zero. Existing calc.result event and Evidence response envelopes are unchanged.
+
 Live refresh tasks (#11) run in the background. Their immediate response keeps
 the existing `{ok, fetched, stale}` shape: `ok` means accepted, `fetched` is
 zero before the worker finishes, and `stale` describes the cache at acceptance.

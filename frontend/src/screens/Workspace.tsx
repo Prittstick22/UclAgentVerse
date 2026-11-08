@@ -483,11 +483,15 @@ function AgentVisual({ event, debug }: { event: AgentEvent; debug: boolean }) {
   if (event.payload.name === "exposure") {
     const funds = Object.entries(output.via_funds ?? {}).filter((entry): entry is [string, number] => typeof entry[1] === "number");
     if (typeof output.direct === "number" && output.direct > 0) funds.unshift(["Direct holding", output.direct]);
-    return <><p className="mvp-muted">Ownership exposure by holding</p><ResultBars rows={funds} format={pct.format} /></>;
+    return <><p className="mvp-muted">Ownership exposure by holding</p>
+      {output.total === null && <p>Total exposure is unknown: fund constituent data is unavailable. Any amounts below show only the known portion.</p>}
+      {typeof output.note === "string" && <p className="mvp-muted">{output.note}</p>}
+      <ResultBars rows={funds} format={pct.format} /></>;
   }
   if (event.payload.name === "overlap" && Array.isArray(output.pairs)) {
     const pairs = output.pairs as { a: string; b: string; overlap: number | null }[];
     return <><p className="mvp-muted">Shared holdings by weight</p>
+      {pairs.some(pair => pair.overlap == null) && <p>Some overlap is unknown because fund constituent data is unavailable.</p>}
       <ResultBars rows={pairs.flatMap(pair => pair.overlap == null ? [] : [[pair.a + " / " + pair.b, pair.overlap]])} format={pct.format} /></>;
   }
   if (event.payload.name === "risk_stats" || event.payload.name === "backtest") {

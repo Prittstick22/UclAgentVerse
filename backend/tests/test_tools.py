@@ -118,7 +118,8 @@ def test_exposure_looks_through_funds(state):
     holding = state.gw.etf_holdings("VWRP.LSE")[0]
     entity = holding.get("ticker") or holding["name"]
     out, _ = call(state, "exposure", {"entity": entity, "weights": {"VWRP.LSE": 0.6, "VAGS.LSE": 0.38}})
-    assert out["ok"] and out["total"] > 0 and "not a predicted loss" in out["summary"]
+    assert out["ok"] and out["total"] is None and out["known_total"] > 0
+    assert out["missing"] == ["VAGS.LSE"] and "unknown" in out["summary"]
 
 
 def test_forecast_waits_for_engine(state):
