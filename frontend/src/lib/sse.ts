@@ -19,7 +19,7 @@ export function subscribeRun(runId: string, onEvent: (e: AgentEvent) => void): (
   // Recorded streams use id/Last-Event-ID, then HTTP 204 when the visible run is drained.
   // backend sends named events (event: <type>); listen to all known ones via a generic handler
   const handler = receive;
-  ["run.started", "run.completed", "agent.spawned", "agent.spawn_denied", "agent.status", "agent.message", "tool.call",
+  ["run.started", "run.completed", "agent.spawn_requested", "agent.spawned", "agent.spawn_denied", "agent.status", "agent.message", "tool.call",
     "tool.result", "finding", "decision.made", "gate.verdict", "gate.started", "revision.requested", "source.inspect",
     "approval.requested", "approval.decided", "order.filled", "budget.exceeded", "asof.violation",
     "content.quarantined", "proposal.created", "calc.result"]

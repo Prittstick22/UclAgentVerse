@@ -1,0 +1,55 @@
+.benchmark-desk { gap: 10px; }
+.benchmark-heading, .benchmark-card-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.benchmark-heading { padding: 2px 2px 6px; }
+.benchmark-heading h1 { margin: 0 0 4px; font-size: 25px; }
+.benchmark-heading p, .benchmark-card-head p, .benchmark-note { color: var(--terminal-muted); }
+.benchmark-heading p { margin: 0; }
+.benchmark-period { display: grid; gap: 3px; text-align: right; white-space: nowrap; }
+.benchmark-period span, .benchmark-note { font-size: 11px; }
+.benchmark-period span { color: var(--terminal-muted); }
+.benchmark-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 10px; }
+.benchmark-grid-details { grid-template-columns: minmax(0, .82fr) minmax(0, 1.48fr); }
+.benchmark-card { min-width: 0; padding: 13px; }
+.benchmark-card-head { margin-bottom: 10px; }
+.benchmark-card-head h2 { font-size: 15px; }
+.benchmark-card-head p { font-size: 12px; margin: 4px 0 0; }
+.benchmark-card-head select { flex: none; font-size: 11px; }
+.benchmark-toggle { display: inline-flex; flex: none; gap: 2px; padding: 2px; background: var(--terminal-inset); border-radius: 6px; }
+.benchmark-toggle button, .benchmark-legend button { padding: 4px 7px; border-radius: 4px; color: var(--terminal-muted); font-size: 11px; }
+.benchmark-toggle button:is(:hover, [aria-pressed="true"]), .benchmark-legend button:hover { color: var(--terminal-text); background: var(--terminal-raised); }
+.benchmark-plot { height: clamp(215px, 29vh, 330px); min-width: 0; }
+.benchmark-risk { height: 235px; }
+.benchmark-plot .recharts-label { font-size: 12px; fill: var(--terminal-text); }
+.benchmark-plot .recharts-cartesian-axis-line, .benchmark-plot .recharts-cartesian-axis-tick-line { stroke: var(--terminal-edge); }
+.benchmark-plot .recharts-default-tooltip, .benchmark-chart-tip {
+  background: var(--terminal-inset) !important; border: 1px solid var(--terminal-edge) !important;
+  border-radius: 6px; font-size: 14px; color: var(--terminal-text);
+}
+.benchmark-chart-tip { display: grid; gap: 3px; padding: 8px 10px; }
+.benchmark-chart-tip span { color: var(--terminal-muted); }
+.benchmark-legend { display: flex; gap: 2px; flex-wrap: wrap; }
+.benchmark-legend button { display: inline-flex; align-items: center; gap: 5px; }
+.benchmark-legend button[aria-pressed="false"] { opacity: .55; }
+.benchmark-legend button[aria-pressed="true"]:disabled { opacity: 1; cursor: default; }
+.benchmark-legend i { width: 8px; height: 3px; border-radius: 3px; }
+.benchmark-note { margin-top: 9px; line-height: 1.4; }
+.benchmark-bars { display: grid; gap: 3px; padding: 0; margin: 0; }
+.benchmark-bars li { display: grid; grid-template-columns: minmax(104px, 1.12fr) minmax(0, 1fr) 72px; gap: 8px; align-items: center; padding: 6px; border-radius: 4px; font-size: 12px; }
+.benchmark-bars li[data-ours], .benchmark-table tr[data-ours] { background: color-mix(in srgb, var(--terminal-accent) 7%, transparent); }
+.benchmark-bars strong { text-align: right; font: 600 14px var(--terminal-numbers); color: var(--terminal-text); }
+.benchmark-bar-track { position: relative; height: 8px; background: var(--terminal-inset); border-radius: 2px; }
+.benchmark-bar-track::before { content: ""; position: absolute; inset-block: -2px; inset-inline-start: var(--zero); width: 1px; background: var(--terminal-muted); }
+.benchmark-bar-track i { position: absolute; inset-block: 0; border-radius: 2px; }
+.benchmark-table tbody tr:nth-last-child(-n+3) [role="tooltip"] { inset-block: auto calc(100% + 2px); }
+.benchmark-table-wrap { min-width: 0; overflow: auto; }
+.benchmark-table { min-width: 615px; }
+.benchmark-table :is(th, td) { padding: 6px 5px; font-size: 11px; white-space: nowrap; }
+.benchmark-table :is(th, td):not(:first-child) { text-align: right; }
+.benchmark-table td { font-family: var(--terminal-numbers); }
+.benchmark-empty { display: grid; align-content: center; justify-items: start; gap: 8px; color: var(--terminal-muted); padding-block: 16px; }
+.benchmark-empty h2 { color: var(--terminal-text); }
+@media (max-width: 1190px) {
+  .benchmark-grid-details { grid-template-columns: minmax(0, 1fr); }
+}

@@ -2,7 +2,7 @@
 
 ## 1. User journey
 
-1. **Landing.** Choose "Historical demo · As of 7 Jul 2026" or "Current markets · Paper portfolio".
+1. **Welcome.** Choose **Watch a demo** to replay Priya’s recorded paper portfolio or **Use the app live** to set up your own.
 2. **Quiz** (about 8 questions, plain English, £ examples such as "If £10,000 fell to £8,000, would that stop you reaching your goal?").
    - `POST /api/profile/quiz` → profile + mandate.
    - Conflicting answers produce one follow-up question; resubmit the answers with `follow_up_answer: "yes"` or `"no"` to apply the conservative rescore (API/client support; the quiz screen does not yet render this follow-up).
@@ -17,7 +17,8 @@
 6. **Home ("while you were away"):** status pill, last review, holdings with P&L, recent rebalances, digest, waiting decision.
 7. **Timeline (historical):** play/pause/speed and a scrubber. NAV vs benchmarks, weights stacked area, markers for each agent run (shape = trigger kind, colour = maintain/adjust). Clicking a marker replays the run.
 8. **Decision card:** headline, the change in £, risk warning, gate strip, Approve / Keep / Why?
-9. **Chat:** ask anything; answers cite evidence chips.
+
+**Guided tour.** After opening the demo or starting the first live build, a skippable spotlight tour starts on Home. It introduces the team on Agents, then shows playback or live work, the Gemini roles, portfolio calculations, verification, approvals, and benchmarks before returning to Home for holding connections and news. Open **Guided tour** in Profile to revisit it.
 
 ## 2. Modes
 
@@ -64,11 +65,11 @@ for day in calendar.trading_days("2026-07-07", end):
 | Cap breach | Holding over its cap after price moves | Rebalance run |
 | Price move | Holding ≥ 5% in a day or ≥ 10% since the last review | Trigger run: investigate why, then maintain or adjust |
 | NAV drop | NAV ≥ 5% below the last review | Trigger run |
-| News | Flash relevance ≥ 0.7 for a holding | Trigger run |
+| News | At least two distinct headlines about significant events for a watched holding | Trigger run |
 | Correlation regime | Average pairwise correlation up > 0.15 vs 6 months earlier | Noted at the next review; never trades on its own |
 
 - Same-day price-move triggers across many holdings are grouped into one portfolio-level run.
-- Price moves cause investigations, not automatic trades.
+- In the historical simulation, price moves can start an investigation. Live refreshes the data cache and starts a new investigation when the user requests **Check portfolio now**. A proposed rebalance uses the optimiser and the saved approval policy.
 
 ## 5. Agent runs (detail in 05-agent-system)
 

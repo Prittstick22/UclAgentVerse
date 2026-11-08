@@ -1,0 +1,15 @@
+.finance-term { display: inline-flex; align-items: baseline; gap: 4px; }
+.finance-term > button {
+  display: inline-grid; place-items: center; width: 15px; height: 15px; flex: none;
+  border-radius: 50%; background: var(--terminal-raised); color: var(--terminal-muted);
+  font: 650 10px/1 var(--terminal-font); vertical-align: middle;
+}
+.finance-term > button:is(:hover, :focus-visible) { color: var(--terminal-text); background: #363d46; }
+.finance-tip { display: none; }
+.finance-tip:popover-open {
+  display: block; position: fixed; inset: auto; margin: 0; width: min(242px, calc(100vw - 16px));
+  padding: 8px 10px; border: 1px solid var(--terminal-edge); border-radius: 6px;
+  background: #2b3038; color: #eef0f2; box-shadow: 0 8px 20px #0007;
+  white-space: normal; text-align: left; font: 400 12px/1.48 var(--terminal-font);
+}
+@media print { .finance-term > button, .finance-tip { display: none !important; } }
