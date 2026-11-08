@@ -77,7 +77,7 @@
 - eval table
 
 **Tier 3, only if ahead:**
-- retrospective reviewer: up to 3 advisory lessons after every agent run (advice, not rules)
+- retrospective reviewer: 0–3 advisory lessons after every agent run (none if nothing to advise) (advice, not rules)
 - dependency look-through with passage-cited edges
 - candidate-instrument review queue
 - correlation network view

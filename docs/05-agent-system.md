@@ -87,7 +87,7 @@ schema_retry: 1
 
 | Role | Model | Job |
 |---|---|---|
-| `retrospective` | deep | **After every agent run** (fortnightly review or ad-hoc trigger): reviews decisions that have matured (≥ 10 trading days old, one review horizon) since the last retrospective, using data up to today's sim date only; writes **up to 3 lessons**: advice for future runs, **not rules** (nothing is enforced; code limits still decide) |
+| `retrospective` | deep | **After every agent run** (fortnightly review or ad-hoc trigger): reviews decisions that have matured (≥ 10 trading days old, one review horizon) since the last retrospective, using data up to today's sim date only; writes **0–3 lessons** (max 3; none if there is nothing worth advising): advice for future runs, **not rules** (nothing is enforced; code limits still decide) |
 | `rule_tester` (back-check) | fast + code | Optional: attaches earlier episodes that support or contradict each lesson. Informs, never blocks |
 | lesson store | code | Saves lessons with the decisions/evidence they came from; visible to later runs from their creation date only (no hindsight); newest 9 shown in prompts; versioned |
 | `explainer` | fast | Memo → plain-English decision card in £ |
@@ -160,7 +160,7 @@ Every tool is our code. It goes through `DataGateway` (as_of-enforced), emits `t
   - lead → news_analyst (→ filing_reader), risk_analyst, exposure tool → full gate if adjusting
 - **rebalance (≤ 4):** optimise → lead explains → numbers + mandate + compliance + explainer
 - **chat (≤ 3):** chat → optional scenario_analyst
-- **retrospective (after every review/trigger run, ≤ 3):** retrospective → optional back-check → lesson store (up to 3 lessons). Nothing to review yet → it stops after one step (no lessons).
+- **retrospective (after every review/trigger run, ≤ 3):** retrospective → optional back-check → lesson store (0–3 lessons). Nothing matured, or nothing worth advising → it stops and writes nothing.
 
 **Expected volume for the sim year:** roughly 210–250 agent invocations, mostly Flash.
 
@@ -187,7 +187,7 @@ Every tool is our code. It goes through `DataGateway` (as_of-enforced), emits `t
 **T3 demo example:**
 1. An increase in a stock is approved without an earnings check.
 2. The stock drops on earnings 6 days later.
-3. The retrospective writes up to 3 lessons, e.g. "before increasing a single stock, consider an earnings-window check" (`rule.proposed`, `rule_id` = `lesson_…`), citing the decision and the price drop.
+3. The retrospective writes 1–3 lessons only if there is something worth learning (otherwise none), e.g. "before increasing a single stock, consider an earnings-window check" (`rule.proposed`, `rule_id` = `lesson_…`), citing the decision and the price drop.
 4. The back-check attaches earlier episodes for and against (`rule.tested`, `results`), as information only.
 5. Later runs see the lessons in their prompt, labelled "advice from past runs, not rules". When the lead acts on one it cites it (`rule.applied`); if it decides not to, it says why. Lessons never override the mandate, the checker or the human approval.
 
