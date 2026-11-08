@@ -20,6 +20,7 @@ from app.engine.ledger import Ledger
 from app.profile.quiz import mandate_for
 from app.schemas import Mandate
 from app.settings import Settings, get_settings
+from app.sim import approvals
 
 
 @dataclass
@@ -58,6 +59,7 @@ def build_state(settings: Settings | None = None, db_path: str | None = None) ->
     if s.app_mode == "live":
         state.live_updates = LiveUpdates(state)
     state.activity = PortfolioActivity(state)
+    approvals.attach(state)   # records mandate + holdings when each proposal is made (#23 revalidation)
     return state
 
 

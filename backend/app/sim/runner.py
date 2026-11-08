@@ -28,6 +28,8 @@ from app.engine.portfolio import record_checkpoint
 from app.monitors import rules
 from app.monitors.cooldowns import Cooldowns, describe, primary_kind
 from app.profile.quiz import mandate_for
+from app.sim import approvals as approvals_mod
+from app.sim.approvals import ApprovalMode
 from app.sim.benchmarks import Benchmark, make_benchmarks
 
 CORR_WINDOW = 252        # trading days of returns for the correlation-regime check
@@ -67,9 +69,13 @@ def _forecast_mu(state: AppState) -> pd.Series | None:
         from app.engine import forecast  # type: ignore[attr-defined]
     except ImportError:
         return None
-    out = forecast.forecast(state.gw, [i.ticker for i in state.gw.catalogue()], state.clock.as_of_str())
-    mu = getattr(out, "mu", out)
-    return pd.Series(mu) if mu is not None else None
+    tickers = [i.ticker for i in state.gw.catalogue()]
+    out = forecast.forecast(state.gw, tickers, state.clock.as_of_str())
+    state.events.emit("calc.result", title="2-week estimate (not a promise)",   # traceable, like the agent tool
+                      payload={"name": "forecast_2w", "inputs": {"tickers": tickers, "horizon": out.horizon_days},
+                               "outputs": {"mu": out.mu, "portfolio": out.portfolio.model_dump() if out.portfolio else None,
+                                           "skipped": out.skipped, "label": out.label}})
+    return pd.Series(out.mu, dtype=float)
 
 
 def _avg_corr(px: pd.DataFrame) -> float | None:
@@ -102,77 +108,101 @@ def _invest_contribution(weights_value: dict[str, float], nav_after: float, amou
     return out
 
 
-async def run(state: AppState, start: str, end: str | None = None, agents: bool = False,
-              targets: dict[str, float] | None = None, approvals: str = "manual") -> SimResult:
-    prm, trg = params(), params()["triggers"]
-    clock, gw, led, ev = state.clock, state.gw, state.ledger, state.events
-    days = gw.trading_days(start, end)
-    if not days:
-        raise ValueError(f"No trading days between {start} and {end}")
-    if led.contributions_gbp or led.pending or any(p.units for p in led.positions.values()):
-        raise ValueError("run() needs a fresh ledger: this one already has money in it (build a new state)")
-    n_review = state.mandate.review_every_n_days
-    cool = Cooldowns(prm["cooldown_days"], prm["fold_into_review_days"])
-    res = SimResult(start=str(days[0].date()), end=str(days[-1].date()), days=len(days))
-    bench: list[Benchmark] = []
-    prev_prices: dict[str, float] = {}
-    review_prices: dict[str, float] = {}
-    nav_at_last_review: float | None = None
-    prev_day: pd.Timestamp | None = None
-    led.deposit(prm["sim"]["capital_gbp"])
+class Simulation:
+    """The day loop as a stepper, so the API can start, pause and step it (#22). `run()` drives it to the end."""
 
-    for i, day in enumerate(days):
+    def __init__(self, state: AppState, start: str, end: str | None = None, agents: bool = False,
+                 targets: dict[str, float] | None = None, approvals: ApprovalMode = "manual"):
+        self.state, self.agents, self.approvals = state, agents, approvals
+        prm = params()
+        led = state.ledger
+        self.days = state.gw.trading_days(start, end)
+        if not self.days:
+            raise ValueError(f"No trading days between {start} and {end}")
+        if led.contributions_gbp or led.pending or any(p.units for p in led.positions.values()):
+            raise ValueError("run() needs a fresh ledger: this one already has money in it (build a new state)")
+        self.targets = targets
+        self.n_review = state.mandate.review_every_n_days
+        self.cool = Cooldowns(prm["cooldown_days"], prm["fold_into_review_days"])
+        self.res = SimResult(start=str(self.days[0].date()), end=str(self.days[-1].date()), days=len(self.days))
+        self.bench: list[Benchmark] = []
+        self.prev_prices: dict[str, float] = {}
+        self.review_prices: dict[str, float] = {}
+        self.nav_at_last_review: float | None = None
+        self.prev_day: pd.Timestamp | None = None
+        self.i = 0
+        self.capital = float(prm["sim"]["capital_gbp"])
+
+    @property
+    def done(self) -> bool:
+        return self.i >= len(self.days)
+
+    @property
+    def progress(self) -> float:
+        return round(self.i / len(self.days), 4)
+
+    async def step(self) -> None:
+        """Simulate one trading day."""
+        if self.done:
+            return
+        state, prm, trg = self.state, params(), params()["triggers"]
+        clock, gw, led, ev, res = state.clock, state.gw, state.ledger, state.events, self.res
+        i, day = self.i, self.days[self.i]
         date = str(day.date())
         clock.set(date)
+        # fees as known today (e.g. VWRP's OCF cut on 28 Jul 2026); benchmarks share this dict
+        led.catalogue.update({inst.ticker: inst for inst in gw.catalogue(eligible_only=False)})
         prices = {k: float(v) for k, v in gw.latest_prices().items() if pd.notna(v)}
-        for f in led.fill_pending(date, prices):
+        order_reason = str(led.pending[0].get("reason", "")) if led.pending else None
+        fills = led.fill_pending(date, prices)
+        approvals_mod.mark_executed(state, order_reason, fills)
+        for f in fills:
             res.fills += 1
             ev.emit("order.filled", title=f"{f.action.capitalize()} {f.ticker} £{f.amount_gbp:,.0f}",
                     payload={"ticker": f.ticker, "action": f.action, "units": f.units, "price_gbp": f.price_gbp,
                              "amount_gbp": f.amount_gbp, "cost_gbp": f.cost_gbp})
         led.mark_to_market(prices)
-        if prev_day is not None:  # OCF accrues per calendar day, not per trading day
-            led.accrue_fund_fees(days=(day - prev_day).days)
+        if self.prev_day is not None:  # OCF accrues per calendar day, not per trading day
+            led.accrue_fund_fees(days=(day - self.prev_day).days)
 
         contribution = 0.0
-        if prev_day is not None and day.month != prev_day.month:
+        if self.prev_day is not None and day.month != self.prev_day.month:
             contribution = float(prm["sim"]["monthly_contribution_gbp"])
             led.deposit(contribution)
-            if nav_at_last_review is not None:  # new money is not a gain: don't let it hide a NAV drop
-                nav_at_last_review += contribution
-            if not led.pending and targets:
+            if self.nav_at_last_review is not None:  # new money is not a gain: don't let it hide a NAV drop
+                self.nav_at_last_review += contribution
+            if not led.pending and self.targets:
                 values = {t: led.value(t) for t in led.positions if led.positions[t].units > 0}
-                led.queue_rebalance(_invest_contribution(values, led.nav(), contribution, targets),
+                led.queue_rebalance(_invest_contribution(values, led.nav(), contribution, self.targets),
                                     "invest contribution")
 
         status = "monitoring_normally"
         if i == 0:
-            targets = targets or build_targets(state)
-            led.queue_rebalance(targets, "initial portfolio")
-            res.runs.append({"date": date, "kind": "construction", "text": "Initial portfolio", "action": "adjust"})
-            ev.emit("decision.made", title="Initial portfolio built by the engine",
-                    payload={"action": "adjust", "reason": "construction"})
+            status = "investigating"
+            await self._construct(date)
         invested = any(p.units > 0 for p in led.positions.values())
         bench_contribution = contribution
-        if invested and not bench:  # benchmarks start on the day we are first invested, same prices
+        if invested and not self.bench:  # benchmarks start on the day we are first invested, same prices
             # led.nav() already includes today's contribution, so they must not get it again in step()
-            bench = make_benchmarks(led.catalogue, targets or {}, led.nav(), date, prices, prm["benchmark_global_etf"])
+            self.bench = make_benchmarks(led.catalogue, self.targets or {}, led.nav(), date, prices,
+                                         prm["benchmark_global_etf"])
             bench_contribution = 0.0
-            review_prices, nav_at_last_review = dict(prices), led.nav()
+            self.review_prices, self.nav_at_last_review = dict(prices), led.nav()
 
         if invested and i > 0:
             weights = led.weights()
             held = [t for t in weights if weights[t] > 0]
-            day_ret = {t: prices[t] / prev_prices[t] - 1 for t in held if prev_prices.get(t) and t in prices}
-            since = {t: prices[t] / review_prices[t] - 1 for t in held if review_prices.get(t) and t in prices}
-            hits = (rules.drift_hits(weights, targets or {}, led.catalogue, trg["drift_pp"])
+            day_ret = {t: prices[t] / self.prev_prices[t] - 1 for t in held if self.prev_prices.get(t) and t in prices}
+            since = {t: prices[t] / self.review_prices[t] - 1 for t in held
+                     if self.review_prices.get(t) and t in prices}
+            hits = (rules.drift_hits(weights, self.targets or {}, led.catalogue, trg["drift_pp"])
                     + rules.cap_hits(weights, state.mandate, led.catalogue)
                     + rules.price_move_hits(day_ret, since, trg["price_move_day"], trg["price_move_since_review"])
-                    + rules.nav_drop_hit(led.nav(), nav_at_last_review, trg["nav_drop"]))
-            review_day = i % n_review == 0
+                    + rules.nav_drop_hit(led.nav(), self.nav_at_last_review, trg["nav_drop"]))
+            review_day = i % self.n_review == 0
             # on a review day nothing is "folded into the review": the hits ARE part of it, so keep them
-            days_to_review = n_review if review_day else n_review - (i % n_review)
-            acted = cool.filter(hits, i, days_to_review)
+            days_to_review = self.n_review if review_day else self.n_review - (i % self.n_review)
+            acted = self.cool.filter(hits, i, days_to_review)
             if hits and not acted and not review_day:
                 res.trigger_counts["suppressed"] += 1   # in cooldown, or folded into a review due soon
             kind = None
@@ -189,35 +219,113 @@ async def run(state: AppState, start: str, end: str | None = None, agents: bool 
                                  "value": round(h.value, 6), "threshold": h.threshold})
             if kind:
                 status = "investigating"
-                new_targets, action = await _decide(state, kind, notes, agents)
-                targets = new_targets or targets
+                new_targets, action = await _decide(state, kind, notes, self.agents, self.approvals)
+                self.targets = new_targets or self.targets
                 res.runs.append({"date": date, "kind": kind, "text": notes, "action": action})
                 if kind == "review":
-                    review_prices, nav_at_last_review = dict(prices), led.nav()
+                    self.review_prices, self.nav_at_last_review = dict(prices), led.nav()
+        if any(p.status == "awaiting_approval" for p in state.proposals.values()):
+            status = "awaiting_approval"
 
-        for b in bench:
+        for b in self.bench:
             b_hit = bool(rules.drift_hits(b.ledger.weights(), b.targets, led.catalogue, trg["drift_pp"]))
             b.step(date, prices, bench_contribution, fired=b_hit)
-        record_checkpoint(state.db, clock.mode, led, date, targets or {})
+        record_checkpoint(state.db, clock.mode, led, date, self.targets or {})
         ev.emit("clock.tick", title=f"{date} NAV £{led.nav():,.0f}",
                 payload={"nav_gbp": round(led.nav(), 2), "weights": {t: round(w, 6) for t, w in led.weights().items()},
-                         "benchmarks": {b.name: round(b.ledger.nav(), 2) for b in bench}, "status": status})
+                         "benchmarks": {b.name: round(b.ledger.nav(), 2) for b in self.bench}, "status": status})
         res.nav_series.append((date, round(led.nav(), 2)))
-        prev_prices, prev_day = prices, day
+        self.prev_prices, self.prev_day = prices, day
+        self.i += 1
+        if self.done:
+            res.final_nav = round(led.nav(), 2)
+            res.contributions_gbp = round(led.contributions_gbp, 2)
+            res.benchmarks = {b.name: round(b.ledger.nav(), 2) for b in self.bench}
 
-    res.final_nav = round(led.nav(), 2)
-    res.contributions_gbp = round(led.contributions_gbp, 2)
-    res.benchmarks = {b.name: round(b.ledger.nav(), 2) for b in bench}
-    return res
+    async def _construct(self, date: str) -> None:
+        """Day 0: the starting portfolio. Agents build it (construction run + proposal + approval policy);
+        the engine builds it in --no-agents mode, or as a labelled fallback if the agent run yields nothing."""
+        state, ev, led = self.state, self.state.events, self.state.ledger
+        if not self.agents:
+            led.deposit(self.capital)
+        if self.targets:
+            if self.agents:
+                led.deposit(self.capital)
+            led.queue_rebalance(self.targets, "initial portfolio (given)")
+            self.res.runs.append({"date": date, "kind": "construction", "text": "Initial portfolio (given)",
+                                  "action": "adjust"})
+            return
+        if self.agents:
+            text = f"Build a starting portfolio for a {state.mandate.profile} investor"
+            # capital is paid in after the agents propose, so the proposal is labelled a construction
+            targets, action = await _agent_run(state, "construction", text, self.approvals, construction=True)
+            led.deposit(self.capital)
+            self.res.runs.append({"date": date, "kind": "construction", "text": text, "action": action})
+            if targets:
+                self.targets = targets
+                led.queue_rebalance(targets, _last_approved_key(state))
+                return
+            if action == "awaiting_approval":
+                return   # manual mode: stays in cash until the user approves (#23)
+            reason = f"Agent construction ended '{action}', so the engine built the starting portfolio"
+        else:
+            reason = "construction"
+        try:
+            self.targets = build_targets(state)
+        except RuntimeError as e:
+            ev.emit("decision.made", title="No starting portfolio", payload={"action": "maintain", "reason": str(e)})
+            return
+        led.queue_rebalance(self.targets, "initial portfolio")
+        if not self.agents:
+            self.res.runs.append({"date": date, "kind": "construction", "text": "Initial portfolio", "action": "adjust"})
+        ev.emit("decision.made", title="Initial portfolio built by the engine", payload={"action": "adjust",
+                                                                                         "reason": reason})
+
+    async def run_to_end(self) -> SimResult:
+        while not self.done:
+            await self.step()
+        return self.res
 
 
-async def _decide(state: AppState, kind: str, text: str, agents: bool) -> tuple[dict[str, float] | None, str]:
+async def run(state: AppState, start: str, end: str | None = None, agents: bool = False,
+              targets: dict[str, float] | None = None, approvals: ApprovalMode = "manual") -> SimResult:
+    return await Simulation(state, start, end, agents, targets, approvals).run_to_end()
+
+
+def _last_approved_key(state: AppState) -> str:
+    """Order key of the proposal the batch policy just approved, so it is marked 'executed' when it fills."""
+    approved = [p for p in state.proposals.values() if p.status == "approved"]
+    return f"proposal:{approved[-1].id}" if approved else "approved proposal"
+
+
+async def _agent_run(state: AppState, kind: str, text: str, approvals: ApprovalMode, construction: bool = False
+                     ) -> tuple[dict[str, float] | None, str]:
+    """Hand the day to the supervisor; turn an 'adjust' decision with a proposal into orders via the policy."""
+    try:
+        run = await state.supervisor.start(kind, text)
+    except Exception as e:  # noqa: BLE001 - a crashed agent run must not stop the simulation
+        state.events.emit("decision.made", title=f"Agent run failed ({kind}); holding",
+                          payload={"action": "maintain", "reason": f"agent run failed: {type(e).__name__}"})
+        return None, "agent_failed"
+    action = run.decision.action if run.decision else "investigate_further"
+    prop = state.proposals.get(run.proposal_id) if run.proposal_id else None
+    if prop is None:
+        return None, action if action != "adjust" else "adjust_without_proposal"
+    if action not in ("adjust",) and not construction:
+        return None, action
+    return approvals_mod.handle(state, prop, approvals, construction=construction)
+
+
+async def _decide(state: AppState, kind: str, text: str, agents: bool, approvals: ApprovalMode = "manual"
+                  ) -> tuple[dict[str, float] | None, str]:
     """Review / trigger response: (new targets or None to keep them, action). Queues orders if it trades."""
+    led = state.ledger
     if agents:
-        # TODO(#22): use the run's decision + proposal, gate result and approvals policy to queue orders.
-        await state.supervisor.start(kind, text)
-        return None, "agent_run"
-    led, trg = state.ledger, params()["triggers"]
+        targets, action = await _agent_run(state, kind, text, approvals)
+        if targets:
+            led.queue_rebalance(targets, _last_approved_key(state))
+        return targets, action
+    trg = params()["triggers"]
     weights = led.weights()
     try:
         new_targets = build_targets(state, current=weights)
@@ -225,7 +333,7 @@ async def _decide(state: AppState, kind: str, text: str, agents: bool) -> tuple[
         state.events.emit("decision.made", title=f"Engine maintain ({kind})",
                           payload={"action": "maintain", "reason": f"No new target, holding as is: {e}"})
         return None, "maintain"
-    outside =(rules.drift_hits(weights, new_targets, led.catalogue, trg["drift_pp"])
+    outside = (rules.drift_hits(weights, new_targets, led.catalogue, trg["drift_pp"])
                or rules.cap_hits(weights, state.mandate, led.catalogue))
     action = "adjust" if outside else "maintain"
     if outside:

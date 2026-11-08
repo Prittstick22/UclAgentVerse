@@ -87,6 +87,8 @@ def revalidate(*, proposal_as_of: str, price_dates: dict[str, str], today: str, 
 
     v: list[Violation] = []
     stale_after = params()["risk"]["stale_after_days"]
+    if len(pd.bdate_range(proposal_as_of, today)) - 1 > stale_after:
+        v.append(Violation(code="stale_data", message=f"The proposal is from {proposal_as_of}; ask for a fresh one"))
     for t, d in price_dates.items():
         if len(pd.bdate_range(d, today)) - 1 > stale_after:
             v.append(Violation(code="stale_data", message=f"Price for {t} is from {d}", ticker=t))

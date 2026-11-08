@@ -9,6 +9,7 @@ import asyncio
 import logging
 import uuid
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -24,9 +25,23 @@ from app.engine import risk
 from app.engine.portfolio import PortfolioDataUnavailable
 from app.profile.quiz import mandate_for, questions_payload, score
 from app.schemas import (
-    Evidence, Goal, Mandate, Mode, Notifications, PnlPeriod, Portfolio, PortfolioHistory, PortfolioPnl,
-    PortfolioRebalances, RunSummary, TriggerKind,
+    Evidence,
+    Goal,
+    Mandate,
+    Mode,
+    Notifications,
+    PnlPeriod,
+    Portfolio,
+    PortfolioHistory,
+    PortfolioPnl,
+    PortfolioRebalances,
+    RunSummary,
+    TriggerKind,
 )
+from app.sim import approvals
+from app.sim.approvals import ApprovalError
+from app.sim.controller import SimError
+from app.sim.controller import controller as sim_controller
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger(__name__)
@@ -51,8 +66,7 @@ def health(request: Request):
 @router.get("/mode")
 def get_mode(request: Request):
     s = S(request)
-    return {"mode": s.clock.mode, "as_of": s.clock.as_of_str(),
-            "sim": {"running": False, "speed": 1, "start": None, "end": None}}  # TODO(#sim-api)
+    return {"mode": s.clock.mode, "as_of": s.clock.as_of_str(), "sim": sim_controller(s).info()}
 
 
 class ModeBody(BaseModel):
@@ -284,14 +298,39 @@ def proposal(proposal_id: str, request: Request):
     return p
 
 
+class ApproveBody(BaseModel):
+    option: str | None = None
+
+
+class DeclineBody(BaseModel):
+    reason: str | None = None
+
+
+def _approval_err(e: ApprovalError):
+    raise HTTPException(status_code=e.status,
+                        detail={"error": {"code": e.code, "message": e.message, "details": e.details}})
+
+
 @router.post("/proposals/{proposal_id}/approve")
-def approve(proposal_id: str, request: Request):
-    err(501, "internal", "TODO(#approve): revalidate → queue orders → approval.decided event")
+async def approve(proposal_id: str, request: Request, body: ApproveBody | None = None):
+    s = S(request)
+    try:
+        out = approvals.approve_by_user(s, proposal_id, (body or ApproveBody()).option)
+    except ApprovalError as e:
+        _approval_err(e)
+    await sim_controller(s).after_decision()
+    return out
 
 
 @router.post("/proposals/{proposal_id}/decline")
-def decline(proposal_id: str, request: Request):
-    err(501, "internal", "TODO(#approve)")
+async def decline(proposal_id: str, request: Request, body: DeclineBody | None = None):
+    s = S(request)
+    try:
+        out = approvals.decline_by_user(s, proposal_id, (body or DeclineBody()).reason)
+    except ApprovalError as e:
+        _approval_err(e)
+    await sim_controller(s).after_decision()
+    return out
 
 
 @router.get("/evidence/{evidence_id}")
@@ -322,26 +361,50 @@ async def notification_read(notification_id: str, request: Request):
 
 
 # ------------------------------------------------------------------ sim, chat, tasks
+class SimStartBody(BaseModel):
+    start: date | None = None
+    end: date | None = None
+    speed: float | None = None            # trading days per second; 0 = as fast as possible
+    run_agents: bool = False
+    approvals: Literal["manual", "batch_policy"] = "manual"
+
+
+class SimStepBody(BaseModel):
+    days: int = 1
+
+
 @router.post("/sim/start")
-def sim_start(request: Request):
-    err(501, "internal", "TODO(#sim-api): start runner as a background task")
+async def sim_start(request: Request, body: SimStartBody | None = None):
+    s, b = S(request), body or SimStartBody()
+    try:
+        sim = await sim_controller(s).start(b.start.isoformat() if b.start else None,
+                                            b.end.isoformat() if b.end else None, b.speed, b.run_agents, b.approvals)
+    except SimError as e:
+        err(e.status, e.code, e.message)
+    return {"sim": sim}
 
 
 @router.post("/sim/pause")
-def sim_pause(request: Request):
-    err(501, "internal", "TODO(#22)")
+async def sim_pause(request: Request):
+    s = S(request)
+    return {"sim": await sim_controller(s).pause(), "as_of": s.clock.as_of_str()}
 
 
 @router.post("/sim/step")
-def sim_step(request: Request):
-    err(501, "internal", "TODO(#22)")
+async def sim_step(request: Request, body: SimStepBody | None = None):
+    s = S(request)
+    try:
+        sim = await sim_controller(s).step((body or SimStepBody()).days)
+    except SimError as e:
+        err(e.status, e.code, e.message)
+    return {"sim": sim, "as_of": s.clock.as_of_str()}
 
 
 @router.get("/sim/status")
 def sim_status(request: Request):
     s = S(request)
-    return {"sim": {"running": False, "speed": 1, "start": None, "end": None}, "as_of": s.clock.as_of_str(),
-            "progress": 0.0}
+    ctl = sim_controller(s)
+    return {"sim": ctl.info(), "as_of": s.clock.as_of_str(), "progress": ctl.progress()}
 
 
 class ChatBody(BaseModel):

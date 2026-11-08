@@ -19,6 +19,15 @@ Every strategy gets the same £10,000, the same £200/month and the same cost mo
 1. **Real market data replay** (our snapshot, 7 Jul → 6 Nov 2026, walk-forward): the main results below.
 2. **Organisers' AgentVerse finance kit** (synthetic cases + hidden test mode, #60/#61): reported in its own table, labelled "organiser synthetic test data".
 
+## Walk-forward integrity (judged control, #72)
+
+**Deck line:** "Walk-forward verified: deleting or scrambling future data changes nothing before that date."
+
+- `backend/tests/test_no_peeking.py` runs in every CI build. For 3 cut-off days t (early, middle and late in the window), it runs the simulator engine-only and with fake-LLM agents plus batch approvals on three snapshots: (a) the full data, (b) everything after t deleted (prices, FX, news, filings), and (c) every price and FX rate after t replaced by a random walk.
+- Every event up to t must be identical: weights, NAV, orders, triggers, decisions, 2-week forecasts, proposals and approvals.
+- **It has teeth.** The scrambled run must differ *after* t. A test that makes the gateway ignore `as_of` must make the comparison fail, and it does. Breaking the real gateway by hand (removing the `as_of` cut in `DataGateway.prices`) fails the test with "future data changed the past … first difference at event 3".
+- **Known data caveat:** adjusted closes from a provider are back-adjusted for later dividends and splits. That's a property of the price series, not something our code reads ahead. We state it in the deck.
+
 ## Ablations (ours)
 
 - `ours_no_agents`: same engine, no Gemini agents (the key comparison)

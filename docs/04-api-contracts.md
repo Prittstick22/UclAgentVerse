@@ -141,13 +141,17 @@ interface AgentNode {
 | `GET /api/runs/{run_id}/events` | `?after=seq&format=sse\|json` | SSE stream of `Event` (default), or `{items: Event[]}` | Jin |
 | `GET /api/events/stream` | `?mode` | SSE of **all** new events (home/timeline live updates) | Jin |
 | `GET /api/proposals/{id}` | — | `Proposal` | Dev |
-| `POST /api/proposals/{id}/approve` | `{option?: label}` | `{proposal: Proposal, orders: OrderChange[], fill_date: string}` or 409 `stale_data` / `duplicate_order` / `mandate_violation` | Cem |
+| `POST /api/proposals/{id}/approve` | `{option?: label}` | `{proposal: Proposal, orders: OrderChange[], fill_date: string\|null}` or 409 `stale_data` / `duplicate_order` / `mandate_violation` / `mandate_changed` / `holdings_changed` / `conflict` (declined, expired or blocked); 404; 422 unknown option | Cem |
 | `POST /api/proposals/{id}/decline` | `{reason?: string}` | `{proposal: Proposal}` | Cem |
+
+Approval notes (#23): approve revalidates (proposal older than `risk.stale_after_days` trading days or stale prices → `stale_data`; the mandate content changed since the proposal, including a new quiz result → `mandate_changed`; a trade filled since → `holdings_changed`; already approved or the same order pending → `duplicate_order`), re-runs the engine checker (`mandate_violation`), then queues the orders for the next close (`fill_date`) and emits `approval.decided {by: "user"}`. Decline stores the reason (also appended to `uncertainties` as `Declined: …`). In a manual-approval replay started via `/api/sim/start`, the replay pauses itself while a proposal is `awaiting_approval` and resumes after approve/decline.
 | `GET /api/evidence/{id}` | — | `Evidence` | Jin |
 | `GET /api/notifications` | `?mode&unread=true` | `{items: {id, kind: "decision"\|"digest"\|"coverage", title, body, proposal_id, run_id, created_at, read}[]}` | Jin |
 | `POST /api/notifications/{id}/read` | — | `{ok: true}` | Jin |
-| `POST /api/sim/start` | `{start?: date, end?: date, speed?: number, run_agents?: boolean}` | `{sim}` | Cem |
+| `POST /api/sim/start` | `{start?: date, end?: date, speed?: number, run_agents?: boolean, approvals?: "manual"\|"batch_policy"}` | `{sim}` | Cem |
 | `POST /api/sim/pause` · `POST /api/sim/step` | `{days?: number}` | `{sim, as_of}` | Cem |
+
+Sim notes: `start` replays from a fresh ledger as a background task at `speed` trading days per second (default 1; 0 = as fast as possible). `pause` stops after the day in progress. `step` advances `days` (default 1) while paused, and starts a paused default replay if none exists. Historical mode only: 409 `conflict` in live mode, while running (`start`/`step`), or nothing to resume; 422 `validation_error` for no trading days, negative speed or `days < 1`.
 | `GET /api/sim/status` | — | `{sim, as_of, progress: number}` | Cem |
 | `POST /api/chat` | `{message, conversation_id?}` | `{conversation_id, run_id, answer, citations: string[], proposal_id: string\|null}` | Dev |
 | `POST /api/tasks/live-eod` · `POST /api/tasks/live-news` | header `X-Task-Secret` | `{ok, fetched, stale: string[]}` | Jin |
@@ -205,7 +209,7 @@ interface Event {
 | `asof.violation` | gateway | `{requested_end, as_of, caller}` |
 | `decision.made` | lead | `{action: "maintain"\|"adjust"\|"investigate_further", reason}` |
 | `proposal.created` | supervisor | `{proposal_id, kind}` |
-| `approval.requested` / `approval.decided` | approvals | `{proposal_id, decision, by: "user"\|"batch_policy"}` |
+| `approval.requested` / `approval.decided` | approvals | `{proposal_id, decision, by: "user"\|"batch_policy"}` (+ `turnover`) |
 | `order.filled` | ledger | `{ticker, action, units, price_gbp, amount_gbp, cost_gbp}` |
 | `monitor.fired` | monitors | `{monitor_id, rule, ticker, value, threshold}` |
 | `monitor.created` / `monitor.shadow_result` / `monitor.activated` / `monitor.disabled` | monitors | `{monitor_id, spec?, result?}` |
@@ -222,6 +226,7 @@ engine.risk.covariance(returns: pd.DataFrame) -> pd.DataFrame          # Ledoit-
 engine.risk.correlation_report(prices, as_of, lookback=None, names=None) -> CorrelationReport   # lookback None = params 504
 engine.risk.risk_stats(weights, prices, benchmark=None, lookback=None) -> RiskStats   # vol, max_drawdown, beta, herfindahl, history flag
 engine.optimiser.optimise(req: OptimiseRequest) -> OptimiseResult        # variant: recommended|lower_cost|lower_risk; optional req.mu (pd.Series, from engine.forecast, #73); status "error" if a candidate has no risk data
+engine.forecast.forecast(gw, tickers, as_of, horizon=None, weights=None) -> Forecast   # #73: mu (annualised, dict), assets[{ticker, mu_annual, sigma_annual, band{p10,p50,p90}, obs}], portfolio band, skipped, label 'estimate, not a promise'
 engine.checker.check_proposal(proposal_weights, mandate, catalogue, prices) -> CheckReport   # numbers + mandate
 engine.checker.revalidate(proposal, ledger, gw) -> CheckReport
 engine.backtest.run(gw, weights, start, end, rebalance="quarterly") -> BacktestResult   # end <= as_of enforced
