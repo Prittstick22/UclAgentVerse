@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     state_db: Path = BACKEND_DIR / "state.sqlite"
     runs_dir: Path = BACKEND_DIR / "runs"
     recorded_run: Path | None = None  # optional immutable historical replay, loaded at startup
+    replay_only: bool = False  # portable launcher: browse recording/quiz, never start new investigations
     static_dir: Path = BACKEND_DIR / "app" / "static"
 
     public_demo: bool = False

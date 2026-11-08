@@ -304,3 +304,5 @@ gw.freshness() -> dict[str, Freshness]
 # Events (Jin)
 events.emit(type, *, run_id=None, title, **fields) -> Event
 ```
+
+Portable replay launcher: REPLAY_ONLY=1 permits recorded historical playback and the separate Live questionnaire, but new non-recorded investigations return 409 conflict before scheduling agents. Normal configured Live startup defaults to REPLAY_ONLY=0. No event or response shapes change.
