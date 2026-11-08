@@ -10,6 +10,8 @@ A historical mode replays **7 Jul → 6 Nov 2026** day by day, entirely after th
 
 Paper trading only. No real money, accounts or personal financial data. Not financial advice.
 
+[Data sources, terms and synthetic-data disclosure](docs/DATA_SOURCES.md).
+
 ## Start here
 
 | If you are… | Read |
