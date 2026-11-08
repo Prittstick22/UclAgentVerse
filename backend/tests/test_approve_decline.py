@@ -59,7 +59,8 @@ def test_approve_after_mandate_edit_is_409_mandate_changed(api, state, waiting):
     _, prop = waiting
     m = state.mandate.model_dump()
     m["caps"]["per_fund"] = 0.40
-    assert api.put("/api/mandate", json=m).status_code == 200
+    # Historical HTTP edits are locked (#115); exercise revalidation of an internal mandate change.
+    state.mandate = state.mandate.model_validate(m)
     r = api.post(f"/api/proposals/{prop.id}/approve")
     assert r.status_code == 409 and r.json()["error"]["code"] == "mandate_changed"
     assert not state.ledger.pending

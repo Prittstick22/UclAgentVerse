@@ -66,7 +66,9 @@ def test_api_health_and_quiz(state):
     assert c.get("/api/health").json()["status"] == "ok"
     q = c.get("/api/profile/questions").json()["questions"]
     answers = {x["id"]: x["options"][-1]["id"] for x in q}
+    assert c.post("/api/mode", json={"mode": "live"}).status_code == 200
     body = c.post("/api/profile/quiz", json={"answers": answers}).json()
     assert body["mandate"]["profile"] in {"growth", "adventurous"}
+    assert c.post("/api/mode", json={"mode": "historical"}).status_code == 200
     corr = c.get("/api/risk/correlation").json()
     assert len(corr["matrix"]) == len(corr["tickers"])

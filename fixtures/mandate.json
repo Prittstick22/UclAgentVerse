@@ -2,8 +2,8 @@
  "version": 1,
  "profile": "balanced",
  "goal": {
-  "name": "Long-term savings",
-  "target_date": "2040-01-01",
+  "name": "Flat deposit",
+  "target_date": "2036-07-01",
   "starting_amount_gbp": 10000.0,
   "monthly_contribution_gbp": 200.0
  },
