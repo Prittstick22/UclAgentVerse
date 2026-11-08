@@ -42,7 +42,7 @@ TOOL_DOCS: dict[str, str] = {
     "search_news": '{"tickers": ["AAPL.US"], "since"?: "YYYY-MM-DD"} -> dated headlines up to today (ids = evidence).',
     "search_filings": '{"ticker": "NVDA.US", "query"?: "supplier risk"} -> SEC filing passages (ids = evidence).',
     "earnings_calendar": '{"tickers": ["AAPL.US"]} -> past earnings dates (up to today only).',
-    "get_investment_case": '{"ticker": "VWRP.LSE"} -> the saved case, if any.',
+    "get_investment_case": '{} -> ALL saved cases (purpose, reconsider_if); or {"ticker": "VWRP.LSE"} for one.',
     "save_investment_case": '{"cases": [{"ticker": "VWRP.LSE", "purpose": "...", "evidence_ids": [..], '
                             '"assumptions": [..], "reconsider_if": [..]}, ...]} -> saves ALL cases in ONE call.',
     "propose_adjustment": '{"option": "recommended", "why_not": {"VWRP.LSE": "why this rather than the '

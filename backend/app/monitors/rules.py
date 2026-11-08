@@ -1,10 +1,14 @@
 """Deterministic trigger rules. Owner: Cem. Spec: docs/03-how-it-works.md §4."""
 from __future__ import annotations
 
+import re
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
 
+from app.agents.guard import scan
+from app.data.models import NewsItem
 from app.schemas import Instrument, Mandate
 
 HitKind = Literal["drift", "cap_breach", "price_move", "nav_drop", "news", "corr_regime"]
@@ -79,3 +83,42 @@ def corr_regime_hit(avg_now: float, avg_6m_ago: float | None, threshold: float) 
         return [Hit(kind="corr_regime", ticker=None, value=avg_now - avg_6m_ago, threshold=threshold,
                     text=f"Holdings are moving together more (avg correlation {avg_now:.2f} vs {avg_6m_ago:.2f})")]
     return []
+
+
+# Strong-event wording, written from general principles (not tuned to any known headline). (#31)
+NEWS_STRONG = re.compile(
+    r"\b(guidance|profit warning|warns?|warning|downgrade[sd]?|upgrade[sd]?|lawsuits?|sued|probe|investigation"
+    r"|antitrust|recall(?:s|ed)?|plunge[sd]?|tumble[sd]?|slump(?:s|ed)?|crash(?:es|ed)?|surge[sd]?|soar(?:s|ed)?"
+    r"|record (?:revenue|sales|profit)|export (?:ban|curbs?|controls?|restrictions?)"
+    r"|(?:ceo|chief executive) (?:resigns|steps down|departs|exits)|cuts? (?:forecast|outlook)"
+    r"|(?:misses|beats) (?:estimates|expectations)|(?:drops|falls|jumps|rises) \d+(?:\.\d+)?%)\b",
+    re.IGNORECASE,
+)
+NEWS_MIN_STRONG = 2   # at least this many distinct strong-event headlines on one ticker in a day = a real event
+
+
+def news_hits(items: list[NewsItem], watch: set[str], since: datetime) -> list[Hit]:
+    """News that became available after `since` (the previous sim close) on watched tickers.
+
+    Fires once per ticker when >= NEWS_MIN_STRONG distinct strong-event headlines arrived, e.g. earnings or a
+    guidance change, not routine chatter. Items the injection guard flags are skipped (they never reach a prompt).
+    Items come from DataGateway.news(), which already hides anything not yet available (as_of firewall).
+    """
+    by_ticker: dict[str, list[NewsItem]] = {}
+    for n in items:
+        if datetime.fromisoformat(n.available_at) <= since:
+            continue
+        if scan(f"{n.headline} {n.summary}") or not NEWS_STRONG.search(n.headline):
+            continue
+        for t in n.tickers:
+            if t in watch:
+                by_ticker.setdefault(t, []).append(n)
+    out = []
+    for t, ns in sorted(by_ticker.items()):
+        unique = list({n.headline.strip().lower(): n for n in ns}.values())
+        if len(unique) < NEWS_MIN_STRONG:
+            continue
+        top = max(unique, key=lambda n: (len(NEWS_STRONG.findall(n.headline)), n.available_at))
+        out.append(Hit(kind="news", ticker=t, value=float(len(unique)), threshold=float(NEWS_MIN_STRONG),
+                       text=f"{t} news ({len(unique)} event headlines today), e.g. '{top.headline[:140]}' ({top.id})"))
+    return out
