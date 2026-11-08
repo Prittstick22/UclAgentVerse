@@ -10,6 +10,17 @@ A historical mode replays **7 Jul → 6 Nov 2026** day by day, entirely after th
 
 Paper trading only. No real money, accounts or personal financial data. Not financial advice.
 
+## Live demo (for judges)
+
+**Link:** https://165-22-115-152.sslip.io
+**Password:** `pSUpuvVTqe`
+
+- Choose **Demo** to watch the recorded historical run (Priya, 7 Jul → 6 Nov 2026). It loads instantly and never waits on an API call.
+- Choose **Live** to run the same system on today's data (takes a few minutes while the Gemini agents stream).
+- Second persona (recorded only): https://caroline.165-22-115-152.sslip.io
+
+Paper trading only. Simulated numbers are labelled. Not financial advice.
+
 [Data sources, terms and synthetic-data disclosure](docs/DATA_SOURCES.md).
 
 ## Start here
