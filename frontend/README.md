@@ -6,6 +6,7 @@ React + TypeScript + Vite + Tailwind v4 + Recharts.
 npm install
 npm run dev            # http://localhost:5173, mock mode (fixtures/) by default
 VITE_MOCK=0 npm run dev  # use the real backend on :8000 (proxied /api)
+npm test                # API client checks with intercepted requests
 npm run build
 ```
 
@@ -14,3 +15,11 @@ npm run build
 - `src/lib/sse.ts` subscribes to run events (in mock mode it replays the fixture events).
 - Screens are in `src/screens/`. Placeholders name the GitHub issue that builds them.
 - Every screen shows the mode badge and the "Paper portfolio · Not financial advice" footer. Label anything synthetic or simulated.
+
+## Portfolio Home
+
+The desktop Home places the holdings watchlist and allocation on the left, performance and holding connections in the centre, and portfolio status, review history and agent activity on the right. Performance markers come from recorded reviews. The positions table uses the selected P&L period and dates each quote so carried-forward prices are visible.
+
+The holding connections view uses the portfolio's current tickers. Matrix cells can be inspected by pointer or keyboard. In historical mode, the date slider fetches a report at the selected date and keeps the last loaded report visible while the request completes. The fixture preview has one correlation date and one P&L period.
+
+Change between historical demo and current paper markets on the Investor profile screen. Protected requests may prompt for the public demo passcode, which is kept in memory until the page reloads.

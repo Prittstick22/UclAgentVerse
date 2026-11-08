@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, Route, Routes } from "react-router-dom";
 import { DemoPasscodeDialog, ShellIcon, TerminalBrand } from "./components/TerminalShellUi";
 import { api, attachApiFeedback, MOCK } from "./lib/api";
@@ -38,6 +38,9 @@ export default function App() {
   const [error, setError] = useState<ApiError | null>(null);
   const [prompt, setPrompt] = useState<PendingPasscode | null>(null);
   const pendingPasscode = useRef<PendingPasscode | null>(null);
+  const showClock = useCallback((as_of: string) => {
+    setHealth((previous) => previous && { ...previous, as_of });
+  }, []);
 
   useEffect(() => {
     const detach = attachApiFeedback({
@@ -108,7 +111,7 @@ export default function App() {
 
       <main key={modeVersion} className="terminal-main">
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Home onClockChange={showClock} />} />
           <Route element={<section className="terminal-page terminal-glass"><Outlet /></section>}>
             <Route path="/quiz" element={
               <>
