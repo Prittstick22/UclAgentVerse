@@ -1,5 +1,5 @@
 // API client. In mock mode (VITE_MOCK=1, default in dev) it serves ../fixtures/*.json, so the UI works without a backend.
-import type { AgentEvent, CorrelationReport, Health, Mandate, Portfolio, ProfileResult, Question, RunSummary } from "./types";
+import type { AgentEvent, CorrelationReport, Health, Mandate, Notification, Portfolio, ProfileResult, Question, RunSummary } from "./types";
 
 export const MOCK = import.meta.env.VITE_MOCK === "1";
 
@@ -29,10 +29,13 @@ export const api = {
   quiz: (answers: Record<string, string>) => post<{ profile: ProfileResult; mandate: Mandate }>("/profile/quiz", { answers }, "quiz_result"),
   mandate: () => get<Mandate>("/mandate", "mandate"),
   portfolio: () => get<Portfolio>("/portfolio", "portfolio"),
+  notifications: () => get<{ items: Notification[] }>("/notifications", "notifications"),
+  markNotificationRead: (id: string) => MOCK ? Promise.resolve({ ok: true })
+    : post<{ ok: true }>(`/notifications/${encodeURIComponent(id)}/read`, {}, "notifications"),
   correlation: () => get<CorrelationReport>("/risk/correlation", "correlation"),
   runs: () => get<{ items: RunSummary[] }>("/runs", "runs"),
   build: () => post<{ run_id: string }>("/portfolio/build", {}, "runs").then((r) => ("run_id" in r ? r : { run_id: "mock" })),
-  // TODO(#fe-*): pnl, rebalances, benchmarks, proposals, approve/decline, notifications, evidence, chat, sim controls
+  // TODO(#fe-*): pnl, rebalances, benchmarks, proposals, approve/decline, evidence, chat, sim controls
 };
 
 export const mockEvents = (): AgentEvent[] => fx<AgentEvent[]>("events_construction");

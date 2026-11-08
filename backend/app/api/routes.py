@@ -18,7 +18,7 @@ from app.core.events import sse_frame
 from app.data.gateway import AsOfViolation
 from app.engine import risk
 from app.profile.quiz import mandate_for, questions_payload, score
-from app.schemas import Goal, Mandate, Portfolio
+from app.schemas import Goal, Mandate, Mode, Notifications, Portfolio
 
 router = APIRouter(prefix="/api")
 
@@ -107,12 +107,14 @@ async def build(request: Request, background: BackgroundTasks):
 
 
 @router.get("/portfolio")
-def portfolio(request: Request) -> Portfolio:
+async def portfolio(request: Request) -> Portfolio:
     s = S(request)
-    led = s.ledger  # TODO(#portfolio-api): holdings with P&L, targets, purposes, status, counters
+    led = s.ledger  # TODO(#21): holdings with P&L, targets and purposes
+    activity = s.activity.snapshot(s.clock.mode)
     return Portfolio(mode=s.clock.mode, as_of=s.clock.as_of_str(), nav_gbp=round(led.nav(), 2),
                      cash_gbp=round(led.cash_gbp, 2), invested_gbp=round(led.nav() - led.cash_gbp, 2),
-                     contributions_gbp=led.contributions_gbp, total_return=0.0)
+                     contributions_gbp=led.contributions_gbp, total_return=0.0, status=activity.status,
+                     counters=activity.counters, last_review_date=activity.last_review_date)
 
 
 @router.get("/portfolio/history")
@@ -266,13 +268,21 @@ def evidence(evidence_id: str, request: Request):
 
 
 @router.get("/notifications")
-def notifications(request: Request):
-    return {"items": []}  # TODO(#notifications)
+async def notifications(request: Request, mode: Mode | None = None, unread: bool = False) -> Notifications:
+    s = S(request)
+    activity = s.activity.snapshot(mode or s.clock.mode)
+    return Notifications(items=sorted((item for item in activity.items.values() if not unread or not item.read),
+                                      key=lambda item: item.created_at, reverse=True))
 
 
 @router.post("/notifications/{notification_id}/read")
-def notification_read(notification_id: str, request: Request):
-    return {"ok": True}  # TODO(#10)
+async def notification_read(notification_id: str, request: Request):
+    s = S(request)
+    mode = s.clock.mode
+    if notification_id not in s.activity.snapshot(mode).items:
+        err(404, "not_found", "notification not found")
+    s.activity.read(notification_id, mode)
+    return {"ok": True}
 
 
 # ------------------------------------------------------------------ sim, chat, tasks

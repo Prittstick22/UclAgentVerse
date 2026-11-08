@@ -105,6 +105,21 @@ class Counters(BaseModel):
     adjustments: int = 0
 
 
+class Notification(BaseModel):
+    id: str
+    kind: Literal["decision", "digest", "coverage"]
+    title: str
+    body: str
+    proposal_id: str | None = None
+    run_id: str | None = None
+    created_at: str
+    read: bool = False
+
+
+class Notifications(BaseModel):
+    items: list[Notification]
+
+
 class Portfolio(BaseModel):
     mode: Mode
     as_of: str

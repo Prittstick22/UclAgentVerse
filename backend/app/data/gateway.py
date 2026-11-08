@@ -136,16 +136,23 @@ class DataGateway:
         return self.snapshot.etf_holdings.get(etf, [])
 
     def freshness(self) -> dict[str, Freshness]:
-        visible = self.prices(caller="freshness")
+        today = self._check_end(None, "freshness")
+        # The valuation panel carries prices forward, so freshness uses observed quotes.
+        prices = self.snapshot.prices
+        dates = pd.to_datetime(prices["date"])
+        observed = dates.le(today) & prices["adj_close"].notna() & prices["adj_close"].gt(0)
+        last_dates = dates[observed].groupby(prices.loc[observed, "ticker"]).max()
+        calendar = self._prices_gbp.index[self._prices_gbp.index <= today]
+        if len(calendar) and calendar[-1] < today:
+            # A feed-wide outage leaves no rows to count beyond the end of the cache.
+            calendar = calendar.union(pd.bdate_range(calendar[-1], today, inclusive="right"))
         stale_after = params()["risk"]["stale_after_days"]
         out: dict[str, Freshness] = {}
-        last_row = len(visible.index) - 1
-        for t in visible.columns:
-            valid = visible[t].dropna()
-            last = valid.index[-1] if len(valid) else None
-            lag = last_row - visible.index.get_loc(last) if last is not None else 999
+        for t in self._prices_gbp.columns:
+            last = last_dates.get(t)
             out[t] = Freshness(
                 ticker=t, last_date=str(last.date()) if last is not None else None,
-                stale=lag > stale_after, source=self.snapshot.source_label,
+                stale=last is None or len(calendar) - calendar.searchsorted(last, side="right") > stale_after,
+                source=self.snapshot.source_label,
             )
         return out

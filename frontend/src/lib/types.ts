@@ -40,6 +40,11 @@ export interface Portfolio {
   holdings: Holding[]; counters: { reviews: number; checks: number; decisions_asked: number; adjustments: number };
 }
 
+export interface Notification {
+  id: string; kind: "decision" | "digest" | "coverage"; title: string; body: string;
+  proposal_id: string | null; run_id: string | null; created_at: string; read: boolean;
+}
+
 export interface CorrelationReport { as_of: string; lookback: number; tickers: string[]; matrix: number[][]; avg_pairwise: number; callouts: { a: string; b: string; corr: number; text: string }[]; history_days: number; short_history: boolean }
 
 export interface AgentNode { agent_id: string; parent_agent_id: string | null; depth: number; role: string; model: string; question: string; purpose: string; status: "queued" | "running" | "done" | "failed" | "denied"; badges: Badge[] }
