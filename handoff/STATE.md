@@ -12,7 +12,7 @@ Recording SHA256: `53ff18a27d31fb24344855e25936d99e3973d79f55705d16c21064bd65408
 
 Validated: all 54 evidence IDs; dates and mode isolation; full saved playback; zero provider calls during replay; unchanged recording hash; refresh; asset price graph; populated correlation lattice/matrix/split view; five comparison rows; Live quiz to investment-plan review, stopping before Build.
 
-PR #137 fixed evidence lookup/versioning. PR #138 added capture safeguards, unknown constituent handling and UTF-8 snapshot loading. The portable-demo change adds a no-key launcher and this handoff. Check GitHub/main for its final merge status.
+PR #137 fixed evidence lookup/versioning. PR #138 added capture safeguards, unknown constituent handling and UTF-8 snapshot loading. PR #139 (merged as 144a4a7, both CI jobs green) adds the public bundle, no-key launcher and this handoff. All 454 backend tests and 7 frontend tests/build passed. Fresh-clone --setup/start was verified with no .env on port 8012: UI assets, all 54 evidence IDs, full replay, mode separation and explicit refusal of new Live investigations passed. The source recording hash stayed unchanged; the temporary test server was then stopped.
 
 ## Current limits
 
