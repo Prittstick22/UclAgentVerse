@@ -1,5 +1,7 @@
 # 04 · API contracts (CONTRACT FILE)
 
+> **Enforced by CI:** `backend/tests/test_contract.py` fails if an endpoint exists in code but not here, or here but not in code.
+>
 > Changing anything here requires, in the same PR, updates to `backend/app/schemas.py` / `backend/app/core/events.py`, `frontend/src/lib/types.ts`, `fixtures/` (run `make fixtures`), plus a `contract-change` post on the board.
 
 ## 0. Conventions

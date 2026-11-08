@@ -24,6 +24,15 @@ class EODHD:
         r.raise_for_status()
         return r.json()
 
+    def news(self, symbol: str, start: str, end: str, limit: int = 1000, offset: int = 0) -> list[dict]:
+        """Dated company news; paginate with limit/offset."""
+        r = self.client.get(f"{BASE}/news", params={
+            "s": symbol, "from": start, "to": end, "limit": limit, "offset": offset,
+            "api_token": self.key, "fmt": "json",
+        })
+        r.raise_for_status()
+        return r.json()
+
     def live(self, tickers: list[str]) -> list[dict]:
         """Delayed quotes for up to ~20 tickers. TODO(jin): confirm the $19.99 plan includes this endpoint."""
         first, rest = tickers[0], tickers[1:]

@@ -32,8 +32,14 @@ class FakeBrain:
             return {"message": f"Planning the {kind} run.",
                     "spawns": [{"role": r, "question": f"{r} task for {kind}", "purpose": "fake plan"} for r in spawns]}
         if step == 1:
+            if kind == "construction":
+                return {"message": "Building three portfolio options with the optimiser.",
+                        "tool_calls": [{"tool": "build_options", "args_json": "{}"}]}
             return {"message": "Checking correlations before deciding.",
                     "tool_calls": [{"tool": "get_catalogue", "args_json": "{}"}]}
+        if step == 2 and kind == "construction":
+            return {"message": "Proposing the recommended option for your approval.",
+                    "tool_calls": [{"tool": "propose_adjustment", "args_json": json.dumps({"option": "recommended"})}]}
         action = "adjust" if kind in ("drift", "cap_breach", "construction") else "maintain"
         return {"message": f"Decision: {action}.",
                 "final": {"decision": {"action": action, "reason": "[fake] scripted decision", "evidence_ids": []}}}

@@ -30,14 +30,14 @@ RESEARCH_SPAWNABLE = ["equity_scout", "bond_scout", "stock_analyst", "risk_analy
 
 ROLES: dict[str, Role] = {r.name: r for r in [
     Role("lead", True, READ_TOOLS + ["build_options", "check_proposal", "cost_turnover", "backtest",
-                                     "propose_adjustment", "save_investment_case", "exposure"],
+                                     "propose_adjustment", "save_investment_case", "exposure", "forecast"],
          can_spawn=RESEARCH_SPAWNABLE),
     Role("profiler", False, [], group="interface"),
     Role("equity_scout", False, ["get_catalogue", "get_prices", "overlap"], can_spawn=["filing_reader"]),
     Role("bond_scout", False, ["get_catalogue", "get_prices"], can_spawn=["filing_reader"]),
     Role("stock_analyst", False, ["get_catalogue", "get_prices", "search_news", "search_filings", "earnings_calendar"],
          can_spawn=["filing_reader", "news_analyst"], allow_deep_override=True),
-    Role("risk_analyst", False, ["get_prices", "correlation_lattice", "risk_stats", "backtest", "overlap"]),
+    Role("risk_analyst", False, ["get_prices", "correlation_lattice", "risk_stats", "backtest", "overlap", "forecast"]),
     Role("news_analyst", False, ["search_news", "search_filings", "get_prices", "exposure", "web_search"],
          can_spawn=["filing_reader"]),
     Role("filing_reader", False, ["search_filings"], can_spawn=["news_analyst"]),   # depth-2 → always refused

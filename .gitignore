@@ -12,6 +12,7 @@ backend/state.sqlite*
 backend/*.sqlite
 # data (synthetic is regenerated; real snapshot goes to the droplet / bucket)
 backend/data/snapshot/*
+backend/data/real-snapshot/
 !backend/data/snapshot/.gitkeep
 backend/runs/*
 !backend/runs/.gitkeep
@@ -25,3 +26,6 @@ frontend/dist/
 eval/
 archive/
 provider-report.md
+
+# organisers' AgentVerse finance kit: lives next to the repo, never committed (docs/finance-kit.md)
+agentverse/
