@@ -189,7 +189,7 @@ const FIELD_LABELS: Record<string, string> = {
 export function planError(e: unknown): string {
   const fields = e instanceof ApiError ? (e.details as { fields?: Record<string, string> } | undefined)?.fields : undefined;
   if (!fields || !Object.keys(fields).length) return (e as Error).message;
-  const pct = (s: string) => s.replace(/\d*\.\d+|[01]/g, n => `${Number((Number(n) * 100).toFixed(1))}%`);
+  const pct = (s: string) => s.replace(/\d*\.\d+|\b[01]\b/g, n => `${Number((Number(n) * 100).toFixed(1))}%`);
   return "Please fix your investment plan: " + Object.entries(fields)
     .map(([k, v]) => `${FIELD_LABELS[k] ?? k}: ${k.startsWith("goal.") || k === "review_every_n_days" ? v : pct(v)}`).join(" · ");
 }
