@@ -69,7 +69,25 @@ Per strategy and period: total return (TWR), annualised vol, max drawdown, Sharp
 
 ## Implementation
 
-`python -m app.sim.evaluate --record runs/year.sqlite --out eval/`:
-- writes `eval/metrics.json` + `eval/table.md`
-- writes `eval/nav.png` for the deck
-- `/api/benchmarks` serves the same numbers
+Record the runs (same window, frozen config), then evaluate:
+
+```bash
+cd backend
+python -m app.sim.runner --agents --approvals batch_policy --record runs/year.sqlite        # ours (overnight)
+python -m app.sim.runner --no-agents --record runs/no_agents.sqlite                         # ours_no_agents (~1 min)
+python -m app.sim.runner --no-agents --no-forecast --record runs/no_forecast.sqlite         # forecast ablation
+python -m app.sim.evaluate --record runs/year.sqlite --record ours_no_agents=runs/no_agents.sqlite \
+    --record ours_no_forecast=runs/no_forecast.sqlite --out eval/
+```
+
+- Each run stores its results (per-strategy NAV series, contributions, costs, trades, decisions) in its own SQLite (`kv` ns `sim_results`). The first `--record` is `ours` and supplies the 4 benchmarks.
+- Writes `eval/metrics.json`, `eval/table.md` (ready to paste: the table, the "what the system did" line and the caveats) and `eval/nav.png` (`nav.svg` if matplotlib isn't installed: `pip install matplotlib`).
+- `/api/benchmarks` serves the same numbers for the last finished replay (test: `test_numbers_match_api_benchmarks`).
+- **Metric definitions:**
+  - Return is time-weighted, with contributions stripped. Volatility and Sharpe are annualised from daily returns (rf = 0).
+  - Max drawdown is measured on the TWR growth curve.
+  - Turnover is one-way traded £ ÷ 2 ÷ average NAV, excluding the initial build from cash.
+  - Every strategy starts from the same £ on day 0 and gets the same contributions and cost model.
+- **The benchmarks invest every contribution:**
+  - Buy-and-hold invests it in proportion to what it already holds; the others by their targets, buys only.
+  - Each one's own rule is its only rebalance: quarterly at a new quarter, `mechanical_5pct` when a 5% trigger fires.

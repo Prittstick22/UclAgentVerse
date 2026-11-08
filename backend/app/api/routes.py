@@ -42,6 +42,7 @@ from app.sim import approvals
 from app.sim.approvals import ApprovalError
 from app.sim.controller import SimError
 from app.sim.controller import controller as sim_controller
+from app.sim.evaluate import benchmarks_payload
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger(__name__)
@@ -183,8 +184,8 @@ def rebalances(request: Request, mode: Mode | None = None, limit: int = Query(de
 
 @router.get("/benchmarks")
 def benchmarks(request: Request):
-    return {"series": {}, "metrics": {}, "periods": {"development": ["2023-01-02", "2026-07-06"],
-                                                      "held_out": ["2026-07-07", None]}}  # TODO(#benchmarks)
+    """Same numbers as eval/metrics.json (#24): the last finished replay in this mode's DB."""
+    return benchmarks_payload(S(request).db)
 
 
 @router.get("/risk/correlation")
