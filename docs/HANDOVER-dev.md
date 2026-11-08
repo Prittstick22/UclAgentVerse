@@ -1,27 +1,46 @@
-# Dev: what to do now (updated Sun 8 Nov 01:15)
+# Dev: what to do now (updated Sun 8 Nov 01:20)
 
 Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for example while Dev's Claude credits reset. Read `AGENTS.md` first; the team timeline is in `docs/09-build-plan.md`. **Goal: one public link with demo + live mode, everything working by 09:00. The demo never waits on an API call. Submit by 12:20.**
 
 ## Resume here: current state (keep this section updated)
 
-**Done:** #3 EODHD bought + verified · #27 Gemini ping · #54 keys · #55 provider check (PR #81) · **#28 agent loop on real Argon (PR #88)**: schema retry, Gemini retries + backup keys (`GEMINI_API_KEY_BACKUPS`), per-step token budget, cache-stable prompts, cost in `run.completed`. Measured: about 1,850 tokens and $0.007 per call, about 10 s per call; a rerun costs 0 tokens. Nothing is half-done. Results are in the board posts `...-all-provider-keys-work-...` and `...-agent-loop-live-on-argon-...`. · **#29 core tools (PR #90)**: construction runs end `built` with a Proposal (live Argon: 6 calls, $0.044); `gw.earnings` added; `forecast` tool waits on Cem's #73.
+**Handed over Sun 8 Nov ~01:20** (Dev's Claude credits ran low). `main` is clean, there are **no open Dev branches or PRs**, and nothing is half-done.
 
-**Environment on Dev's PC (Windows, Git Bash + PowerShell):**
-- `.env` in the repo root has every key (git-ignored, **never print or commit it**). `LLM_MODE=live`. `GEMINI_MODEL_DEEP` and `GEMINI_MODEL_FAST` are **both `gemini-4-argon`** (team decision: Argon for every agent). Fallback if rate limits bite: `GEMINI_MODEL_FAST=gemini-3.8-flash`.
-- Backend venv: `backend/.venv` (Windows: `backend/.venv/Scripts/python`). `make` targets assume Unix paths, so on Windows call the venv Python directly, e.g. `cd backend && .venv/Scripts/python -m pytest -q`.
-- On Windows, prefix with `PYTHONIOENCODING=utf-8` for `scripts/board.py` and `check_providers.py`, or they crash on `→`/emoji.
-- `EDGAR_USER_AGENT` still holds a placeholder email: put in a real team email.
-- The synthetic snapshot is in `backend/data/snapshot` (git-ignored). Manual live run: `cd backend && STATE_DB=<scratch>.sqlite .venv/Scripts/python -m app.agents.supervisor --run construction` (about $0.03; reruns are free from the cache).
+### Done
+- #3 EODHD bought + verified (every ticker from 2023-01, LSE units OK, delayed quotes OK) · #27 Gemini ping · #54 keys · #55 provider check (PR #81)
+- **#28 agent loop on real Argon (PR #88):** schema retry, Gemini retries + backup keys (`GEMINI_API_KEY_BACKUPS`), per-step token budget, cache-stable prompts, `cost_estimate_usd`/`duration_s` in `run.completed`, `RunSummary` in kv `runs`. About 1,850 tokens and $0.007 per call, about 10 s per call; reruns cost 0 tokens.
+- **#29 core tools (PR #90):** tools wired to engine + gateway; construction runs end `built` with a `Proposal` (live Argon: 6 calls, $0.044). `gw.earnings()` added (past dates only). The `forecast` tool returns `not_available` until Cem's #73 lands (`app.engine.forecast.forecast(gw, tickers, as_of, horizon=10)`).
+- #7 reassigned from Jin to Dev (board handoff posted to Jin).
 
-**Decisions since the timeline below:**
-- **Alpha Vantage is not used anywhere** (its news endpoint is premium-only and we won't pay $49.99). **News = Finnhub (US) + EODHD `/api/news` (UK)**. Removed from code, docs and issues; Jin was told on the board.
-- Alpaca is deferred: #80 (feature, decide at the end). DigitalOcean (#56) will be done by Dev later, but must be ready before Jin's 03:00 dry run.
+### Next, in order (mvp before feature)
+1. **#7 news / filings / earnings fetch** (`gh issue view 7`). Branch `dev/7-fetch-text`.
+   - New `backend/scripts/fetch_text.py` with steps `news`, `filings`, `earnings`. Only a **3-line hook** in `backend/scripts/fetch_snapshot.py` (Jin is editing that file for #6 prices; don't touch the rest).
+   - Add `EODHD.news(symbol, start, end, limit, offset)` to `backend/app/data/adapters/eodhd.py` (`GET https://eodhd.com/api/news?s=<TICKER>&from=&to=&limit=&offset=&api_token=&fmt=json`; returns `[{date, title, content, link, symbols, sentiment?}]`). Reuse `Finnhub.company_news` / `Finnhub.earnings_calendar` (`adapters/finnhub.py`) and `Edgar.submissions` / `Edgar.document` (`adapters/edgar.py`).
+   - **News:** Finnhub `company_news` for each US stock (catalogue `kind == "stock"`, `.US`), month by month from 2026-06-01 to today, using the plain symbol (`AAPL`); EODHD news for each `.LSE` stock over the same window. Map to the `NewsItem` schema (`backend/app/data/models.py`), `source` = `finnhub` / `eodhd`, dedupe by URL. **`available_at`**: if published on a weekday at or before 16:30 Europe/London, that time; otherwise the next weekday at 16:30 London (the `SimClock` observes each day at 16:30, `backend/app/core/clock.py`). Append the labelled synthetic injection item from `backend/scripts/make_synthetic_snapshot.py` (`news_syn_inject`, `synthetic: true`).
+   - **Filings:** EDGAR submissions for the US stocks (CIKs: AAPL 320193, MSFT 789019, NVDA 1045810, AMZN 1018724). 10-K/10-Q/8-K with `acceptanceDateTime` ≥ 2026-06-01; fetch the primary document (`https://www.sec.gov/Archives/edgar/data/<cik>/<accession no dashes>/<primaryDocument>`), strip HTML, keep 3–10 paragraphs ≤ 600 chars mentioning risk/supplier/guidance/revenue. Map to `Filing` (passage ids `<filing id>#p<n>`); `available_at` uses the same rule as news. SEC wants a contact in `EDGAR_USER_AGENT` and ≤ 10 requests/s.
+   - **Earnings:** Finnhub `earnings_calendar(start="2023-01-01", end=today, symbol=…)` per US stock → `earnings.jsonl` rows `{ticker: "AAPL.US", date, source: "finnhub"}`. UK earnings aren't on the free plans: write that in the console summary.
+   - Write `news.jsonl`, `filings.jsonl` and `earnings.jsonl` (one JSON object per line) to `--out` (default `backend/data/snapshot`). Never overwrite Jin's price files.
+   - **Tests** (`backend/tests/test_fetch_text.py`, offline, stub adapters): the `available_at` rule (before/after 16:30, Friday evening → Monday, weekend), mapping + dedupe, passage extraction, and `gw.news()` never returns items after as_of on fetched-shape rows.
+   - Then run it for real (keys in `.env`), report counts per ticker, and post a board `fyi` with a shortlist of **hero events** from real 7 Jul – 6 Nov 2026 headlines: one *material* (→ adjust) and one *alarming but immaterial* (→ maintain) per hero pick (docs/06 §6), for Cem/Jin to agree. PR `Closes #7`, board post to Jin.
+2. **#30 prompts** (`backend/app/agents/prompts/*.md`, `roles.py`). The live lead asks for a non-existent `scout` role: list the exact role names it may spawn (`RESEARCH_SPAWNABLE` in `roles.py`) and the tool arguments (`weights` or `option`). Then run `--run construction` live and check that the spawns are accepted.
+3. #31 review/trigger plans → #20 benchmarks → #37 the 2-week slice, then the 4-month run at 03:00 (**config frozen at the 02:30 `eval-freeze` tag**).
+4. Before 03:00: DigitalOcean account + billing for Jin (#56): Dev does this himself.
 
-**Next, in order:** **#7** news/filings/earnings fetch (taken from Jin; plan: new `backend/scripts/fetch_text.py` + 3-line hook in `fetch_snapshot.py`, `EODHD.news` adapter, offline tests, then a real fetch + hero-event shortlist on the board) → #30 prompts (`agents/prompts/*.md`; the lead still asks for a non-existent `scout` role) → #31 / #20 / #37.
+### Environment (Dev's PC: Windows, Git Bash + PowerShell)
+- `.env` in the repo root has every key (git-ignored; **never print, log or commit keys**). `LLM_MODE=live`; `GEMINI_MODEL_DEEP` and `GEMINI_MODEL_FAST` are **both `gemini-4-argon`** (team decision). Fallback if rate limits bite: `GEMINI_MODEL_FAST=gemini-3.8-flash`. Credits are free but finite: don't waste them, and use `LLM_MODE=fake` for anything that isn't a deliberate live check.
+- Venv: `backend/.venv` → run `cd backend && .venv/Scripts/python -m pytest -q` (`make` assumes Unix paths).
+- Prefix `PYTHONIOENCODING=utf-8` for `scripts/board.py` and `check_providers.py`. Always pass `encoding="utf-8"` when reading or writing text files (Windows defaults to cp1252).
+- The synthetic snapshot is in `backend/data/snapshot` (git-ignored). Manual live run: `cd backend && STATE_DB=<scratch path>.sqlite .venv/Scripts/python -m app.agents.supervisor --run construction` (about $0.04; reruns are free from the cache).
+- `EDGAR_USER_AGENT` still has a placeholder email: ask Dev for the team email.
+- News sources: **Finnhub (US) + EODHD (UK). Alpha Vantage is NOT used.** Alpaca is deferred (#80).
 
-**Rules a fresh agent must not break:** data only via `DataGateway` with `as_of`; numbers only from `backend/app/engine/`; emit an event for every step; contract changes need a board post; branch `dev/<issue>-<slug>`, PR with `Closes #n`; self-merge only when CI is green and the change stays in Dev's folders.
+### How to work here
+- **Teammates push to `main` constantly:** `git fetch && git merge origin/main` into your branch at the start, before every commit, and right before opening and merging a PR. Commit before merging; never `git checkout origin/main -- .` over your work.
+- Rules: data only via `DataGateway` with `as_of`; numbers only from `backend/app/engine/`; emit an event for every step; contract or config changes need a board post; branch `dev/<issue>-<slug>`; PR with `Closes #n`; self-merge only when CI is green. Ask before editing other people's folders (see AGENTS.md §2).
+- Test patterns: `tests/test_tools.py` (call tools via `state.supervisor.tools.call`) and `tests/test_supervisor.py` (stub Gemini client). Tests must never hit the network.
 
-**Before handing back:** update this section (what's done, what's half-done, which branch), push, and post a board `handoff` to `dev` if something is mid-flight.
+### Before handing back
+Update this section (done / half-done / branch), push, and post a board `handoff` to `dev` if anything is mid-flight.
 
 ## Start of every session
 ```bash
