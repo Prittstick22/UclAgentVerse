@@ -8,6 +8,7 @@ from app.agents.fakes import FakeBrain
 from app.agents.llm import LLM
 from app.agents.supervisor import Supervisor
 from app.agents.tools import ToolContext, default_registry
+from app.api.notifications import PortfolioActivity
 from app.config import params
 from app.core.clock import Clock, LiveClock, SimClock
 from app.core.db import DB
@@ -36,6 +37,7 @@ class AppState:
     runs: dict = field(default_factory=dict)
     modes: dict[str, AppState] = field(default_factory=dict, repr=False)
     live_updates: LiveUpdates | None = field(default=None, repr=False)
+    activity: PortfolioActivity = field(init=False)
 
 
 def build_state(settings: Settings | None = None, db_path: str | None = None) -> AppState:
@@ -55,6 +57,7 @@ def build_state(settings: Settings | None = None, db_path: str | None = None) ->
     state.modes[s.app_mode] = state
     if s.app_mode == "live":
         state.live_updates = LiveUpdates(state)
+    state.activity = PortfolioActivity(state)
     return state
 
 

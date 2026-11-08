@@ -76,8 +76,9 @@ class Supervisor:
         self._sem = asyncio.Semaphore(self.cfg["max_parallel"])
 
     # ------------------------------------------------------------------ public
-    async def start(self, kind: str, trigger_text: str, question: str | None = None) -> RunState:
-        run = RunState(run_id=f"run_{uuid.uuid4().hex[:10]}", kind=kind, trigger_text=trigger_text)
+    async def start(self, kind: str, trigger_text: str, question: str | None = None, *,
+                    run_id: str | None = None) -> RunState:
+        run = RunState(run_id=run_id or f"run_{uuid.uuid4().hex[:10]}", kind=kind, trigger_text=trigger_text)
         t0 = time.monotonic()
         started_at = datetime.now(UTC).isoformat()
         limits = {"max_depth": self.cfg["max_depth"], "max_agents": self._max_agents(kind),
@@ -95,19 +96,23 @@ class Supervisor:
             status = "failed"
             self.events.emit("budget.exceeded", run_id=run.run_id, title="Run hit its wall-time limit",
                              payload={"limit": "wall_time_s", "value": self.cfg["run_wall_time_s"]})
-        # TODO(#32): run app.agents.gate.run_gate on run.proposal_id before marking awaiting_approval
-        outcome = run.decision.action if run.decision else "investigate_further"
-        if kind == "construction" and run.proposal_id:
-            outcome = "built"
-        duration = round(time.monotonic() - t0, 2)
-        self.events.emit("run.completed", run_id=run.run_id, title=f"Run finished: {outcome}", status=status,
-                         trigger_kind=kind,
-                         payload={"outcome": outcome, "proposal_id": run.proposal_id, "tokens": run.tokens,
-                                  "cost_estimate_usd": round(run.cost_usd, 4), "duration_s": duration,
-                                  "llm_calls": run.llm_calls, "cached_calls": run.cached_calls,
-                                  "budget_exceeded": run.budget_hit})
-        self._save_summary(run, "completed" if status == "ok" else "failed", outcome, started_at,
-                           datetime.now(UTC).isoformat())
+        except (Exception, asyncio.CancelledError):
+            status = "failed"
+            raise
+        finally:
+            # TODO(#32): run app.agents.gate.run_gate on run.proposal_id before marking awaiting_approval
+            outcome = run.decision.action if run.decision else "investigate_further"
+            if kind == "construction" and run.proposal_id:
+                outcome = "built"
+            duration = round(time.monotonic() - t0, 2)
+            self.events.emit("run.completed", run_id=run.run_id, title=f"Run finished: {outcome}", status=status,
+                             trigger_kind=kind,
+                             payload={"outcome": outcome, "proposal_id": run.proposal_id, "tokens": run.tokens,
+                                      "cost_estimate_usd": round(run.cost_usd, 4), "duration_s": duration,
+                                      "llm_calls": run.llm_calls, "cached_calls": run.cached_calls,
+                                      "budget_exceeded": run.budget_hit})
+            self._save_summary(run, "completed" if status == "ok" else "failed", outcome, started_at,
+                               datetime.now(UTC).isoformat())
         return run
 
     # ------------------------------------------------------------------ limits

@@ -40,6 +40,28 @@ export interface Portfolio {
   holdings: Holding[]; counters: { reviews: number; checks: number; decisions_asked: number; adjustments: number };
 }
 
+export interface PortfolioHistory {
+  points: { date: string; nav_gbp: number; weights: Record<string, number>; contributions_gbp: number | null }[];
+}
+
+export type PnlPeriod = "since_purchase" | "1m" | "3m" | "ytd" | "sim_year";
+export interface PortfolioPnl {
+  period: PnlPeriod;
+  rows: { ticker: string; name: string; pnl_gbp: number; pnl_pct: number; realised_gbp: number;
+    unrealised_gbp: number; contribution_to_return: number }[];
+  total_pnl_gbp: number;
+}
+
+export interface PortfolioRebalances {
+  items: { date: string; run_id: string; trigger_kind: TriggerKind; trigger_text: string;
+    changes: OrderChange[]; cost_gbp: number }[];
+}
+
+export interface Notification {
+  id: string; kind: "decision" | "digest" | "coverage"; title: string; body: string;
+  proposal_id: string | null; run_id: string | null; created_at: string; read: boolean;
+}
+
 export interface CorrelationReport { as_of: string; lookback: number; tickers: string[]; matrix: number[][]; avg_pairwise: number; callouts: { a: string; b: string; corr: number; text: string }[]; history_days: number; short_history: boolean }
 
 export interface AgentNode { agent_id: string; parent_agent_id: string | null; depth: number; role: string; model: string; question: string; purpose: string; status: "queued" | "running" | "done" | "failed" | "denied"; badges: Badge[] }

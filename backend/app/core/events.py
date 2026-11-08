@@ -4,7 +4,9 @@ from __future__ import annotations
 import asyncio
 import itertools
 import json
+import logging
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -12,6 +14,8 @@ from pydantic import BaseModel, Field
 
 from app.core.clock import Clock
 from app.core.db import DB
+
+logger = logging.getLogger(__name__)
 
 EventType = Literal[
     "run.started", "run.completed",
@@ -55,6 +59,7 @@ class EventBus:
         self.clock = clock
         self._seq: dict[str | None, itertools.count] = {}
         self._subscribers: list[tuple[asyncio.Queue, str | None]] = []
+        self._listeners: list[Callable[[Event], None]] = []
 
     def _next_seq(self, run_id: str | None) -> int:
         if run_id not in self._seq:
@@ -86,7 +91,15 @@ class EventBus:
                     queue.put_nowait(ev)
                 except asyncio.QueueFull:  # slow client; drop
                     pass
+        for listener in self._listeners:
+            try:
+                listener(ev)
+            except Exception:
+                logger.exception("Event listener failed after recording %s (%s)", ev.type, ev.id)
         return ev
+
+    def listen(self, listener: Callable[[Event], None]) -> None:
+        self._listeners.append(listener)
 
     def history(self, run_id: str | None = None, after: int = 0, limit: int = 5000) -> list[Event]:
         if run_id is None:

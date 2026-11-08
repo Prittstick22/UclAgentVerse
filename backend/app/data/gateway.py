@@ -70,6 +70,16 @@ class DataGateway:
     def latest_prices(self, tickers: list[str] | None = None) -> pd.Series:
         return self.prices(tickers, caller="latest_prices").ffill().iloc[-1]
 
+    def last_quote_dates(self, tickers: list[str], end: str | None = None) -> dict[str, str]:
+        """Last observed quote dates, before the adjusted price panel fills missing quotes."""
+        cutoff = self._check_end(end, "last_quote_dates")
+        rows = self.snapshot.prices
+        dates = pd.to_datetime(rows["date"])
+        closes = rows["adj_close"]
+        visible = rows["ticker"].isin(tickers) & dates.le(cutoff) & closes.gt(0) & closes.lt(float("inf"))
+        observed = dates[visible].groupby(rows.loc[visible, "ticker"]).max()
+        return {ticker: day.date().isoformat() for ticker, day in observed.items()}
+
     def fx(self, pair: str = "GBPUSD", start: str | None = None, end: str | None = None) -> pd.Series:
         end_ts = self._check_end(end, "fx")
         fx = self.snapshot.fx[self.snapshot.fx["pair"].eq(pair)].copy()
@@ -143,17 +153,24 @@ class DataGateway:
         return self.snapshot.etf_holdings.get(etf, [])
 
     def freshness(self) -> dict[str, Freshness]:
+        today = self._check_end(None, "freshness")
+        # The valuation panel carries prices forward, so freshness uses observed quotes.
+        prices = self.snapshot.prices
+        dates = pd.to_datetime(prices["date"])
+        observed = dates.le(today) & prices["adj_close"].notna() & prices["adj_close"].gt(0)
+        last_dates = dates[observed].groupby(prices.loc[observed, "ticker"]).max()
+        calendar = self._prices_gbp.index[self._prices_gbp.index <= today]
+        if len(calendar) and calendar[-1] < today:
+            # A feed-wide outage leaves no rows to count beyond the end of the cache.
+            calendar = calendar.union(pd.bdate_range(calendar[-1], today, inclusive="right"))
         stale_after = params()["risk"]["stale_after_days"]
         out: dict[str, Freshness] = {}
-        raw = self.snapshot.prices
-        dates = pd.to_datetime(raw["date"])
         for t in self._prices_gbp.columns:
-            valid = dates[raw["ticker"].eq(t) & dates.le(pd.Timestamp(self.clock.today()))
-                          & raw["adj_close"].notna()]
-            last = valid.max() if len(valid) else None
-            lag = len(pd.bdate_range(last + pd.Timedelta(days=1), self.clock.today())) if last is not None else 999
+            last = last_dates.get(t)
             out[t] = Freshness(
                 ticker=t, last_date=str(last.date()) if last is not None else None,
-                stale=lag > stale_after or t in self.coverage_failures, source=self.snapshot.source_label,
+                stale=(last is None or len(calendar) - calendar.searchsorted(last, side="right") > stale_after
+                       or t in self.coverage_failures),  # live refresh failed (#11)
+                source=self.snapshot.source_label,
             )
         return out

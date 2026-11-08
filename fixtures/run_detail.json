@@ -62,6 +62,17 @@
    "purpose": "evidence",
    "status": "done",
    "badges": []
+  },
+  {
+   "agent_id": "2f5148ac61f34cad98db062facee6e51",
+   "parent_agent_id": "filing_reader_7e272a",
+   "depth": 2,
+   "role": "news_analyst",
+   "model": "",
+   "question": "Any news on this filing?",
+   "purpose": "context",
+   "status": "denied",
+   "badges": []
   }
  ],
  "proposal_id": null
