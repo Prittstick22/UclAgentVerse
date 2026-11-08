@@ -1,4 +1,11 @@
-"""Constrained allocation with CVXPY. No return forecasts. Owner: Cem. Spec: docs/07-engine-and-config.md §2."""
+"""Constrained allocation with CVXPY. Owner: Cem. Spec: docs/07-engine-and-config.md §2.
+
+minimise  wᵀΣw − λ_return·μᵀw + λ_track·‖Bw − b*‖² + λ_turn·Σ cᵢ|wᵢ − w_now,ᵢ| + λ_fee·OCFᵀw
+subject to the mandate (sum to one, cash floor, caps, asset-class ranges, stocks total, exclusions).
+
+μ is only ever a code-made estimate (engine/forecast.py, #73), never an LLM number. With no μ, or
+forecast.lambda_return = 0, this is exactly the no-forecast optimiser (ablation).
+"""
 from __future__ import annotations
 
 from typing import Literal
@@ -12,6 +19,14 @@ from app.config import params
 from app.schemas import Instrument, Mandate
 
 Variant = Literal["recommended", "lower_cost", "lower_risk"]
+VARIANTS: tuple[Variant, ...] = ("recommended", "lower_cost", "lower_risk")
+
+MIN_WEIGHT = 1e-4   # holdings below this are dust: removed, then the problem is re-solved without them
+MARGIN = 1e-5       # solve slightly inside every limit so rounding 20 weights to 6 dp can never break one
+SOLVERS = ("CLARABEL", "OSQP", "SCS")
+INTERNAL = {"sum_to_one", "min_holding"}   # always/self-imposed: not a mandate limit worth reporting
+
+KIND_WORDS = {"equity": ("shares", "a fund that holds shares"), "bond": ("bonds", "a bond fund")}
 
 
 class OptimiseRequest(BaseModel):
@@ -21,6 +36,7 @@ class OptimiseRequest(BaseModel):
     cov: pd.DataFrame                      # annualised, index/columns = tickers
     current_weights: dict[str, float] = Field(default_factory=dict)
     variant: Variant = "recommended"
+    mu: pd.Series | None = None            # annualised expected returns from engine/forecast.py (#73); None = no forecast
 
 
 class OptimiseResult(BaseModel):
@@ -35,15 +51,51 @@ class OptimiseResult(BaseModel):
 
 
 def optimise(req: OptimiseRequest) -> OptimiseResult:
-    p = params()["optimiser"]
-    costs = params()["costs"]
     m = req.mandate
-    insts = [i for i in req.instruments if i.ticker not in m.exclusions and i.sleeve not in m.exclusions]
+    insts = [i for i in req.instruments
+             if i.eligible and i.ticker not in m.exclusions and i.sleeve not in m.exclusions]
+    if not insts:
+        return OptimiseResult(status="infeasible", variant=req.variant,
+                              binding_constraints=["No eligible instruments are left after the exclusions."])
+    missing = _missing_risk_data(req.cov, [i.ticker for i in insts])
+    if missing:  # never treat "no data" as "no risk": that would pile money into the unknown fund
+        return OptimiseResult(status="error", variant=req.variant,
+                              binding_constraints=[(f"No risk data for {', '.join(missing)}: "
+                                                    "drop them from the candidates or fetch their prices.")])
+
+    if req.mu is not None and not np.isfinite(req.mu.reindex([i.ticker for i in insts]).fillna(0.0).values).all():
+        return OptimiseResult(status="error", variant=req.variant,
+                              binding_constraints=["The return forecast contains an infinite value."])
+
+    # Solve slightly inside every limit; if the limits only just fit (e.g. one fund capped at exactly
+    # the equity minimum), the margin would make it infeasible, so retry on the exact limits.
+    result = _solve(req, insts, margin=MARGIN)
+    if result == "infeasible":
+        result = _solve(req, insts, margin=0.0)
+    if result == "error":
+        return OptimiseResult(status="error", variant=req.variant,
+                              binding_constraints=["The solver failed on this problem. Try again or check the inputs."])
+    if result == "infeasible":
+        return OptimiseResult(status="infeasible", variant=req.variant, binding_constraints=_diagnose(m, insts))
+    keep = [i for i, x in zip(insts, result[0]) if x >= MIN_WEIGHT]
+    # Dust: re-solve without it (kept holdings floored at MIN_WEIGHT) instead of deleting it afterwards,
+    # which used to push e.g. equity to 59.998% under a 60% minimum. If that fails, keep the dust.
+    if keep and len(keep) < len(insts):
+        again = _solve(req, keep, margin=result[2], floor=MIN_WEIGHT)
+        if not isinstance(again, str):
+            insts, result = keep, again
+    return _result(req, insts, result[0], result[1])
+
+
+Solved = tuple[np.ndarray, dict[str, cp.Constraint], float]
+
+
+def _solve(req: OptimiseRequest, insts: list[Instrument], margin: float, floor: float = 0.0
+           ) -> Solved | Literal["infeasible", "error"]:
+    p, costs, m = params()["optimiser"], params()["costs"], req.mandate
     tickers = [i.ticker for i in insts]
-    if not tickers:
-        return OptimiseResult(status="infeasible", variant=req.variant, binding_constraints=["no eligible instruments"])
     n = len(tickers)
-    cov = req.cov.reindex(index=tickers, columns=tickers).fillna(0.0).values
+    cov = req.cov.loc[tickers, tickers].values
     cov = (cov + cov.T) / 2 + np.eye(n) * 1e-8
     ocf = np.array([i.ocf for i in insts])
     trade_cost = np.array([costs["trade"] + (costs["fx"] if i.currency == "USD" else 0.0) for i in insts])
@@ -68,53 +120,93 @@ def optimise(req: OptimiseRequest) -> OptimiseResult:
     track = cp.square(is_eq @ w - eq_target) + cp.square(is_bd @ w - bd_target)
     objective = (lam_risk * cp.quad_form(w, cp.psd_wrap(cov)) + lam_track * track
                  + lam_turn * cp.sum(cp.multiply(trade_cost, cp.abs(w - w_now))) + lam_fee * ocf @ w)
+    lam_ret = float(params().get("forecast", {}).get("lambda_return", 0.0))
+    if req.mu is not None and lam_ret:
+        mu = req.mu.reindex(tickers).fillna(0.0).values  # no estimate = no tilt
+        objective = objective - lam_ret * mu @ w
+    e = margin
     named = {
         "sum_to_one": cp.sum(w) + cash == 1,
-        "cash_min": cash >= m.ranges.cash_min,
-        "caps": w <= caps,
-        "equity_min": is_eq @ w >= eq_lo,
-        "equity_max": is_eq @ w <= eq_hi,
-        "bond_min": is_bd @ w >= bd_lo,
-        "bond_max": is_bd @ w <= bd_hi,
-        "stocks_total": is_stock @ w <= m.caps.stocks_total,
+        "cash_min": cash >= m.ranges.cash_min + e,
+        "caps": w <= np.maximum(caps - e, 0.0),
+        "equity_min": is_eq @ w >= eq_lo + e,
+        "equity_max": is_eq @ w <= eq_hi - e,
+        "bond_min": is_bd @ w >= bd_lo + e,
+        "bond_max": is_bd @ w <= bd_hi - e,
+        "stocks_total": is_stock @ w <= max(m.caps.stocks_total - e, 0.0),
     }
+    if floor:
+        named["min_holding"] = w >= floor
     prob = cp.Problem(cp.Minimize(objective), list(named.values()))
-    try:
-        prob.solve()
-    except cp.SolverError as e:  # pragma: no cover
-        return OptimiseResult(status="error", variant=req.variant, binding_constraints=[str(e)])
-    if prob.status not in ("optimal", "optimal_inaccurate") or w.value is None:
-        return OptimiseResult(status="infeasible", variant=req.variant,
-                              binding_constraints=_diagnose(m, insts))
-    wv = np.clip(w.value, 0, None)
-    wv[wv < 1e-4] = 0.0
-    cash_v = float(1 - wv.sum())
-    weights = {t: round(float(x), 6) for t, x in zip(tickers, wv) if x > 0}
+    for solver in SOLVERS:
+        if solver not in cp.installed_solvers():
+            continue
+        try:
+            prob.solve(solver=solver)
+        except (cp.SolverError, ValueError):
+            continue
+        if prob.status in ("infeasible", "infeasible_inaccurate"):
+            return "infeasible"
+        if prob.status in ("optimal", "optimal_inaccurate") and w.value is not None:
+            return np.clip(w.value, 0.0, None), named, margin
+    return "error"
+
+
+def _result(req: OptimiseRequest, insts: list[Instrument], wv: np.ndarray, named: dict[str, cp.Constraint]
+            ) -> OptimiseResult:
+    tickers = [i.ticker for i in insts]
+    wv = wv.round(6)
+    cov = req.cov.loc[tickers, tickers].values
+    ocf = np.array([i.ocf for i in insts])
+    w_now = req.current_weights
+    weights = {t: float(x) for t, x in zip(tickers, wv) if x > 0}
+    turnover = sum(abs(weights.get(k, 0.0) - w_now.get(k, 0.0)) for k in set(weights) | set(w_now)) / 2
     return OptimiseResult(
-        status="optimal", variant=req.variant, weights=weights, cash_weight=round(cash_v, 6),
-        binding_constraints=[k for k, c in named.items() if _is_tight(c)],
-        vol_annual=float(np.sqrt(max(wv @ cov @ wv, 0))), ocf_weighted=float(ocf @ wv),
-        turnover=float(np.abs(wv - w_now).sum() / 2),
+        status="optimal", variant=req.variant, weights=weights, cash_weight=round(1.0 - float(wv.sum()), 6),
+        binding_constraints=[k for k, c in named.items() if k not in INTERNAL and _is_tight(c)],
+        vol_annual=float(np.sqrt(max(wv @ cov @ wv, 0.0))), ocf_weighted=float(ocf @ wv), turnover=float(turnover),
     )
+
+
+def _missing_risk_data(cov: pd.DataFrame, tickers: list[str]) -> list[str]:
+    """Tickers with no usable covariance: absent, NaN anywhere in their row, or zero variance."""
+    sub = cov.reindex(index=tickers, columns=tickers)
+    bad = ~np.isfinite(sub.values).all(axis=1) | ~(np.diag(sub.values) > 0)
+    return [t for t, b in zip(tickers, bad) if b]
 
 
 def _is_tight(c: cp.Constraint, tol: float = 1e-5) -> bool:
     try:
-        v = c.violation()
         dual = c.dual_value
-        return dual is not None and np.any(np.abs(np.atleast_1d(dual)) > tol) and np.all(np.atleast_1d(v) < 1e-4)
+        return dual is not None and bool(np.any(np.abs(np.atleast_1d(dual)) > tol))
     except Exception:  # pragma: no cover
         return False
 
 
 def _diagnose(m: Mandate, insts: list[Instrument]) -> list[str]:
+    """Plain-English reasons a mandate can't be met with these candidates. Never loosens the mandate."""
     reasons = []
-    eq_cap = sum(m.caps.per_stock if i.kind == "stock" else m.caps.per_fund for i in insts if i.asset_class == "equity")
-    bd_cap = sum(m.caps.per_fund for i in insts if i.asset_class == "bond")
-    if eq_cap < m.ranges.equity[0]:
-        reasons.append(f"equity_min {m.ranges.equity[0]:.0%} unreachable: equity caps sum to {eq_cap:.0%}")
-    if bd_cap < m.ranges.bond[0]:
-        reasons.append(f"bond_min {m.ranges.bond[0]:.0%} unreachable: bond caps sum to {bd_cap:.0%}")
-    if m.ranges.equity[0] + m.ranges.bond[0] + m.ranges.cash_min > 1:
-        reasons.append("equity_min + bond_min + cash_min exceed 100%")
-    return reasons or ["unknown: check mandate ranges vs candidate list"]
+    prof = m.profile
+    for cls, (lo, _hi) in (("equity", m.ranges.equity), ("bond", m.ranges.bond)):
+        funds = [i for i in insts if i.asset_class == cls and i.kind != "stock"]
+        stocks = [i for i in insts if i.asset_class == cls and i.kind == "stock"]
+        most = len(funds) * m.caps.per_fund + min(len(stocks) * m.caps.per_stock, m.caps.stocks_total)
+        if most < lo - 1e-9:
+            word, fund = KIND_WORDS[cls]
+            if not funds and not stocks:
+                reasons.append(f"The {prof} profile needs at least {lo:.0%} in {word}, "
+                               f"but none of the candidates hold {word}. Add {fund}.")
+            else:
+                parts = []
+                if funds:
+                    parts.append(f"{len(funds)} fund{'s' if len(funds) > 1 else ''} at up to {m.caps.per_fund:.0%} each")
+                if stocks:
+                    parts.append(f"single stocks at up to {m.caps.stocks_total:.0%} in total")
+                reasons.append(f"The {prof} profile needs at least {lo:.0%} in {word}, but the candidates can hold "
+                               f"at most {most:.0%} ({' and '.join(parts)}). Add {fund} "
+                               "or remove an exclusion.")
+    if m.ranges.equity[0] + m.ranges.bond[0] + m.ranges.cash_min > 1 + 1e-9:
+        reasons.append(f"The minimums for shares ({m.ranges.equity[0]:.0%}), bonds ({m.ranges.bond[0]:.0%}) "
+                       f"and cash ({m.ranges.cash_min:.0%}) add up to more than 100%.")
+    return reasons or [("The candidates can't meet this profile's limits together. "
+                        "Try adding more funds or removing an exclusion.")]

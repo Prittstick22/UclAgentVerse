@@ -213,7 +213,7 @@ interface Event {
 engine.risk.covariance(returns: pd.DataFrame) -> pd.DataFrame          # Ledoit-Wolf, annualised
 engine.risk.correlation_report(prices, as_of, lookback=None, names=None) -> CorrelationReport   # lookback None = params 504
 engine.risk.risk_stats(weights, prices, benchmark=None, lookback=None) -> RiskStats   # vol, max_drawdown, beta, herfindahl, history flag
-engine.optimiser.optimise(req: OptimiseRequest) -> OptimiseResult        # variant: recommended|lower_cost|lower_risk
+engine.optimiser.optimise(req: OptimiseRequest) -> OptimiseResult        # variant: recommended|lower_cost|lower_risk; optional req.mu (pd.Series, from engine.forecast, #73); status "error" if a candidate has no risk data
 engine.checker.check_proposal(proposal_weights, mandate, catalogue, prices) -> CheckReport   # numbers + mandate
 engine.checker.revalidate(proposal, ledger, gw) -> CheckReport
 engine.backtest.run(gw, weights, start, end, rebalance="quarterly") -> BacktestResult   # end <= as_of enforced
