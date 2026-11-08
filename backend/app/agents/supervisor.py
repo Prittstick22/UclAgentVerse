@@ -122,7 +122,8 @@ class Supervisor:
         return m.get(kind, m.get("trigger", 8))
 
     def _budget(self, kind: str) -> int:
-        return self.cfg["run_token_budget"].get(kind, 100000)
+        b = self.cfg["run_token_budget"]
+        return b.get(kind, b.get("trigger", 100000))   # drift / price_move / news / ... are trigger runs
 
     def check_spawn(self, run: RunState, parent_role: str, req: SpawnRequest, parent_depth: int,
                     children_so_far: int) -> None:
@@ -154,7 +155,29 @@ class Supervisor:
         clock = self.events.clock
         head = (f"AS_OF: {clock.as_of_str()} (you know nothing after this date) · MODE: {clock.mode} · "
                 f"RUN: {run.kind} · YOUR ROLE: {role_name} · TOOL CALLS LEFT: {tool_calls_left}")
-        return head + "\n" + self._mandate_line()
+        lines = [head, self._mandate_line()]
+        if run.kind != "construction":
+            lines.append(self._portfolio_line())
+        return "\n".join(lines)
+
+    def _portfolio_line(self) -> str:
+        """Current holdings vs targets, made by code (agents can't reason about what they can't see)."""
+        state = getattr(self.tools.ctx, "state", None)
+        led = getattr(state, "ledger", None)
+        if led is None or led.nav() <= 0:
+            return "PORTFOLIO: not invested yet"
+        targets: dict[str, float] = {}
+        try:
+            from app.engine.portfolio import checkpoints
+            marks = checkpoints(state.db, self.events.clock.mode)
+            targets = marks[-1].targets if marks else {}
+        except Exception:  # noqa: BLE001 - context only, never fail a run over it
+            targets = {}
+        w = led.weights()
+        nav = led.nav()
+        held = ", ".join(f"{t} {x:.1%}" + (f" (target {targets[t]:.1%})" if t in targets else "")
+                         for t, x in sorted(w.items(), key=lambda kv: -kv[1]))
+        return f"PORTFOLIO: £{nav:,.0f} · cash £{led.cash_gbp:,.0f} ({led.cash_gbp / nav:.1%}) · holdings: {held}"
 
     def _mandate_line(self) -> str:
         """The user's mandate in one line, made by code (agents never see it otherwise)."""

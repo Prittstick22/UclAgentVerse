@@ -452,7 +452,13 @@ async def propose_adjustment(ctx: ToolContext, args: dict, run: Any) -> dict:
 
 async def get_investment_case(ctx: ToolContext, args: dict, run: Any) -> dict:
     ticker = args.get("ticker")
-    raw = ctx.state.db.get("cases", ticker) if ticker else None
+    if not ticker:  # all cases at once, compact (reviews / triggers)
+        cases = [InvestmentCase.model_validate_json(raw) for _, raw in ctx.state.db.list("cases")]
+        items = [{"ticker": c.ticker, "purpose": c.purpose, "reconsider_if": c.reconsider_if, "version": c.version,
+                  "case_id": c.case_id} for c in cases]
+        return {"ok": True, "summary": f"{len(items)} investment cases", "cases": items,
+                "evidence_ids": [f"case:{c.ticker}:v{c.version}" for c in cases]}
+    raw = ctx.state.db.get("cases", ticker)
     if not raw:
         return {"ok": True, "summary": f"no investment case for {ticker}", "case": None, "evidence_ids": []}
     case = InvestmentCase.model_validate_json(raw)

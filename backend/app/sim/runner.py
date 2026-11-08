@@ -23,6 +23,7 @@ import pandas as pd
 
 from app.config import params
 from app.container import AppState, build_state
+from app.core.clock import SimClock
 from app.engine import optimiser, risk
 from app.engine.portfolio import record_checkpoint
 from app.monitors import rules
@@ -145,6 +146,13 @@ class Simulation:
     def progress(self) -> float:
         return round(self.i / len(self.days), 4)
 
+    def _news_hits(self, held: list[str]) -> list:
+        """News trigger (#31): strong-event headlines on tickers we hold, since the previous sim close."""
+        if self.prev_day is None or not held:
+            return []
+        prev_close = SimClock(str(self.prev_day.date())).now()
+        return rules.news_hits(self.state.gw.news(held, caller="sim.news_trigger"), set(held), prev_close)
+
     async def step(self) -> None:
         """Simulate one trading day."""
         if self.done:
@@ -204,7 +212,8 @@ class Simulation:
             hits = (rules.drift_hits(weights, self.targets or {}, led.catalogue, trg["drift_pp"])
                     + rules.cap_hits(weights, state.mandate, led.catalogue)
                     + rules.price_move_hits(day_ret, since, trg["price_move_day"], trg["price_move_since_review"])
-                    + rules.nav_drop_hit(led.nav(), self.nav_at_last_review, trg["nav_drop"]))
+                    + rules.nav_drop_hit(led.nav(), self.nav_at_last_review, trg["nav_drop"])
+                    + self._news_hits(held))
             review_day = i % self.n_review == 0
             # on a review day nothing is "folded into the review": the hits ARE part of it, so keep them
             days_to_review = self.n_review if review_day else self.n_review - (i % self.n_review)
