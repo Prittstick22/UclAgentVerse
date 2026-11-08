@@ -33,7 +33,7 @@ All docs: [`docs/README.md`](docs/README.md). Agent-to-agent questions and hando
 | Dev | [@Prittstick22](https://github.com/Prittstick22) | Gemini agents, paid/external APIs and keys, finance kit, benchmarks, deck and pitch |
 | Cem | [@cempnrbs](https://github.com/cempnrbs) | Engine and simulator: risk, optimiser, forecast, checker, ledger, triggers, evaluation |
 | Jin | [@JCYuhei](https://github.com/JCYuhei) | Data snapshot, API, event stream, live mode, DigitalOcean deploy |
-| Mo | [@MLouchini](https://github.com/MLouchini) | Frontend: every screen, charts, demo video |
+| Mo | [@MLouchini](https://github.com/MLouchini) | Backend and Frontend: every screen, charts, engine integration |
 
 ## Quickstart (works offline, no keys)
 
