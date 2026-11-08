@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AgentAvatar from "../components/AgentAvatar";
 import { ShellIcon } from "../components/TerminalShellUi";
-import { api, get, MOCK, put } from "../lib/api";
+import { api, ApiError, get, MOCK, put } from "../lib/api";
 import { useResource } from "../lib/useResource";
 import type { DemoProfile, Mandate, Mode, ProfileResult, Question } from "../lib/types";
 import "./mvp.css";
@@ -88,7 +88,7 @@ export default function Quiz({ mode, changing, onMode, complete }: {
       const { run_id } = await api.build();
       const room = "/runs/" + encodeURIComponent(run_id) + "?live=1";
       navigate(complete("live", room) ? "/" : room);
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) { setError(planError(e)); }
     finally { setBusy(false); }
   }
 
@@ -178,14 +178,38 @@ export default function Quiz({ mode, changing, onMode, complete }: {
   </div>;
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  "ranges.equity": "Shares min/max", "ranges.bond": "Bonds min/max", "ranges.cash_min": "Cash minimum",
+  "caps.per_fund": "Fund cap", "caps.per_stock": "Stock cap", "caps.stocks_total": "All stocks cap",
+  "caps.stocks_min": "Stocks minimum", review_every_n_days: "Review every",
+  "approval.batch_auto_approve_turnover_max": "Maximum turnover per proposal",
+};
+
+/** "Invalid mandate." + the backend's per-field reasons, with fractions shown as percentages. */
+export function planError(e: unknown): string {
+  const fields = e instanceof ApiError ? (e.details as { fields?: Record<string, string> } | undefined)?.fields : undefined;
+  if (!fields || !Object.keys(fields).length) return (e as Error).message;
+  const pct = (s: string) => s.replace(/\d*\.\d+|[01]/g, n => `${Number((Number(n) * 100).toFixed(1))}%`);
+  return "Please fix your investment plan: " + Object.entries(fields)
+    .map(([k, v]) => `${FIELD_LABELS[k] ?? k}: ${k.startsWith("goal.") || k === "review_every_n_days" ? v : pct(v)}`).join(" · ");
+}
+
+/** A % input that can be cleared and retyped: keeps the typed text while editing, updates the plan when it's a number. */
+function PercentInput({ label, value, onValue }: { label: string; value: number; onValue: (value: number) => void }) {
+  const shown = String(Number((value * 100).toFixed(2)));
+  const [text, setText] = useState(shown);
+  return <label>{label}<input className="terminal-field" type="number" min="0" max="100" step="0.1" value={text}
+    onChange={e => { setText(e.target.value); if (e.target.value.trim() !== "" && Number.isFinite(Number(e.target.value))) onValue(Number(e.target.value) / 100); }}
+    onBlur={() => setText(shown)} required /></label>;
+}
+
 function MandateReview({ mandate: initial, profile, busy, submit, saveOnly = false }: {
   mandate: Mandate; profile?: ProfileResult; busy: boolean; submit: (mandate: Mandate) => void; saveOnly?: boolean;
 }) {
   // Seeded once per mandate: the parent passes key={version} so a new quiz result rebuilds the form with its values.
   const [mandate, setMandate] = useState(initial);
   const percentage = (label: string, value: number, change: (value: number) => Mandate) =>
-    <label>{label}<input className="terminal-field" type="number" min="0" max="100" step="0.1"
-      value={Number((value * 100).toFixed(2))} onChange={e => setMandate(change(Number(e.target.value) / 100))} /></label>;
+    <PercentInput label={label} value={value} onValue={v => setMandate(change(v))} />;
   return <form className="mandate-review" onSubmit={e => { e.preventDefault(); submit(mandate); }}>
     {profile && <>
       <p>{profile.explanation}</p>
@@ -239,7 +263,7 @@ export function ProfileScreen({ mode, restartTour }: { mode?: Mode; restartTour:
     setError("");
     setMessage("");
     try { await put("/mandate", mandate, "mandate"); setMessage("Investment plan saved"); }
-    catch (e) { setError((e as Error).message); }
+    catch (e) { setError(planError(e)); }
     finally { setBusy(false); }
   }
   return <div className="onboard onboard-step mvp-enter">
