@@ -24,6 +24,7 @@ def test_get_prices_summary(state):
     assert out["ok"] and {r["ticker"] for r in out["rows"]} == {"VWRP.LSE", "AAPL.US"}
     assert all(r["last_date"] <= state.clock.as_of_str() for r in out["rows"])
     assert CALC.match(out["evidence_ids"][0]) and calc_events(state)
+    assert calc_events(state)[-1].agent_id == "lead_t"
 
 
 @pytest.mark.parametrize("tool,args", [
@@ -51,6 +52,7 @@ def test_build_options_then_check_cost_risk_backtest(state):
     assert cost["cost_gbp"] > 0 and cost["trades"]
     bt, _ = call(state, "backtest", {"option": "lower_risk"}, run=run)
     assert bt["end"] <= state.clock.as_of_str() and "not a forecast" in bt["label"]
+    assert calc_events(state)[-1].payload["outputs"]["nav"][-1][0] == bt["end"]
 
 
 def test_check_proposal_flags_concentration(state):

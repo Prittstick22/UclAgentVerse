@@ -1,0 +1,27 @@
+{
+  "as_of": "2026-07-10",
+  "items": [
+    {
+      "id": "fixture_news_equity",
+      "tickers": ["VUAG.LSE", "VWRP.LSE"],
+      "headline": "Synthetic sample: US shares move higher into the close",
+      "summary": "Example of a market update relevant to broad US and global share funds.",
+      "url": null,
+      "source": "Synthetic fixture",
+      "published_at": "2026-07-10T16:00:00+01:00",
+      "available_at": "2026-07-10T16:00:00+01:00",
+      "synthetic": true
+    },
+    {
+      "id": "fixture_news_gilts",
+      "tickers": ["VGOV.LSE", "IGLS.LSE"],
+      "headline": "Synthetic sample: UK government bond prices fall",
+      "summary": "Example of a gilt-market update relevant to the bond allocation.",
+      "url": null,
+      "source": "Synthetic fixture",
+      "published_at": "2026-07-09T15:00:00+01:00",
+      "available_at": "2026-07-09T15:00:00+01:00",
+      "synthetic": true
+    }
+  ]
+}
