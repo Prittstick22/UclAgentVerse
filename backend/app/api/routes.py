@@ -12,11 +12,12 @@ from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from app.api.demo_guard import check_budget, guard_agent_run, require_passcode
 from app.api.portfolio import PortfolioView
+from app.api.recorded_replay import controller as sim_controller
 from app.api.run_views import agent_tree, find_evidence, summarize
 from app.container import state_for_mode
 from app.core.events import Event, sse_frame
@@ -44,15 +45,17 @@ from app.schemas import (
 from app.sim import approvals
 from app.sim.approvals import ApprovalError
 from app.sim.controller import SimError
-from app.sim.controller import controller as sim_controller
 from app.sim.evaluate import benchmarks_payload
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger(__name__)
 
 
-def S(request: Request):
-    return request.app.state.app
+def S(request: Request, mode: Mode | None = None):
+    state = request.app.state.app
+    # Legacy/offline states may keep both modes in one log; recorded demos have isolated DBs.
+    isolated = any(st.recording is not None for st in state.modes.values())
+    return state_for_mode(state, mode) if mode is not None and isolated else state
 
 
 def err(status: int, code: str, message: str):
@@ -64,7 +67,7 @@ def err(status: int, code: str, message: str):
 def health(request: Request):
     s = S(request)
     return {"status": "ok", "mode": s.clock.mode, "as_of": s.clock.as_of_str(), "version": "0.1.0",
-            "llm_mode": s.settings.llm_mode, "data_source": s.gw.snapshot.source_label}
+            "llm_mode": s.llm.mode, "data_source": s.gw.snapshot.source_label}
 
 
 @router.get("/mode")
@@ -139,6 +142,11 @@ def catalogue(request: Request):
 @router.post("/portfolio/build", status_code=202, dependencies=[Depends(guard_agent_run)])
 async def build(request: Request):
     s = S(request)
+    if s.recording is not None:
+        recorded = s.recording.construction
+        if recorded is None or recorded.as_of > s.clock.as_of_str():
+            err(404, "not_found", "No construction run is visible in this recording")
+        return {"run_id": recorded.run_id}
     run_id = f"run_{uuid.uuid4().hex}"
     task = asyncio.create_task(s.supervisor.start("construction", "User asked to build a portfolio", run_id=run_id))
     s.runs[run_id] = task
@@ -154,7 +162,7 @@ async def build(request: Request):
 
 @router.get("/portfolio")
 def portfolio(request: Request, mode: Mode | None = None) -> Portfolio:
-    s = S(request)
+    s = S(request, mode)
     if s.clock.mode == "live" and mode in (None, "live"):
         # Live (#11): cached prices + coverage-based status from the live cache; counters from the activity log.
         from app.data.live import live_portfolio
@@ -179,33 +187,39 @@ def history(
 ) -> PortfolioHistory:
     if start and end and start > end:
         err(422, "validation_error", "Start must be on or before end")
-    return PortfolioView(S(request), mode).history(start.isoformat() if start else None, end.isoformat() if end else None)
+    return PortfolioView(S(request, mode), mode).history(start.isoformat() if start else None, end.isoformat() if end else None)
 
 
 @router.get("/portfolio/pnl")
 def pnl(request: Request, mode: Mode | None = None, period: PnlPeriod = "since_purchase") -> PortfolioPnl:
     try:
-        return PortfolioView(S(request), mode).pnl(period)
+        return PortfolioView(S(request, mode), mode).pnl(period)
     except PortfolioDataUnavailable as exc:
         err(409, "validation_error", str(exc))
 
 
 @router.get("/portfolio/rebalances")
 def rebalances(request: Request, mode: Mode | None = None, limit: int = Query(default=20, ge=1)) -> PortfolioRebalances:
-    return PortfolioView(S(request), mode).rebalances(limit)
+    return PortfolioView(S(request, mode), mode).rebalances(limit)
 
 
 @router.get("/benchmarks")
-def benchmarks(request: Request):
+def benchmarks(request: Request, mode: Mode | None = None):
     """Same numbers as eval/metrics.json (#24): the last finished replay in this mode's DB."""
-    return benchmarks_payload(S(request).db)
+    s = S(request, mode)
+    if s.recording is not None:
+        payload = s.recording.benchmarks
+        if s.clock.as_of_str() < s.recording.end_day:
+            return {"series": {}, "metrics": {}, "periods": payload["periods"]}
+        return payload
+    return benchmarks_payload(s.db)
 
 
 @router.get("/risk/correlation")
 def correlation(request: Request, lookback: int | None = None, tickers: str | None = None,
-                as_of: str | None = None):
+                as_of: str | None = None, mode: Mode | None = None):
     """Correlation lattice as of `as_of` (any past date up to the clock; default = now)."""
-    s = S(request)
+    s = S(request, mode)
     names = {i.ticker: i.name for i in s.gw.catalogue()}
     tick = tickers.split(",") if tickers else list(s.ledger.weights()) or [i.ticker for i in s.gw.catalogue()][:8]
     try:
@@ -227,12 +241,12 @@ def correlation(request: Request, lookback: int | None = None, tickers: str | No
 @router.get("/runs", response_model_exclude={"items": {"__all__": {"agents"}}})
 def runs(request: Request, limit: int = 50, mode: Mode | None = None,
          kind: TriggerKind | None = None) -> dict[str, list[RunSummary]]:
-    s = S(request)
+    s = S(request, mode)
     rows = s.db.execute(
         """SELECT json FROM events
-           WHERE run_id IS NOT NULL AND mode = ? AND type IN ('run.started', 'run.completed')
+           WHERE run_id IS NOT NULL AND mode = ? AND as_of <= ? AND type IN ('run.started', 'run.completed')
            ORDER BY ts_wall""",
-        (mode or s.clock.mode,),
+        (mode or s.clock.mode, s.clock.as_of_str()),
     )
     events = [Event.model_validate_json(row[0]) for row in rows]
     completed = {event.run_id: event for event in events if event.type == "run.completed"}
@@ -259,23 +273,47 @@ def run_detail(run_id: str, request: Request) -> RunSummary:
 @router.get("/runs/{run_id}/events")
 async def run_events(run_id: str, request: Request, after: int = 0, format: str = "sse"):
     bus = S(request).events
+    recorded = S(request).recording is not None
     if format == "json":
         return {"items": [e.model_dump() for e in bus.history(run_id, after)]}
+    if recorded and (cursor := request.headers.get("last-event-id")):
+        try:
+            after = max(after, int(cursor))
+        except ValueError:
+            err(422, "validation_error", "Last-Event-ID must be an event sequence number")
+        if not bus.history(run_id, after) and any(e.type == "run.completed" for e in bus.history(run_id)):
+            # EventSource stops reconnecting on 204. A broken connection before the last frame
+            # instead resumes after its saved sequence and still receives trailing gate evidence.
+            return Response(status_code=204)
+
+    def frame(event: Event) -> str:
+        return f"id: {event.seq}\n{sse_frame(event)}" if recorded else sse_frame(event)
 
     async def stream():
         q = bus.subscribe(run_id)
         try:
             last = after
-            for e in bus.history(run_id, after):
+            history = bus.history(run_id, after)
+            for e in history:
                 last = e.seq
-                yield sse_frame(e)
+                yield frame(e)
+            if recorded and any(e.type == "run.completed" for e in bus.history(run_id)):
+                return
             while True:
                 if await request.is_disconnected():
                     break
                 try:
                     e = await asyncio.wait_for(q.get(), timeout=15)
                     if e.seq > last:
-                        yield sse_frame(e)
+                        last = e.seq
+                        yield frame(e)
+                        if recorded and e.type == "run.completed":
+                            while not q.empty():
+                                trailing = q.get_nowait()
+                                if trailing.seq > last:
+                                    last = trailing.seq
+                                    yield frame(trailing)
+                            return
                 except TimeoutError:
                     yield ": ping\n\n"
         finally:
@@ -286,8 +324,8 @@ async def run_events(run_id: str, request: Request, after: int = 0, format: str 
 
 
 @router.get("/events/stream")
-async def all_events(request: Request):
-    bus = S(request).events
+async def all_events(request: Request, mode: Mode | None = None):
+    bus = S(request, mode).events
 
     async def stream():
         q = bus.subscribe(None)
@@ -306,8 +344,10 @@ async def all_events(request: Request):
 # ------------------------------------------------------------------ proposals, evidence, notifications
 @router.get("/proposals/{proposal_id}")
 def proposal(proposal_id: str, request: Request):
-    p = S(request).proposals.get(proposal_id)  # TODO(#proposals)
-    if not p:
+    s = S(request)
+    p = (s.recording.visible_proposal(proposal_id) if s.recording is not None
+         else s.proposals.get(proposal_id))
+    if not p or p.as_of > s.clock.as_of_str():
         err(404, "not_found", "proposal not found")
     return p
 
@@ -328,6 +368,8 @@ def _approval_err(e: ApprovalError):
 @router.post("/proposals/{proposal_id}/approve")
 async def approve(proposal_id: str, request: Request, body: ApproveBody | None = None):
     s = S(request)
+    if s.recording is not None:
+        err(409, "validation_error", "This is a recorded demo. Switch to live mode to make your own decisions.")
     try:
         out = approvals.approve_by_user(s, proposal_id, (body or ApproveBody()).option)
     except ApprovalError as e:
@@ -339,6 +381,8 @@ async def approve(proposal_id: str, request: Request, body: ApproveBody | None =
 @router.post("/proposals/{proposal_id}/decline")
 async def decline(proposal_id: str, request: Request, body: DeclineBody | None = None):
     s = S(request)
+    if s.recording is not None:
+        err(409, "validation_error", "This is a recorded demo. Switch to live mode to make your own decisions.")
     try:
         out = approvals.decline_by_user(s, proposal_id, (body or DeclineBody()).reason)
     except ApprovalError as e:
@@ -358,7 +402,7 @@ def evidence(evidence_id: str, request: Request) -> Evidence:
 
 @router.get("/notifications")
 async def notifications(request: Request, mode: Mode | None = None, unread: bool = False) -> Notifications:
-    s = S(request)
+    s = S(request, mode)
     activity = s.activity.snapshot(mode or s.clock.mode)
     return Notifications(items=sorted((item for item in activity.items.values() if not unread or not item.read),
                                       key=lambda item: item.created_at, reverse=True))

@@ -60,6 +60,29 @@ Point the DNS A record (or DuckDNS) at the droplet IP **before** starting Caddy,
 - **Live agent runs** (passcode) return a `run_id` instantly and stream over SSE.
 - **Warm start:** everything is loaded at container start; one always-on container.
 
+### App-side setup and verification (#78)
+
+Set `RECORDED_RUN=/app/runs/year.sqlite` (use the actual mounted path). At startup the app
+opens this file with SQLite `mode=ro`, copies it into memory and validates the finished simulation
+and every dated ledger checkpoint. Missing, incomplete or mismatched-persona files (including
+files without the saved initial mandate from #115) fail startup;
+they are never silently replaced with a new run. The source file is never written by playback.
+With `PUBLIC_DEMO=1`, an existing `RUNS_DIR/year.sqlite` is also detected automatically.
+Set the explicit path for the production deployment so a missing file cannot go unnoticed.
+
+The historical page starts at the last saved close. Existing start/pause/step controls replay the
+saved events at the selected speed; they do not invoke the simulator, optimiser, LLM or providers.
+Proposal approval is read-only in the recording. Live state uses its own database and the original
+configured LLM mode; a historical recording always uses a cache-only LLM even if live mode is enabled.
+
+Before signing off the hosted acceptance criteria, Dev must deploy the finished recording, test a
+copy of the deployment with all external provider keys removed (retain task/passcode authentication),
+and measure a cold browser navigation to every page: under 2 seconds, health under 100 ms.
+Check the live cache timestamps and an authenticated build that returns 202 before a delayed agent
+finishes, then streams its events. Local synthetic tests cannot certify the hosted recording or
+droplet/network timings. Do not remove keys from the team's active deployment during this check;
+use a controlled test deployment or coordinate the check with Dev.
+
 ## Public link safety
 
 - **`PUBLIC_DEMO=1`, `LLM_MODE=replay`:** visitors see a replay of the recorded year, at no Gemini cost.

@@ -19,7 +19,12 @@ async def lifespan(app: FastAPI):
     if not hasattr(app.state, "app"):
         app.state.app = build_state()
     state_for_mode(app.state.app, "live" if app.state.app.clock.mode == "historical" else "historical")
-    yield
+    try:
+        yield
+    finally:
+        for state in app.state.app.modes.values():
+            if state.recording is not None:
+                await state.recording.pause()
 
 
 app = FastAPI(title="UclAgentVerse", version="0.1.0", lifespan=lifespan)

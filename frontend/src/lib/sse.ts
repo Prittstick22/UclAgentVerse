@@ -10,11 +10,19 @@ export function subscribeRun(runId: string, onEvent: (e: AgentEvent) => void): (
     return () => clearInterval(t);
   }
   const es = new EventSource(`/api/runs/${runId}/events`);
-  es.onmessage = (m) => onEvent(JSON.parse(m.data));
+  const receive = (m: MessageEvent) => {
+    const event: AgentEvent = JSON.parse(m.data);
+    onEvent(event);
+  };
+  es.onmessage = receive;
+  // Keep native retries, including after run.completed: gate evidence may follow it.
+  // Recorded streams use id/Last-Event-ID, then HTTP 204 when the visible run is drained.
   // backend sends named events (event: <type>); listen to all known ones via a generic handler
-  const handler = (m: MessageEvent) => onEvent(JSON.parse(m.data));
+  const handler = receive;
   ["run.started", "run.completed", "agent.spawned", "agent.spawn_denied", "agent.status", "agent.message", "tool.call",
-    "tool.result", "finding", "decision.made", "gate.verdict", "content.quarantined", "proposal.created", "calc.result"]
+    "tool.result", "finding", "decision.made", "gate.verdict", "gate.started", "revision.requested", "source.inspect",
+    "approval.requested", "approval.decided", "order.filled", "budget.exceeded", "asof.violation",
+    "content.quarantined", "proposal.created", "calc.result"]
     .forEach((t) => es.addEventListener(t, handler as EventListener));
   return () => es.close();
 }

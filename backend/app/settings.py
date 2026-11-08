@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     snapshot_dir: Path = BACKEND_DIR / "data" / "snapshot"
     state_db: Path = BACKEND_DIR / "state.sqlite"
     runs_dir: Path = BACKEND_DIR / "runs"
+    recorded_run: Path | None = None  # optional immutable historical replay, loaded at startup
     static_dir: Path = BACKEND_DIR / "app" / "static"
 
     public_demo: bool = False

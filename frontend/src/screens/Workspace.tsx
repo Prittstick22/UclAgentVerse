@@ -17,7 +17,7 @@ export default function Workspace() {
     const stop = subscribeRun(runId, (event) => {
       setEvents((prev) => [...prev, event]);
       if (event.type !== "run.completed") return;
-      stop();
+      // Approval checks can emit gate evidence after completion; cleanup owns this subscription.
       api.runDetail(runId)
         .then((detail) => { if (active) setSummary(detail); })
         .catch((error: Error) => { if (active) setError(error.message); })
