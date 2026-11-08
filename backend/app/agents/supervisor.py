@@ -30,7 +30,8 @@ from app.schemas import RunSummary
 
 RESULT_CHARS = 1500          # max characters of one tool result fed back to the model
 LIST_ITEMS = 10              # max items kept from any list in a tool result
-_CALC_ID = re.compile(r"calc:[0-9a-f]{32}")
+_CALC_ID = re.compile(r"calc:[0-9a-f]{32}|prop_[0-9a-f]{10}")   # random ids -> stable aliases (cache)
+_ALIAS = re.compile(r"(?:calc|ref):[\w.]+:\d+")
 
 
 class SpawnDenied(Exception):
@@ -190,7 +191,9 @@ class Supervisor:
                 for k, v in run.evidence_map.items():
                     if v == real:
                         return k
-                k = f"calc:{alias_prefix}:{sum(1 for x in run.evidence_map if x.startswith(f'calc:{alias_prefix}:')) + 1}"
+                kind = "calc" if real.startswith("calc:") else "ref"
+                n = sum(1 for x in run.evidence_map if x.startswith(f"{kind}:{alias_prefix}:")) + 1
+                k = f"{kind}:{alias_prefix}:{n}"
                 run.evidence_map[k] = real
                 return k
             return _CALC_ID.sub(rep, s)
@@ -206,7 +209,8 @@ class Supervisor:
         return text if len(text) <= RESULT_CHARS else text[:RESULT_CHARS] + " ...(truncated)"
 
     def _real_ids(self, run: RunState, ids: list[str]) -> list[str]:
-        return [run.evidence_map.get(i, i) for i in ids]
+        """Aliases back to real ids, also inside composite ids such as `proposal:ref:lead.3:1`."""
+        return [_ALIAS.sub(lambda m: run.evidence_map.get(m.group(0), m.group(0)), i) for i in ids]
 
     # ------------------------------------------------------------------ one LLM step (schema retry)
     async def _step(self, run: RunState, model: str, system: str, prompt: str, fake_ctx: dict) -> AgentStep:

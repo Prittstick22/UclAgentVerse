@@ -305,9 +305,10 @@ async def build_options(ctx: ToolContext, args: dict, run: Any) -> dict:
         mdd = bt.run(ctx.gw, res.weights, start=lookback_start, rebalance="quarterly").metrics.max_drawdown
         stats = OptionStats(vol_annual=round(res.vol_annual or 0, 4), ocf_weighted=round(res.ocf_weighted or 0, 5),
                             turnover=turnover, cost_gbp=cost, max_drawdown_backtest=_r(mdd))
+        rounded = _round_w(res.weights)   # 4 dp for display; cash absorbs the rounding so weights + cash == 1
         options[variant] = PortfolioOption(
-            label=variant, cash_weight=res.cash_weight, stats=stats,
-            holdings=[ProposedHolding(ticker=t, weight=round(x, 4)) for t, x in _round_w(res.weights).items()])
+            label=variant, cash_weight=round(1.0 - sum(rounded.values()), 6), stats=stats,
+            holdings=[ProposedHolding(ticker=t, weight=x) for t, x in rounded.items()])
         eid = _calc(ctx, run, "optimise", {"variant": variant, "candidates": [i.ticker for i in insts]},
                     {"weights": _round_w(res.weights), "cash_weight": res.cash_weight, **stats.model_dump(),
                      "binding_constraints": res.binding_constraints}, f"Optimised {variant} option")

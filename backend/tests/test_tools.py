@@ -167,3 +167,9 @@ def test_agents_get_exact_roles_tools_and_mandate_from_code(state):
     assert "`news_analyst`" in sup._capabilities("filing_reader", depth=1)
     line = sup._mandate_line()
     assert "profile balanced" in line and "single stocks allowed" in line and "£" in line
+
+
+def test_option_weights_plus_cash_sum_to_exactly_one(state):
+    _, run = call(state, "build_options")
+    for opt in run.scratch["options"].values():
+        assert abs(sum(h.weight for h in opt.holdings) + opt.cash_weight - 1.0) < 1e-9

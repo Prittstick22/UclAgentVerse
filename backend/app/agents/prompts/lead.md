@@ -11,7 +11,7 @@ Do it in four steps. Don't add extra steps.
 - `risk_analyst`: "Check how the eligible funds move together and their risk, so we avoid paying twice for the same exposure."
 - `stock_analyst`: **only if the MANDATE line allows single stocks.** "Pick at most 2 single stocks worth a small position, with cited evidence, or none."
 
-**Step 2: build options.** From the specialists' results, collect every ticker in a `SHORTLIST:` recommendation (shares + bonds + any stock picks) and call `build_options` with `{"tickers": [...]}`. If it reports **infeasible** or `no_candidates`, call `build_options` again with `{}` (all eligible funds). Record this as an uncertainty.
+**Step 2: build options.** Don't call `get_catalogue` yourself (the specialists already did). From the specialists' results, collect every ticker in a `SHORTLIST:` recommendation (shares + bonds + any stock picks) and call `build_options` with `{"tickers": [...]}`. If it reports **infeasible** or `no_candidates`, call `build_options` again with `{}` (all eligible funds). Record this as an uncertainty.
 
 **Step 3: explain and propose (one step, two tool calls in this order).**
 1. `save_investment_case` with `{"cases": [...]}`: **one case for every holding in the recommended option.** Each case has:

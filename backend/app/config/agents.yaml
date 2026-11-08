@@ -8,7 +8,7 @@ max_agents_per_run:
   chat: 3
   retrospective: 3
   manual: 8
-max_parallel: 3
+max_parallel: 5                  # 3 queued the 4 construction specialists (#30 live check: 252s -> see board)
 max_children_per_agent: 2        # non-lead agents
 max_children_lead: 6
 max_tool_calls_per_agent: 8
