@@ -163,15 +163,42 @@ class LLM:
         return LLMResponse(text=text, tokens=tokens, cached=False, input_tokens=tokens_in, output_tokens=tokens_out,
                            latency_ms=latency_ms, cost_usd=cost)
 
-    async def _call_live(self, model: str, system: str, prompt: str, schema: type[BaseModel], use_search: bool):
+    async def search(self, query: str, as_of: str) -> dict:
+        """Google Search grounding (live mode only; the caller checks the clock). Cached per query and day.
+
+        Grounding can't be combined with response_schema, so this returns plain text plus source links."""
+        if self.mode == "fake":
+            return {"text": f"[fake search result for: {query}]", "sources": [], "cached": False}
+        key = self.cache_key("search", "", query, BaseModel, as_of)
+        rows = self.db.execute("SELECT response FROM llm_cache WHERE key=?", (key,))
+        if rows:
+            return {**json.loads(rows[0][0]), "cached": True}
+        if self.mode == "replay":
+            raise LLMCacheMiss(key)
+        model = self.s.gemini_model_fast
+        resp, _ = await self._call_live(model, "Answer briefly and factually, citing sources.", query, None, True)
+        sources = []
+        for cand in (getattr(resp, "candidates", None) or [])[:1]:
+            gm = getattr(cand, "grounding_metadata", None)
+            for ch in (getattr(gm, "grounding_chunks", None) or []):
+                web = getattr(ch, "web", None)
+                if web is not None:
+                    sources.append({"title": getattr(web, "title", ""), "url": getattr(web, "uri", "")})
+        um = getattr(resp, "usage_metadata", None)
+        tin, tout = getattr(um, "prompt_token_count", 0) or 0, getattr(um, "candidates_token_count", 0) or 0
+        self._record_spend(price_usd(model, tin, tout), tin + tout)
+        out = {"text": resp.text or "", "sources": sources}
+        self.db.execute("INSERT OR REPLACE INTO llm_cache(key, response, tokens, created) VALUES (?,?,?,?)",
+                        (key, json.dumps(out), tin + tout, datetime.now(UTC).isoformat()))
+        return {**out, "cached": False}
+
+    async def _call_live(self, model: str, system: str, prompt: str, schema: type[BaseModel] | None, use_search: bool):
         from google.genai import types
 
-        config = types.GenerateContentConfig(
-            system_instruction=system,
-            response_mime_type="application/json",
-            response_schema=schema,
-            temperature=0.2,
-        )
+        config = types.GenerateContentConfig(system_instruction=system, temperature=0.2)
+        if schema is not None:
+            config.response_mime_type = "application/json"
+            config.response_schema = schema
         if use_search:  # live mode only, enforced by caller (tools.web_search)
             config.tools = [types.Tool(google_search=types.GoogleSearch())]
         while True:

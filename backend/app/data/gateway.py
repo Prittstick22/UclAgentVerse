@@ -108,6 +108,14 @@ class DataGateway:
             and (since is None or f.available_at >= since)
         ]
 
+    def earnings(self, tickers: list[str] | None = None, caller: str = "unknown") -> list[dict]:
+        """Earnings dates up to as_of only (strict firewall: no upcoming dates in historical mode)."""
+        today = self.clock.as_of_str()
+        return [
+            r for r in self.snapshot.earnings
+            if str(r.get("date", ""))[:10] <= today and (not tickers or r.get("ticker") in tickers)
+        ]
+
     # ------------------------------------------------------------------ reference
     def catalogue(self, eligible_only: bool = True) -> list[Instrument]:
         out = []
