@@ -38,6 +38,14 @@ test("completion keeps trailing gate/approval frames and native retry until call
   assert.equal(connection.closed, true);
 });
 
+test("live run forwards the delegation request before the specialist starts", () => {
+  const { connection, received, stop } = streamClient();
+  connection.emit("agent.spawn_requested");
+  connection.emit("agent.spawned");
+  assert.deepEqual(received, ["agent.spawn_requested", "agent.spawned"]);
+  stop();
+});
+
 test("pre-completion errors retain native retry; caller cleanup still closes", () => {
   const { connection, stop } = streamClient();
   connection.onerror?.();

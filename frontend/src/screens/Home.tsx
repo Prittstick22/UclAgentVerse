@@ -5,6 +5,12 @@ import AgentAvatar from "../components/AgentAvatar";
 import { Link, useNavigate } from "react-router-dom";
 import { ProposalDialog } from "./Decisions";
 import HoldingIssuer from "../components/HoldingIssuer";
+import { chartDateTick, chartValueTick, moneyAxisWidth } from "../lib/chartLabels";
+import FinanceTerm from "../components/FinanceTerm";
+import { finance } from "../lib/financeTerms";
+import NewsCard from "../components/NewsCard";
+import ScrollArrivalList from "../components/ScrollArrivalList";
+import PanelGrip from "../components/PanelGrip";
 import { TerminalBrand } from "../components/TerminalShellUi";
 import { api, get, MOCK } from "../lib/api";
 import { portfolioQueries, type ReviewSummary } from "../lib/portfolioQueries";
@@ -90,21 +96,22 @@ function WeightSparkline({ ticker, history }: { ticker: string; history: History
 function Allocation({ portfolio }: { portfolio: Portfolio }) {
   if (portfolio.nav_gbp <= 0) return null;
   const groups = [
-    { kind: "equity", label: "Shares" }, { kind: "bond", label: "Bonds" }, { kind: "commodity", label: "Commodities" },
-  ].map(({ kind, label }) => ({ kind, label, weight: portfolio.holdings.reduce((sum, holding) => (
+    { kind: "equity", label: "Shares", help: finance.shares }, { kind: "bond", label: "Bonds", help: finance.bonds },
+    { kind: "commodity", label: "Commodities", help: finance.commodities },
+  ].map(({ kind, label, help }) => ({ kind, label, help, weight: portfolio.holdings.reduce((sum, holding) => (
     holding.asset_class === kind ? sum + holding.weight : sum
   ), 0) }));
-  const cash = { kind: "cash", label: "Cash", weight: portfolio.cash_gbp / portfolio.nav_gbp };
+  const cash = { kind: "cash", label: "Cash", help: finance.cash, weight: portfolio.cash_gbp / portfolio.nav_gbp };
   const allocation = [...groups.filter(({ weight }) => weight !== 0), cash];
   return <section className="portfolio-allocation" aria-label="Portfolio allocation">
-    <h2>Allocation</h2>
+    <h2><FinanceTerm name="Allocation" help={finance.allocation} /></h2>
     <div className="portfolio-allocation-bar" aria-hidden="true">
       {allocation.filter(({ weight }) => weight > 0).map(({ kind, weight }) => (
         <span key={kind} data-kind={kind} style={{ flexGrow: weight }} />
       ))}
     </div>
-    <ul>{allocation.map(({ kind, label, weight }) => (
-      <li key={kind}><i data-kind={kind} aria-hidden="true" /><span>{label}</span><strong>{percent.format(weight)}</strong></li>
+    <ul>{allocation.map(({ kind, label, help, weight }) => (
+      <li key={kind}><i data-kind={kind} aria-hidden="true" /><FinanceTerm name={label} help={help} /><strong>{percent.format(weight)}</strong></li>
     ))}</ul>
   </section>;
 }
@@ -113,7 +120,7 @@ function Watchlist({ portfolio, holdings, history, selected, select, pending }: 
   portfolio: Portfolio | null; holdings: Holding[]; history: HistoryPoint[]; selected: string | null;
   select: (ticker: string) => void; pending: boolean;
 }) {
-  return <aside className="portfolio-panel terminal-glass portfolio-watchlist" aria-labelledby="watchlist-heading">
+  return <aside className="portfolio-panel terminal-glass glass-feedback portfolio-watchlist" aria-labelledby="watchlist-heading">
     <div className="portfolio-panel-heading"><h1 id="watchlist-heading">My holdings</h1></div>
     <div className="portfolio-watch-labels"><span>Asset{portfolio && ` (${holdings.length})`}</span><span>Price / date</span></div>
     {holdings.length > 0 ? <ul className="portfolio-watch-rows">{holdings.map((holding) => (
@@ -151,22 +158,23 @@ function PerformanceChart({ points, reviews, holding }: { points: HistoryPoint[]
   const hasMarkers = series.some((point) => point.review_nav !== null);
   return <section className="portfolio-performance" aria-labelledby="performance-heading">
     <header><div><h2 id="performance-heading">{holding ? holding.name : "Portfolio performance"}</h2>
-      <p>{holding ? assetLabel(holding.ticker) + " · Daily adjusted close in GBP" : "Recorded value at each close"}</p></div>
+      <p>{holding ? <>{assetLabel(holding.ticker)} · <FinanceTerm name="Daily adjusted close" help={finance.adjustedClose} /> in GBP</>
+        : "Recorded value at each close"}</p></div>
       {last && <strong>{money.format(last.nav_gbp)}</strong>}
     </header>
     {!last ? <p className="portfolio-empty">{holding ? "No recorded closes for this holding" : "No portfolio closes recorded yet"}</p> : <>
       <div className="portfolio-performance-plot" role="region" aria-label={holding ? assetLabel(holding.ticker) + " price history" : "Portfolio value over the recorded closes"}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <ComposedChart data={series} margin={{ left: 0, right: 16, top: 12, bottom: 4 }} accessibilityLayer>
+          <ComposedChart data={series} margin={{ left: 16, right: 16, top: 12, bottom: 4 }} accessibilityLayer>
             <defs><linearGradient id="portfolio-value-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--terminal-chart)" stopOpacity={.14} />
               <stop offset="100%" stopColor="var(--terminal-chart)" stopOpacity={0} />
             </linearGradient></defs>
             <CartesianGrid stroke="var(--terminal-edge)" strokeOpacity={.68} />
-            <XAxis dataKey="date" tickFormatter={dateLabel} tickLine={false} minTickGap={28}
-              tick={{ fill: "var(--terminal-muted)", fontSize: 11 }} axisLine={{ stroke: "var(--terminal-edge)" }} />
-            <YAxis orientation="right" tickFormatter={(value: number) => (holding ? money : chartMoney).format(value)} tickLine={false} width={66}
-              tick={{ fill: "var(--terminal-muted)", fontSize: 11 }} axisLine={false} domain={["auto", "auto"]} />
+            <XAxis dataKey="date" tickFormatter={dateLabel} tickLine={false} interval="preserveStartEnd" minTickGap={24}
+              tick={chartDateTick} axisLine={{ stroke: "var(--terminal-edge)" }} />
+            <YAxis orientation="right" tickFormatter={(value: number) => (holding ? money : chartMoney).format(value)} tickLine={false} width={moneyAxisWidth}
+              tick={chartValueTick} axisLine={false} domain={["auto", "auto"]} />
             <Tooltip content={({ active, label }) => {
               const point = typeof label === "string" ? byDate.get(label) : undefined;
               if (!active || !point) return null;
@@ -198,43 +206,43 @@ function PerformanceChart({ points, reviews, holding }: { points: HistoryPoint[]
 function HoldingsTabs({ news, setNews }: { news: boolean; setNews: (news: boolean) => void }) {
   return <div className="portfolio-content-tabs" role="group" aria-label="Portfolio details">
     <button type="button" aria-pressed={!news} onClick={() => setNews(false)}>Positions</button>
-    <button type="button" aria-pressed={news} onClick={() => setNews(true)}>Latest news</button>
+    <button type="button" aria-pressed={news} data-tour-target="news-tab" onClick={() => setNews(true)}>Latest news</button>
   </div>;
 }
 
-const loadNews = (signal: AbortSignal) => get<NewsFeed>("/news", "news", signal);
+const loadNews = (signal: AbortSignal) => get<NewsFeed>("/news?limit=500", "news", signal);
 
 function LatestNews({ portfolio, revision, setNews }: { portfolio: Portfolio | null; revision: number; setNews: (news: boolean) => void }) {
   const feed = useQuery(loadNews, revision);
-  const held = new Set(portfolio?.holdings.map(holding => holding.ticker));
+  const held = new Set(portfolio?.holdings.map(holding => holding.ticker.trim().toUpperCase()));
   const [holdingsOnly, setHoldingsOnly] = useState(false);
-  const items = (feed.value?.items ?? []).filter(item => !holdingsOnly || item.tickers.some(ticker => held.has(ticker)));
-  function story(item: NewsFeed["items"][number]) {
-    const url = item.url && /^https?:\/\//i.test(item.url) ? item.url : null;
-    return <li key={item.id}>
-      <div className="portfolio-news-meta"><time dateTime={item.published_at}>{dateLabel(item.published_at)}</time>
-        <span>{item.source}{item.synthetic && !/synthetic/i.test(item.source) ? " · Synthetic" : ""}</span></div>
-      <h3>{url ? <a href={url} target="_blank" rel="noreferrer">{item.headline} ↗</a> : item.headline}</h3>
-      {item.summary && <p>{item.summary}</p>}
-      {item.tickers.length > 0 && <div className="portfolio-news-tags">{item.tickers.map(ticker =>
-        <span key={ticker} data-held={held.has(ticker)}>{assetLabel(ticker)}</span>)}</div>}
-    </li>;
-  }
-  return <section className="portfolio-panel terminal-glass portfolio-positions" aria-label="Latest news" aria-busy={feed.pending}>
+  const all = feed.value?.items ?? [];
+  const matching = all.filter(item => item.tickers.some(ticker => held.has(ticker.trim().toUpperCase())));
+  const filtered = holdingsOnly && held.size > 0;
+  const items = (filtered ? matching : all).slice(0, 20);
+  const featured = items.slice(0, 3);
+  const more = items.slice(featured.length);
+  return <section className="portfolio-panel terminal-glass glass-feedback portfolio-positions" aria-label="Latest news" aria-busy={feed.pending}>
     <header className="portfolio-panel-heading">
       <HoldingsTabs news setNews={setNews} />
-      {held.size > 0 && <label><input type="checkbox" checked={holdingsOnly} onChange={event => setHoldingsOnly(event.currentTarget.checked)} /> My holdings</label>}
+      {held.size > 0 && <button type="button" className="portfolio-news-filter" role="switch" aria-checked={filtered}
+        title="Only show stories tagged with a holding in your portfolio" onClick={() => setHoldingsOnly(value => !value)}>
+        <span aria-hidden="true"><i /></span>My holdings
+      </button>}
     </header>
-    {items.length > 0 ? <div className="portfolio-news-scroll" key={String(holdingsOnly)}>
-      <ul className="portfolio-news-list">{items.slice(0, 4).map(story)}</ul>
-      {items.length > 4 && <details className="desk-disclosure portfolio-news-more">
-        <summary><span>More stories</span><small>{items.length - 4}</small></summary>
-        <ul className="portfolio-news-list">{items.slice(4).map(story)}</ul>
+    {items.length > 0 ? <div className="portfolio-news-scroll" key={String(filtered)}>
+      <ul className="news-feed-list">{featured.map(item => <NewsCard key={item.id} item={item} held={held} tourTarget={item === featured[0]} />)}</ul>
+      {more.length > 0 && <details className="desk-disclosure portfolio-news-more">
+        <summary><span>More stories</span><small>{more.length}</small></summary>
+        <ScrollArrivalList className="news-feed-list">{more.map(item => <NewsCard key={item.id} item={item} held={held} />)}</ScrollArrivalList>
       </details>}
     </div> : <p className="portfolio-empty" role={feed.error ? "alert" : "status"}>
-      {feed.error ? "Couldn’t load news" : feed.pending ? "Loading latest news…" : holdingsOnly ? "No cached stories match your holdings" : "No news available for this date"}
+      {feed.error ? "Couldn’t load news" : feed.pending ? "Loading latest news…" : filtered ? "No recent stories are tagged to your holdings" : "No news available for this date"}
     </p>}
-    {feed.value && <footer>Cached news · As of {dateLabel(feed.value.as_of)}</footer>}
+    {feed.value && <footer><span aria-live="polite">{filtered
+      ? "Showing " + items.length + " " + (items.length === 1 ? "story" : "stories") + " tagged to your holdings"
+      : "Showing " + items.length + " latest " + (items.length === 1 ? "story" : "stories")}</span>
+      <span>Cached news · As of {dateLabel(feed.value.as_of)}</span></footer>}
   </section>;
 }
 
@@ -248,7 +256,7 @@ function Positions({ portfolio, holdings, pnl, period, selectPeriod, selected, p
     ...holdings.map((holding) => ({ ticker: holding.ticker, name: holding.name, holding })),
     ...(pnl?.rows.filter((row) => !holdingTickers.has(row.ticker)) ?? []).map(({ ticker, name }) => ({ ticker, name, holding: undefined })),
   ];
-  return <section className="portfolio-panel terminal-glass portfolio-positions" aria-label="Positions" aria-busy={pending}>
+  return <section className="portfolio-panel terminal-glass glass-feedback portfolio-positions" aria-label="Positions" aria-busy={pending}>
     <header className="portfolio-panel-heading">
       <HoldingsTabs news={false} setNews={setNews} />
       <label><span>P&amp;L period</span><select value={period} onChange={(event) => selectPeriod(event.currentTarget.value as PnlPeriod)}>
@@ -258,8 +266,8 @@ function Positions({ portfolio, holdings, pnl, period, selectPeriod, selected, p
     {error && <p className="portfolio-inline-error" role="alert">P&amp;L unavailable · {error}</p>}
     {rows.length ? <div className="portfolio-table-scroll" tabIndex={0} aria-label="Positions table">
       <table>
-        <thead><tr><th scope="col">Holding</th><th scope="col">Units</th><th scope="col">Price</th><th scope="col">Value</th>
-          <th scope="col">Gain / loss</th><th scope="col">Realised / unrealised</th><th scope="col">Contribution</th></tr></thead>
+        <thead><tr><th scope="col">Holding</th><th scope="col"><FinanceTerm name="Units" help={finance.units} /></th><th scope="col">Price</th><th scope="col">Value</th>
+          <th scope="col">Gain / loss</th><th scope="col"><FinanceTerm name="Sold / still held" help={finance.realised} /></th><th scope="col"><FinanceTerm name="Contribution" help={finance.contribution} /></th></tr></thead>
         <tbody>{rows.map(({ ticker, name, holding }) => {
           const gain = byTicker.get(ticker);
           return <tr key={ticker} id={positionId(ticker)} tabIndex={-1} data-selected={selected === ticker || undefined}>
@@ -315,11 +323,11 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
   const agents = detail.value?.run_id === reviewId ? detail.value?.agents ?? [] : [];
   const activity = notifications.filter((item) => view === "Decisions" ? item.kind === "decision" : item.kind !== "decision");
   const pending = portfolio?.status === "awaiting_approval" ? notifications.find(item => item.kind === "decision" && item.proposal_id) : undefined;
-  return <aside className="portfolio-panel terminal-glass portfolio-review" aria-labelledby="portfolio-review-heading">
+  return <aside className="portfolio-panel terminal-glass glass-feedback portfolio-review" aria-labelledby="portfolio-review-heading">
     <div className="portfolio-panel-heading"><span className="portfolio-review-glyph"><TerminalBrand /></span>
       <h2 id="portfolio-review-heading">Agent review</h2></div>
     {portfolio?.mode === "live" && <div className="portfolio-review-action">
-      <button type="button" className="mvp-action primary" disabled={checking} onClick={startCheck}>{checking ? "Starting investigation…" : portfolio.holdings.length ? "Check portfolio now" : "Build my paper portfolio"}</button>
+      <button type="button" className="mvp-action primary" data-tour-target="portfolio-check" disabled={checking} onClick={startCheck}>{checking ? "Starting investigation…" : portfolio.holdings.length ? "Check portfolio now" : "Build my paper portfolio"}</button>
       {checkError && <p role="alert">{checkError}</p>}
     </div>}
     <div className="portfolio-review-switch" role="group" aria-label="Review views">
@@ -327,7 +335,7 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
     </div>
     {pending?.proposal_id && <div className="proposal-nudge"><span>Decision needed</span><button className="mvp-action primary"
       onClick={() => setProposal(pending.proposal_id ?? "")}>Review proposal</button></div>}
-    <section className="portfolio-overview" aria-label="Portfolio overview">
+    <section className="portfolio-overview" aria-label="Portfolio overview" data-tour-target="dashboard">
       {view === "Reviews" && review && <div className="portfolio-review-detail">
         <div><span>{selected === review.run_id ? "Selected review" : "Latest recorded review"}</span>
           <time dateTime={review.as_of}>{dateLabel(review.as_of)}</time></div>
@@ -343,7 +351,9 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
           <div><dt>Cash available</dt><dd>{money.format(portfolio.cash_gbp)}</dd></div>
           <div><dt>Paid in</dt><dd>{money.format(portfolio.contributions_gbp)}</dd></div>
           <div><dt>Last review</dt><dd><time dateTime={portfolio.last_review_date ?? undefined}>{dateLabel(portfolio.last_review_date)}</time></dd></div>
-          <div><dt>Next review</dt><dd><time dateTime={portfolio.next_review_date ?? undefined}>{dateLabel(portfolio.next_review_date)}</time></dd></div>
+          {portfolio.mode === "historical"
+            ? <div><dt>Next review</dt><dd><time dateTime={portfolio.next_review_date ?? undefined}>{dateLabel(portfolio.next_review_date)}</time></dd></div>
+            : <div><dt>Agent reviews</dt><dd>On request</dd></div>}
         </dl>
         <p className="portfolio-counts"><strong>{portfolio.counters.reviews}</strong> reviews, <strong>{portfolio.counters.checks}</strong> checks,
           {" "}<strong>{portfolio.counters.decisions_asked}</strong> decisions asked of you</p></>}
@@ -359,7 +369,7 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
         </li>)}</ul>
       </>}
       <h3>Review history</h3>
-      {review && <Link className="mvp-link" to={"/runs/" + encodeURIComponent(review.run_id)}>Open investigation ↗</Link>}
+      {review && <Link className="mvp-action accent compact" to={"/runs/" + encodeURIComponent(review.run_id)}>Open investigation ↗</Link>}
       {reviewError && <p className="portfolio-inline-error" role="alert">Couldn’t load review history</p>}
       {reviews.length > 0 ? <div><ul className="portfolio-review-history">{reviews.slice(0, 4).map((item) => <li key={item.run_id}>
         <button type="button" aria-pressed={item.run_id === review?.run_id} onClick={() => setSelected(item.run_id)}>
@@ -378,7 +388,7 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
       {notificationError && <p className="portfolio-inline-error" role="alert">{notificationError}</p>}
       {activity.length > 0 ? <ul className="portfolio-notification-list">{activity.map((item) => <li key={item.id}>
         <strong>{item.title}</strong><p>{item.body}</p>
-        {item.proposal_id && <button className="mvp-link" onClick={() => setProposal(item.proposal_id ?? "")}>Review proposal</button>}
+        {item.proposal_id && <button className="mvp-action accent compact" onClick={() => setProposal(item.proposal_id ?? "")}>Review proposal</button>}
         <div><time dateTime={item.created_at}>{dateLabel(item.created_at)}</time>
           {!item.read && <button type="button" disabled={marking !== null} onClick={() => markRead(item.id)}>
             {marking === item.id ? "Marking…" : "Mark as read"}
@@ -489,9 +499,10 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
     {summary.error && <div className="portfolio-summary-error" role="alert"><span>Couldn’t load the latest portfolio summary · {summary.error}</span>
       <button type="button" onClick={refresh}>Retry</button></div>}
     <Watchlist portfolio={portfolio} holdings={holdings} history={points} selected={selected} select={selectHolding} pending={summary.pending} />
-    <section className="portfolio-panel terminal-glass portfolio-chart" aria-label="Portfolio charts">
+    <section className="portfolio-panel terminal-glass glass-feedback portfolio-chart" aria-label="Portfolio charts">
       <nav className="portfolio-chart-switch" aria-label="Portfolio chart views">
-        {chartViews.map((item) => <button type="button" key={item} aria-pressed={view === item} onClick={() => setView(item)}>
+        {chartViews.map((item) => <button type="button" key={item} aria-pressed={view === item}
+          data-tour-target={item === "Connections" ? "connections" : undefined} onClick={() => setView(item)}>
           <ViewIcon view={item} />{item}
         </button>)}
         {chartHolding && view !== "Connections" && <button type="button" className="portfolio-return-chart"
@@ -518,5 +529,8 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
     <ReviewPanel portfolio={portfolio} reviews={reviews.value?.slice(0, 8) ?? []} notifications={availableNotifications}
       reviewError={reviews.error} notificationError={markError || (notifications.error && "Couldn’t load portfolio activity")}
       markRead={markRead} marking={marking} revision={revision} startCheck={() => void startCheck()} checking={checking} checkError={checkError} />
+    <PanelGrip edge="left" panel=".portfolio-watchlist" opposite=".portfolio-review" variable="--desk-left" min={168} remaining={342} label="Resize holdings panel" />
+    <PanelGrip edge="right" panel=".portfolio-review" opposite=".portfolio-watchlist" variable="--desk-right" min={208} remaining={342} label="Resize review panel" reverse />
+    <PanelGrip edge="bottom" axis="y" panel=".portfolio-chart" opposite=".portfolio-summary-error" variable="--desk-top" min={180} remaining={215} label="Resize chart and news panels" />
   </div>;
 }

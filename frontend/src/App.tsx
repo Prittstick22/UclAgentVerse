@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, Navigate, NavLink, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { Link, Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { DemoPasscodeDialog, ShellIcon, TerminalBrand } from "./components/TerminalShellUi";
 import { api, attachApiFeedback, MOCK } from "./lib/api";
 import type { ApiError } from "./lib/api";
 import type { Health, Mode } from "./lib/types";
+import ProductTour from "./components/ProductTour";
+import type { TourSession } from "./lib/productTour";
 import Quiz, { ProfileScreen } from "./screens/Quiz";
 import Workspace from "./screens/Workspace";
-import TimelineScreen, { BenchmarkScreen } from "./screens/Timeline";
+import InvestigationReport from "./screens/InvestigationReport";
+import TimelineScreen from "./screens/Timeline";
+import BenchmarkScreen from "./screens/Benchmarks";
 import { DecisionList } from "./screens/Decisions";
 import Home from "./screens/Home";
 import Placeholder from "./screens/Placeholder";
@@ -37,11 +41,32 @@ export default function App() {
   const [changing, setChanging] = useState(false);
   const [modeVersion, setModeVersion] = useState(0);
   const [setupComplete, setSetupComplete] = useState(() => localStorage.getItem("ucl-paper-setup") === "1");
+  const [tour, setTour] = useState<(TourSession & { serial: number }) | null>(null);
+  const tourSerial = useRef(0);
   const location = useLocation();
+  const navigate = useNavigate();
   const setup = !setupComplete && (location.pathname === "/" || location.pathname === "/onboarding");
-  function finishSetup() {
+  function finishSetup(mode: Mode, room: string) {
     localStorage.setItem("ucl-paper-setup", "1");
     setSetupComplete(true);
+    if (localStorage.getItem("ucl-guided-tour-" + mode) === "1") return false;
+    setTour({ mode, room, serial: ++tourSerial.current });
+    return true;
+  }
+
+  function closeTour(stepId: string) {
+    if (tour) {
+      localStorage.setItem("ucl-guided-tour-" + tour.mode, "1");
+      if (tour.mode === "live" && tour.room.startsWith("/runs/") && (stepId === "welcome" || stepId === "team")) navigate(tour.room);
+    }
+    setTour(null);
+  }
+
+  function restartTour() {
+    if (!health) return;
+    const room = health.mode === "historical" ? "/timeline" : "/workspace";
+    navigate("/");
+    setTour({ mode: health.mode, room, serial: ++tourSerial.current });
   }
   const marketMode = <span className="terminal-mode-badge" aria-live="polite">
     <ShellIcon name="clock" />{modeLabel(health, healthPending)}
@@ -115,7 +140,7 @@ export default function App() {
         </Link>
         <nav aria-label="Main navigation">
           {NAV.map(([to, title, icon]) => (
-            <NavLink key={to} to={to} end className="terminal-nav-item" title={title} aria-current={to === "/workspace" && location.pathname.startsWith("/runs/") ? "page" : undefined}>
+            <NavLink key={to} to={to} end data-tour-target={to === "/profile" ? "profile" : undefined} className="terminal-nav-item" title={title} aria-current={to === "/workspace" && location.pathname.startsWith("/runs/") ? "page" : undefined}>
               <ShellIcon name={icon} /><span>{title}</span>
             </NavLink>
           ))}
@@ -131,8 +156,9 @@ export default function App() {
           <Route element={<section className="terminal-page terminal-glass"><Outlet /></section>}>
             <Route path="/onboarding" element={<Quiz mode={health?.mode} changing={changing} onMode={changeMode} complete={finishSetup} />} />
             <Route path="/quiz" element={<Navigate replace to="/onboarding" />} />
-            <Route path="/profile" element={<ProfileScreen mode={health?.mode} />} />
+            <Route path="/profile" element={<ProfileScreen mode={health?.mode} restartTour={restartTour} />} />
             <Route path="/workspace" element={<Workspace mode={health?.mode} />} />
+            <Route path="/runs/:runId/report" element={<InvestigationReport source={health?.data_source} />} />
             <Route path="/timeline" element={<TimelineScreen />} />
             <Route path="/decisions" element={<DecisionList mode={health?.mode} />} />
             <Route path="/benchmarks" element={<BenchmarkScreen />} />
@@ -162,6 +188,7 @@ export default function App() {
           <button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><ShellIcon name="close" /></button>
         </div>
       )}
+      {tour && !setup && location.pathname !== "/onboarding" && <ProductTour key={tour.serial} session={tour} close={closeTour} />}
       {prompt && <DemoPasscodeDialog previousRejected={prompt.previousRejected} finish={finishPasscode} />}
     </div>
   );

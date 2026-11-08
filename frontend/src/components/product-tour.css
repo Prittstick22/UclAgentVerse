@@ -1,0 +1,71 @@
+.product-tour { position: fixed; inset: 0; z-index: 80; pointer-events: none; }
+.product-tour-shade, .product-tour-spotlight { position: absolute; inset: 0; }
+.product-tour-spotlight { border-radius: 11px; box-shadow: 0 0 0 1.5px #77b9ff, 0 0 0 4px #5b9ef235; }
+.product-tour :is(.product-tour-cutout, .product-tour-spotlight) {
+  opacity: 0;
+  transition: transform 360ms cubic-bezier(.22,.74,.28,1), width 360ms cubic-bezier(.22,.74,.28,1),
+    height 360ms cubic-bezier(.22,.74,.28,1), opacity 200ms ease;
+}
+.product-tour :is(.product-tour-cutout, .product-tour-spotlight)[data-visible="true"] { opacity: 1; }
+.product-tour[data-leaving="true"] :is(.product-tour-cutout, .product-tour-spotlight)[data-visible="true"] { opacity: .42; }
+.product-tour-position {
+  position: absolute; top: 0; left: 0;
+  transition: transform 360ms cubic-bezier(.22,.74,.28,1);
+}
+.product-tour-card {
+  position: relative; pointer-events: auto; width: min(342px, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
+  padding: 17px 18px 15px; border-radius: 15px; background: #212226; color: #f2f3f5;
+  box-shadow: 0 12px 34px #0008, 0 0 0 1px #ffffff14;
+  transition: opacity 140ms ease;
+}
+.product-tour[data-leaving="true"] .product-tour-card { opacity: 0; pointer-events: none; }
+.product-tour-card:not([data-side="none"])::before {
+  content: ""; position: absolute; width: 11px; height: 11px; border-radius: 2px;
+  background: inherit; transform: rotate(45deg);
+}
+.product-tour-card[data-side="left"]::before { right: -5px; top: calc(var(--tour-arrow) - 5px); }
+.product-tour-card[data-side="right"]::before { left: -5px; top: calc(var(--tour-arrow) - 5px); }
+.product-tour-card[data-side="above"]::before { bottom: -5px; left: calc(var(--tour-arrow) - 5px); }
+.product-tour-card[data-side="below"]::before { top: -5px; left: calc(var(--tour-arrow) - 5px); }
+.product-tour-content { position: relative; animation: tour-content-in 240ms cubic-bezier(.23,1,.32,1) both; }
+.product-tour-top { display: flex; align-items: center; justify-content: space-between; }
+.product-tour-icon {
+  display: inline-flex; align-items: center; color: #e5eaf2;
+}
+.product-tour-icon svg { width: 23px; height: 23px; }
+.product-tour-close {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; color: #b4bdca;
+}
+.product-tour-close svg { width: 16px; height: 16px; }
+.product-tour-close:hover, .product-tour-secondary:hover { color: #fff; background: #ffffff12; }
+.product-tour h2 { margin: 12px 0 5px; font-size: 18px; line-height: 1.2; font-weight: 660; letter-spacing: -.018em; outline: none; }
+.product-tour p { margin: 0; font-size: 13px; line-height: 1.5; color: #d0d5dd; }
+.product-tour .product-tour-hint { margin-top: 7px; font-size: 12px; color: #b7d7fa; }
+.product-tour footer { display: flex; align-items: center; gap: 5px; margin-top: 16px; }
+.product-tour-count { flex: 1; color: #bcc4d0; font-size: 12px; white-space: nowrap; }
+.product-tour-secondary { min-height: 34px; padding: 4px 8px; border-radius: 7px; font-size: 12px; color: #d9e0e9; }
+.product-tour-next {
+  min-height: 36px; padding: 6px 15px; border-radius: 999px; font-size: 13px; font-weight: 650;
+  color: #171b22; background: #f2f5f8; transition: background-color 140ms ease;
+}
+.product-tour-next:hover { background: #d7e8fc; }
+.product-tour-focus {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+}
+.product-tour-focus:focus-visible {
+  left: 0; bottom: -35px; width: auto; height: auto; padding: 4px 8px; clip-path: none;
+  border-radius: 5px; background: #212226; color: #eef2f8;
+}
+.terminal-shell:has(.product-tour) .terminal-main { transition: opacity 170ms ease; }
+.terminal-shell:has(.product-tour[data-route-leaving="true"]) .terminal-main { opacity: .44; }
+.mvp-action.tour-example, .mvp-action.tour-assurance-example, .tour-model { display: none; }
+.terminal-shell:has(.product-tour[data-step="evidence"]) .tour-example,
+.terminal-shell:has(.product-tour[data-step="verification"]) .tour-assurance-example { display: inline-flex; }
+.terminal-shell:has(.product-tour[data-step="models"]) .tour-model {
+  display: inline-block; margin-top: 3px; font-size: 11px; color: var(--terminal-muted);
+}
+@keyframes tour-content-in { from { opacity: 0; translate: 0 3px; } to { opacity: 1; translate: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .product-tour *, .terminal-shell:has(.product-tour) .terminal-main { animation: none; transition: none; }
+}
+@media print { .product-tour { display: none; } }

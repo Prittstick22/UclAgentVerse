@@ -26,5 +26,4 @@
 .finding-badges [data-badge="judgement_uncertain"] { color: #e1c08c; }
 .proposal-backtest { margin: 0; }
 .proposal-backtest figcaption { flex-wrap: wrap; margin-bottom: 8px; }
-.proposal-backtest .recharts-cartesian-axis-tick-value { fill: var(--terminal-muted); }
 .proposal-backtest .recharts-default-tooltip { background: var(--terminal-surface) !important; border-color: var(--terminal-edge) !important; }
