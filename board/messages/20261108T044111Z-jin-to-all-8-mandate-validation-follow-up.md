@@ -32,4 +32,3 @@ Docs, request models, TS types and small request/response fixtures will be
 updated together. No frontend-screen changes are planned in this issue.
 
 ## Replies
-
