@@ -1,16 +1,39 @@
 # DigitalOcean droplet deploy: docker compose up -d --build  (see docs/12-hosting-and-deploy.md)
+# Before the first start: python3 scripts/demo.py --check && python3 scripts/demo.py --persona caroline --check
+# (verifies the committed bundles and extracts them into ./.demo-data, mounted read-only below).
+x-app: &app
+  build: .
+  env_file: .env
+  restart: unless-stopped
+  expose: ["8000"]
+
 services:
-  app:
-    build: .
-    env_file: .env
+  app:                      # main URL: Priya's recorded demo (historical) + Live mode
+    <<: *app
     environment:
-      SNAPSHOT_DIR: /data/snapshot
+      APP_MODE: historical
+      DEMO_PERSONA: priya
+      RECORDED_RUN: /demo/priya-2026-07-07--2026-11-06-v1/recording.sqlite
+      SNAPSHOT_DIR: /demo/priya-2026-07-07--2026-11-06-v1/snapshot
       STATE_DB: /data/state.sqlite
       RUNS_DIR: /data/runs
     volumes:
       - ./var:/data
-    restart: unless-stopped
-    expose: ["8000"]
+      - ./.demo-data:/demo:ro
+  caroline:                 # caroline.<DOMAIN>: Caroline's recorded demo, replay only (no model calls)
+    <<: *app
+    environment:
+      APP_MODE: historical
+      DEMO_PERSONA: caroline
+      LLM_MODE: replay
+      REPLAY_ONLY: "1"
+      RECORDED_RUN: /demo/caroline-2026-07-07--2026-11-06-v1/recording.sqlite
+      SNAPSHOT_DIR: /demo/caroline-2026-07-07--2026-11-06-v1/snapshot
+      STATE_DB: /data/state-caroline.sqlite
+      RUNS_DIR: /data/runs-caroline
+    volumes:
+      - ./var:/data
+      - ./.demo-data:/demo:ro
   caddy:
     image: caddy:2
     ports: ["80:80", "443:443"]
@@ -19,7 +42,7 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    depends_on: [app]
+    depends_on: [app, caroline]
     restart: unless-stopped
 volumes:
   caddy_data:
