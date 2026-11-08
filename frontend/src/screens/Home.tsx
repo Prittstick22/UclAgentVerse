@@ -15,6 +15,18 @@ export default function Home() {
         <Stat label="Status" value={p?.status.replaceAll("_", " ") ?? "…"} />
         <Stat label="Decisions asked of you" value={String(p?.counters.decisions_asked ?? 0)} />
       </div>
+      {p?.mode === "live" && <section className="rounded-xl bg-slate-900 p-4">
+        <h2 className="font-semibold mb-2">Cached market prices</h2>
+        {p.holdings.length === 0 ? <p className="text-sm text-slate-400">No paper holdings yet.</p> :
+          <table className="w-full text-sm text-left">
+            <thead><tr><th>Holding</th><th>Price</th><th>Price date</th><th>Coverage</th></tr></thead>
+            <tbody>{p.holdings.map((holding) => <tr key={holding.ticker}>
+              <td className="py-2">{holding.name}</td>
+              <td>£{holding.price_gbp.toFixed(2)}</td><td>{holding.price_as_of}</td>
+              <td>{holding.stale ? "Stale · last available" : "Cached close"}</td>
+            </tr>)}</tbody>
+          </table>}
+      </section>}
       {corr && <CorrelationLattice report={corr} />}
     </div>
   );

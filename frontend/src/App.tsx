@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import { api, MOCK } from "./lib/api";
-import type { Health } from "./lib/types";
+import type { Health, Mode } from "./lib/types";
 import Quiz from "./screens/Quiz";
 import Workspace from "./screens/Workspace";
 import Home from "./screens/Home";
@@ -14,6 +14,22 @@ const NAV = [
 
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
+  const [changing, setChanging] = useState(false);
+  const [modeError, setModeError] = useState("");
+  const [modeVersion, setModeVersion] = useState(0);
+  async function changeMode(mode: Mode) {
+    setChanging(true);
+    setModeError("");
+    try {
+      await api.setMode(mode);
+      setHealth(await api.health());
+      setModeVersion((version) => version + 1);
+    } catch {
+      setModeError("Could not change mode. Please try again.");
+    } finally {
+      setChanging(false);
+    }
+  }
   useEffect(() => { api.health().then(setHealth).catch(() => setHealth(null)); }, []);
   const label = health?.mode === "live" ? "Current markets · Paper portfolio" : `Historical demo · As of ${health?.as_of ?? "…"}`;
   return (
@@ -26,8 +42,15 @@ export default function App() {
           ))}
         </nav>
         <span className="ml-auto rounded bg-slate-800 px-2 py-1 text-xs">{label}{MOCK && " · MOCK"}</span>
+        <select aria-label="Market mode" className="bg-slate-800 rounded px-2 py-1 text-sm"
+          value={health?.mode ?? "historical"} disabled={changing || MOCK || !health}
+          onChange={(event) => { void changeMode(event.target.value as Mode); }}>
+          <option value="historical">Historical demo</option>
+          <option value="live">Current markets</option>
+        </select>
       </header>
-      <main className="flex-1 p-6">
+      {modeError && <p role="alert" className="px-6 text-red-300">{modeError}</p>}
+      <main key={modeVersion} className="flex-1 p-6">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/quiz" element={<Quiz />} />

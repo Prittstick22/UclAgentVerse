@@ -27,6 +27,13 @@ class DataGateway:
         self.snapshot = snapshot
         self.events = events
         self._prices_gbp = snapshot.adj_close_gbp()
+        self.coverage_failures: set[str] = set()
+
+    def replace_snapshot(self, snapshot: Snapshot) -> None:
+        """Publish a fully prepared cache; never expose a half-updated price matrix."""
+        prices = snapshot.adj_close_gbp()
+        self.snapshot = snapshot
+        self._prices_gbp = prices
 
     # ------------------------------------------------------------------ guards
     def _check_end(self, end: str | pd.Timestamp | None, caller: str) -> pd.Timestamp:
@@ -136,16 +143,17 @@ class DataGateway:
         return self.snapshot.etf_holdings.get(etf, [])
 
     def freshness(self) -> dict[str, Freshness]:
-        visible = self.prices(caller="freshness")
         stale_after = params()["risk"]["stale_after_days"]
         out: dict[str, Freshness] = {}
-        last_row = len(visible.index) - 1
-        for t in visible.columns:
-            valid = visible[t].dropna()
-            last = valid.index[-1] if len(valid) else None
-            lag = last_row - visible.index.get_loc(last) if last is not None else 999
+        raw = self.snapshot.prices
+        dates = pd.to_datetime(raw["date"])
+        for t in self._prices_gbp.columns:
+            valid = dates[raw["ticker"].eq(t) & dates.le(pd.Timestamp(self.clock.today()))
+                          & raw["adj_close"].notna()]
+            last = valid.max() if len(valid) else None
+            lag = len(pd.bdate_range(last + pd.Timedelta(days=1), self.clock.today())) if last is not None else 999
             out[t] = Freshness(
                 ticker=t, last_date=str(last.date()) if last is not None else None,
-                stale=lag > stale_after, source=self.snapshot.source_label,
+                stale=lag > stale_after or t in self.coverage_failures, source=self.snapshot.source_label,
             )
         return out
