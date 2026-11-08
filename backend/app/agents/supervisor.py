@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, ValidationError
 
 from app.agents.llm import LLM, LLMCacheMiss, LLMError, LLMSchemaError
-from app.agents.roles import ROLES
+from app.agents.roles import ROLES, TOOL_DOCS
 from app.agents.schemas import AgentFinal, AgentStep, Decision, Finding, SpawnRequest
 from app.agents.tools import ToolRegistry
 from app.config import agents as agents_cfg
@@ -151,8 +151,36 @@ class Supervisor:
     # ------------------------------------------------------------------ prompt helpers
     def _header(self, run: RunState, role_name: str, tool_calls_left: int) -> str:
         clock = self.events.clock
-        return (f"AS_OF: {clock.as_of_str()} (you know nothing after this date) · MODE: {clock.mode} · "
+        head = (f"AS_OF: {clock.as_of_str()} (you know nothing after this date) · MODE: {clock.mode} · "
                 f"RUN: {run.kind} · YOUR ROLE: {role_name} · TOOL CALLS LEFT: {tool_calls_left}")
+        return head + "\n" + self._mandate_line()
+
+    def _mandate_line(self) -> str:
+        """The user's mandate in one line, made by code (agents never see it otherwise)."""
+        state = getattr(self.tools.ctx, "state", None)
+        m = getattr(state, "mandate", None)
+        if m is None:
+            return "MANDATE: unknown"
+        stocks = (f"single stocks allowed up to {m.caps.stocks_total:.0%} in total, {m.caps.per_stock:.0%} each"
+                  if m.caps.stocks_total > 0 else "NO single stocks (funds only)")
+        g = m.goal
+        return (f"MANDATE (v{m.version}): profile {m.profile} · shares {m.ranges.equity[0]:.0%}-{m.ranges.equity[1]:.0%} · "
+                f"bonds {m.ranges.bond[0]:.0%}-{m.ranges.bond[1]:.0%} · cash at least {m.ranges.cash_min:.0%} · "
+                f"max {m.caps.per_fund:.0%} per fund · {stocks} · exclusions: {', '.join(m.exclusions) or 'none'} · "
+                f"£{g.starting_amount_gbp:,.0f} now + £{g.monthly_contribution_gbp:,.0f}/month · goal: {g.name}")
+
+    def _capabilities(self, role_name: str, depth: int = 0) -> str:
+        """Exact spawnable roles + callable tools (with arguments), generated from code so they're always right."""
+        role = ROLES[role_name]
+        implemented = set(getattr(self.tools, "_tools", {}))
+        tools = [t for t in role.tools if t in implemented]
+        spawnable = role.can_spawn if depth + 1 <= self.cfg["max_depth"] else []   # deepest level can't spawn
+        lines = ["", "", "## What you can do (generated from code; anything else is refused)",
+                 "Roles you may spawn: " + (", ".join(f"`{r}`" for r in spawnable) if spawnable
+                                            else "none (do not spawn)"),
+                 "Tools you may call (put arguments in `args_json` as a JSON object string):"]
+        lines += [f"- `{t}`: {TOOL_DOCS.get(t, 'see tool result')}" for t in tools]
+        return "\n".join(lines)
 
     def _compact(self, run: RunState, out: dict, alias_prefix: str) -> str:
         """Short, deterministic view of a tool result for the model. Full results stay in the events."""
@@ -226,7 +254,7 @@ class Supervisor:
         max_tools = self.cfg["max_tool_calls_per_agent"]
         tool_calls_used = children = 0
         final: AgentFinal | None = None
-        system = role.prompt()
+        system = role.prompt() + self._capabilities(role_name, depth)
         for step_idx in range(self.cfg["max_steps_per_agent"]):
             if self._over_budget(run, common):
                 history.append("BUDGET: the run's token budget is used up.")

@@ -21,9 +21,35 @@ class Role:
 
     def prompt(self) -> str:
         f = PROMPTS / f"{self.name}.md"
-        base = (PROMPTS / "_base.md").read_text()
-        return base + "\n\n" + (f.read_text() if f.exists() else f"You are the {self.name} agent.")
+        base = (PROMPTS / "_base.md").read_text(encoding="utf-8")
+        return base + "\n\n" + (f.read_text(encoding="utf-8") if f.exists() else f"You are the {self.name} agent.")
 
+
+TOOL_DOCS: dict[str, str] = {
+    "get_catalogue": "{} -> eligible instruments (ticker, name, asset_class, sleeve, ocf, kind). Evidence id `catalogue`.",
+    "get_prices": '{"tickers": ["VWRP.LSE"], "start"?: "YYYY-MM-DD"} -> last price, 1m/3m/1y return, vol per ticker.',
+    "correlation_lattice": '{"tickers"?: [..], "lookback"?: 504} -> average correlation + plain-English callouts.',
+    "risk_stats": '{"weights": {"VWRP.LSE": 0.5, ...}} or {"option": "recommended"} -> vol, max drawdown, beta, '
+                  'concentration.',
+    "backtest": '{"weights": {...}} or {"option": "lower_risk"}, "rebalance"?: "quarterly" -> past behaviour '
+                '(simulated, not a forecast).',
+    "forecast": '{"tickers": [..]} -> 2-week estimate per ticker (estimate, not a promise).',
+    "build_options": '{"tickers"?: [..shortlist..]} -> 3 optimiser options (recommended, lower_cost, lower_risk). '
+                     'Omit tickers to use every eligible fund. If it says infeasible, call it again without tickers.',
+    "cost_turnover": '{"option": "recommended"} or {"weights": {...}} -> trades, cost in £, turnover.',
+    "check_proposal": '{"option": "recommended"} or {"weights": {...}, "cash_weight": 0.03} -> mandate check.',
+    "exposure": '{"entity": "NVDA.US", "option"?: "recommended"} -> look-through ownership exposure.',
+    "search_news": '{"tickers": ["AAPL.US"], "since"?: "YYYY-MM-DD"} -> dated headlines up to today (ids = evidence).',
+    "search_filings": '{"ticker": "NVDA.US", "query"?: "supplier risk"} -> SEC filing passages (ids = evidence).',
+    "earnings_calendar": '{"tickers": ["AAPL.US"]} -> past earnings dates (up to today only).',
+    "get_investment_case": '{"ticker": "VWRP.LSE"} -> the saved case, if any.',
+    "save_investment_case": '{"cases": [{"ticker": "VWRP.LSE", "purpose": "...", "evidence_ids": [..], '
+                            '"assumptions": [..], "reconsider_if": [..]}, ...]} -> saves ALL cases in ONE call.',
+    "propose_adjustment": '{"option": "recommended", "why_not": {"VWRP.LSE": "why this rather than the '
+                          'alternative"}} -> creates the proposal for the user to approve. Purposes and evidence come '
+                          'from the saved investment cases.',
+    "web_search": '{"query": "..."} -> live mode only.',
+}
 
 RESEARCH_SPAWNABLE = ["equity_scout", "bond_scout", "stock_analyst", "risk_analyst", "news_analyst",
                       "filing_reader", "monitor_designer", "scenario_analyst"]

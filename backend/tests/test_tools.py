@@ -129,3 +129,41 @@ def test_fake_construction_run_is_built(state):
     done = [e for e in state.events.history(run.run_id) if e.type == "run.completed"][-1]
     assert run.proposal_id and done.payload["outcome"] == "built"
     assert run.proposal_id in state.proposals
+
+
+# ---------------------------------------------------------------------- #30 construction support
+def test_save_many_cases_in_one_call_maps_aliases(state):
+    run = RunState(run_id="run_tools", kind="construction", trigger_text="test")
+    run.evidence_map["calc:lead.1:1"] = "calc:" + "a" * 32
+    cases = [{"ticker": "VWRP.LSE", "purpose": "Core global shares", "evidence_ids": ["calc:lead.1:1", "catalogue"],
+              "reconsider_if": ["fee above 0.3%"]},
+             {"ticker": "VAGS.LSE", "purpose": "Steady bonds", "evidence_ids": ["catalogue"]}]
+    out, _ = call(state, "save_investment_case", {"cases": cases}, run=run)
+    assert out["ok"] and [s["ticker"] for s in out["saved"]] == ["VWRP.LSE", "VAGS.LSE"]
+    got, _ = call(state, "get_investment_case", {"ticker": "VWRP.LSE"})
+    assert got["case"]["evidence_ids"] == ["calc:" + "a" * 32, "catalogue"]
+
+
+def test_proposal_holdings_get_purpose_evidence_and_why_not_from_cases(state):
+    _, run = call(state, "build_options")
+    held = [h.ticker for h in run.scratch["options"]["recommended"].holdings]
+    cases = [{"ticker": t, "purpose": f"job of {t}", "evidence_ids": ["catalogue"]} for t in held]
+    call(state, "save_investment_case", {"cases": cases}, run=run)
+    out, run = call(state, "propose_adjustment",
+                    {"option": "recommended", "why_not": {held[0]: "cheaper than the alternative"}}, run=run)
+    assert out["ok"] and out["holdings_without_purpose"] == []
+    prop = state.proposals[run.proposal_id]
+    rec = next(o for o in prop.options if o.label == "recommended")
+    assert all(h.purpose == f"job of {h.ticker}" and h.evidence_ids == ["catalogue"] for h in rec.holdings)
+    assert rec.holdings[0].why_not_alternatives == "cheaper than the alternative"
+
+
+def test_agents_get_exact_roles_tools_and_mandate_from_code(state):
+    sup = state.supervisor
+    lead = sup._capabilities("lead")
+    assert "`equity_scout`" in lead and "`build_options`" in lead and "scout`," not in lead.replace("_scout`,", "")
+    assert "`overlap`" not in lead           # allowed but not implemented -> not offered
+    assert "Roles you may spawn: none" in sup._capabilities("filing_reader", depth=2)   # deepest level
+    assert "`news_analyst`" in sup._capabilities("filing_reader", depth=1)
+    line = sup._mandate_line()
+    assert "profile balanced" in line and "single stocks allowed" in line and "£" in line

@@ -389,8 +389,15 @@ async def propose_adjustment(ctx: ToolContext, args: dict, run: Any) -> dict:
         return {"ok": False, "error": "mandate_violation", "summary": "; ".join(v.message for v in rep.violations[:3]),
                 "violations": [v.model_dump(exclude_none=True) for v in rep.violations]}
     purposes = args.get("purposes") if isinstance(args.get("purposes"), dict) else {}
-    for h in opt.holdings:
-        h.purpose = str(purposes.get(h.ticker, h.purpose))[:200]
+    why_not = args.get("why_not") if isinstance(args.get("why_not"), dict) else {}
+    for h in opt.holdings:   # purpose + evidence default to the holding's saved investment case
+        raw = ctx.state.db.get("cases", h.ticker)
+        case = InvestmentCase.model_validate_json(raw) if raw else None
+        h.purpose = str(purposes.get(h.ticker) or (case.purpose if case else "") or h.purpose)[:200]
+        h.why_not_alternatives = str(why_not.get(h.ticker, h.why_not_alternatives))[:300]
+        if case and not h.evidence_ids:
+            h.evidence_ids = list(case.evidence_ids)
+    missing = [h.ticker for h in opt.holdings if not h.purpose]
     changes, cost, turnover = _trades(ctx, w)
     capital = _capital(ctx)
     kind = "construction" if led.nav() <= 0 else "adjustment"
@@ -415,7 +422,7 @@ async def propose_adjustment(ctx: ToolContext, args: dict, run: Any) -> dict:
                     payload={"proposal_id": prop.id, "kind": kind})
     return {"ok": True, "summary": f"proposal {prop.id} created ({label}, {len(changes)} trades, cost £{cost:,.2f}); "
                                    "it needs the user's approval", "proposal_id": prop.id,
-            "turnover": turnover, "evidence_ids": [f"proposal:{prop.id}"]}
+            "turnover": turnover, "holdings_without_purpose": missing, "evidence_ids": [f"proposal:{prop.id}"]}
 
 
 async def get_investment_case(ctx: ToolContext, args: dict, run: Any) -> dict:
@@ -429,20 +436,32 @@ async def get_investment_case(ctx: ToolContext, args: dict, run: Any) -> dict:
 
 
 async def save_investment_case(ctx: ToolContext, args: dict, run: Any) -> dict:
-    data = args.get("case")
-    if isinstance(data, str):
-        data = json.loads(data)
-    data = dict(data or args)
-    data.pop("case", None)
-    ticker = data.get("ticker")
-    if not ticker:
-        raise ValueError("an investment case needs a ticker")
-    prev = ctx.state.db.get("cases", ticker)
-    version = InvestmentCase.model_validate_json(prev).version + 1 if prev else 1
-    case = InvestmentCase.model_validate({**data, "case_id": f"case_{ticker}", "version": version})
-    ctx.state.db.put("cases", ticker, case.model_dump_json())
-    return {"ok": True, "summary": f"saved case_{ticker} v{version}", "case_id": case.case_id, "version": version,
-            "evidence_ids": [f"case:{ticker}:v{version}"]}
+    """Save one case (`case` or flat args) or several (`cases`: list) in one call. Versioned per ticker."""
+    raw = args.get("cases")
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    if not raw:
+        one = args.get("case")
+        if isinstance(one, str):
+            one = json.loads(one)
+        raw = [dict(one or {k: v for k, v in args.items() if k != "case"})]
+    emap = getattr(run, "evidence_map", {}) or {}
+    saved, ids = [], []
+    for data in raw[:20]:
+        data = dict(data)
+        ticker = data.get("ticker")
+        if not ticker:
+            raise ValueError("every investment case needs a ticker")
+        data["evidence_ids"] = [emap.get(e, e) for e in data.get("evidence_ids", [])]  # aliases -> real ids
+        prev = ctx.state.db.get("cases", ticker)
+        version = InvestmentCase.model_validate_json(prev).version + 1 if prev else 1
+        case = InvestmentCase.model_validate({**data, "case_id": f"case_{ticker}", "version": version})
+        ctx.state.db.put("cases", ticker, case.model_dump_json())
+        saved.append({"ticker": ticker, "case_id": case.case_id, "version": version})
+        ids.append(f"case:{ticker}:v{version}")
+    first = saved[0]
+    return {"ok": True, "summary": f"saved {len(saved)} investment case(s): {', '.join(s['ticker'] for s in saved)}",
+            "saved": saved, "case_id": first["case_id"], "version": first["version"], "evidence_ids": ids}
 
 
 # ---------------------------------------------------------------------- web (live only)
