@@ -64,6 +64,11 @@ Point the DNS A record (or DuckDNS) at the droplet IP **before** starting Caddy,
 
 - **`PUBLIC_DEMO=1`, `LLM_MODE=replay`:** visitors see a replay of the recorded year, at no Gemini cost.
 - **Live investigations and chat** need the `X-Demo-Passcode` header (the UI asks once), with a per-IP rate limit and `DAILY_LLM_BUDGET_USD`.
+- **How it works (#12, `backend/app/api/demo_guard.py`; all off unless `PUBLIC_DEMO=1`):**
+  - `PUBLIC_DEMO=1` makes `LLM_MODE` default to `replay`. An explicit `LLM_MODE` in `.env` wins, so delete the `LLM_MODE=fake` line copied from `.env.example`.
+  - `POST /api/chat` always needs the passcode. `POST /api/portfolio/build` and `POST /api/sim/start` with `run_agents: true` need it only while `LLM_MODE=live`; replays cost nothing and stay open. No `DEMO_PASSCODE` set = locked. Wrong or missing → 401 `unauthorized`.
+  - Every `POST /api/*` except `/api/tasks/*` is limited to `RATE_LIMIT_PER_MINUTE` (default 30) per visitor IP, read from the last `X-Forwarded-For` entry Caddy adds → 429 `rate_limited`.
+  - While `LLM_MODE=live`, once today's (UTC) recorded Gemini spend reaches `DAILY_LLM_BUDGET_USD`, new agent runs and chat get 429 `budget_exceeded` (`details: {limit, value}`) and a `budget.exceeded` event.
 - **Secrets** live only in `/opt/uclagentverse/.env` on the droplet. Never in git or the frontend bundle.
 - **Footer on every screen:** "Paper portfolio · Not financial advice".
 

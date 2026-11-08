@@ -24,7 +24,7 @@ make dev-web                    # :5173, proxies /api → :8000; VITE_MOCK=1 use
 | `EDGAR_USER_AGENT` | `UclAgentVerse team <team-email>` | SEC asks for a contact |
 | `SNAPSHOT_DIR` | `backend/data/snapshot` | Snapshot location |
 | `STATE_DB` | `backend/state.sqlite` | Events, ledger, memory, LLM cache |
-| `PUBLIC_DEMO`, `DEMO_PASSCODE`, `TASK_SECRET`, `DAILY_LLM_BUDGET_USD` | `0`, —, —, `20` | Deploy safety |
+| `PUBLIC_DEMO`, `DEMO_PASSCODE`, `TASK_SECRET`, `DAILY_LLM_BUDGET_USD`, `RATE_LIMIT_PER_MINUTE` | `0`, —, —, `20`, `30` | Deploy safety (#12) |
 
 ## Branches and PRs
 

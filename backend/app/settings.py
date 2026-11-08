@@ -5,6 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -37,6 +38,14 @@ class Settings(BaseSettings):
     demo_passcode: str | None = None
     task_secret: str | None = None
     daily_llm_budget_usd: float = 20.0
+    rate_limit_per_minute: int = 30   # POSTs per visitor IP per minute in the public demo (#12)
+
+    @model_validator(mode="after")
+    def _public_demo_replays(self) -> Settings:
+        # PUBLIC_DEMO=1 replays the recorded run by default: no Gemini calls unless LLM_MODE is set explicitly.
+        if self.public_demo and "llm_mode" not in self.model_fields_set:
+            self.llm_mode = "replay"
+        return self
 
 
 @lru_cache

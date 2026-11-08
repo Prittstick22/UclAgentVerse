@@ -11,10 +11,11 @@ import uuid
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.api.demo_guard import check_budget, guard_agent_run, require_passcode
 from app.api.portfolio import PortfolioView
 from app.api.run_views import agent_tree, find_evidence, summarize
 from app.container import state_for_mode
@@ -123,7 +124,7 @@ def catalogue(request: Request):
 
 
 # ------------------------------------------------------------------ portfolio
-@router.post("/portfolio/build", status_code=202)
+@router.post("/portfolio/build", status_code=202, dependencies=[Depends(guard_agent_run)])
 async def build(request: Request):
     s = S(request)
     run_id = f"run_{uuid.uuid4().hex}"
@@ -377,6 +378,8 @@ class SimStepBody(BaseModel):
 @router.post("/sim/start")
 async def sim_start(request: Request, body: SimStartBody | None = None):
     s, b = S(request), body or SimStartBody()
+    if b.run_agents:
+        guard_agent_run(request)
     try:
         sim = await sim_controller(s).start(b.start.isoformat() if b.start else None,
                                             b.end.isoformat() if b.end else None, b.speed, b.run_agents, b.approvals)
@@ -413,8 +416,11 @@ class ChatBody(BaseModel):
     conversation_id: str | None = None
 
 
-@router.post("/chat")
+@router.post("/chat", dependencies=[Depends(require_passcode)])
 def chat(body: ChatBody, request: Request):
+    s = S(request)
+    if s.settings.public_demo and s.settings.llm_mode == "live":
+        check_budget(s)
     return {"conversation_id": body.conversation_id or "conv_1", "run_id": None,
             "answer": "Chat isn't wired up yet (TODO #chat).", "citations": [], "proposal_id": None}
 
