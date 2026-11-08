@@ -115,7 +115,7 @@ py -3.12 -m venv .venv
 & ./.venv/Scripts/python.exe -m pip install -e './backend[dev]'
 & ./.venv/Scripts/python.exe backend/scripts/make_synthetic_snapshot.py --out backend/data/readme-synthetic
 Remove-Item Env:RECORDED_RUN -ErrorAction SilentlyContinue; $env:APP_MODE='historical'; $env:LLM_MODE='fake'; $env:PUBLIC_DEMO='0'; $env:SNAPSHOT_DIR=(Join-Path $PWD 'backend/data/readme-synthetic'); $env:STATE_DB=(Join-Path $PWD 'backend/readme-state.sqlite'); & ./.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
-npm --prefix frontend install; if ($LASTEXITCODE -eq 0) { $env:VITE_MOCK='0'; npm --prefix frontend run dev -- --host 127.0.0.1 }
+Set-Location .\frontend; npm install; if ($LASTEXITCODE -eq 0) { $env:VITE_MOCK='0'; npm run dev -- --host 127.0.0.1 }
 ```
 
 Run command 5 in a second PowerShell terminal at the repository root while the
