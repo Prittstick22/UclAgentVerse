@@ -30,7 +30,8 @@ export const api = {
   mandate: () => get<Mandate>("/mandate", "mandate"),
   portfolio: () => get<Portfolio>("/portfolio", "portfolio"),
   correlation: () => get<CorrelationReport>("/risk/correlation", "correlation"),
-  runs: () => get<{ items: RunSummary[] }>("/runs", "runs"),
+  runs: () => get<{ items: Omit<RunSummary, "agents">[] }>("/runs", "runs"),
+  runDetail: (runId: string) => get<RunSummary>(`/runs/${encodeURIComponent(runId)}`, "run_detail"),
   build: () => post<{ run_id: string }>("/portfolio/build", {}, "runs").then((r) => ("run_id" in r ? r : { run_id: "mock" })),
   // TODO(#fe-*): pnl, rebalances, benchmarks, proposals, approve/decline, notifications, evidence, chat, sim controls
 };
