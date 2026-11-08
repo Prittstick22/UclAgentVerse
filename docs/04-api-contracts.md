@@ -146,8 +146,10 @@ interface AgentNode {
 | `GET /api/evidence/{id}` | — | `Evidence` | Jin |
 | `GET /api/notifications` | `?mode&unread=true` | `{items: {id, kind: "decision"\|"digest"\|"coverage", title, body, proposal_id, run_id, created_at, read}[]}` | Jin |
 | `POST /api/notifications/{id}/read` | — | `{ok: true}` | Jin |
-| `POST /api/sim/start` | `{start?: date, end?: date, speed?: number, run_agents?: boolean}` | `{sim}` | Cem |
+| `POST /api/sim/start` | `{start?: date, end?: date, speed?: number, run_agents?: boolean, approvals?: "manual"\|"batch_policy"}` | `{sim}` | Cem |
 | `POST /api/sim/pause` · `POST /api/sim/step` | `{days?: number}` | `{sim, as_of}` | Cem |
+
+Sim notes: `start` replays from a fresh ledger as a background task at `speed` trading days per second (default 1; 0 = as fast as possible). `pause` stops after the day in progress. `step` advances `days` (default 1) while paused, and starts a paused default replay if none exists. Historical mode only: 409 `conflict` in live mode, while running (`start`/`step`), or nothing to resume; 422 `validation_error` for no trading days, negative speed or `days < 1`.
 | `GET /api/sim/status` | — | `{sim, as_of, progress: number}` | Cem |
 | `POST /api/chat` | `{message, conversation_id?}` | `{conversation_id, run_id, answer, citations: string[], proposal_id: string\|null}` | Dev |
 | `POST /api/tasks/live-eod` · `POST /api/tasks/live-news` | header `X-Task-Secret` | `{ok, fetched, stale: string[]}` | Jin |
@@ -205,7 +207,7 @@ interface Event {
 | `asof.violation` | gateway | `{requested_end, as_of, caller}` |
 | `decision.made` | lead | `{action: "maintain"\|"adjust"\|"investigate_further", reason}` |
 | `proposal.created` | supervisor | `{proposal_id, kind}` |
-| `approval.requested` / `approval.decided` | approvals | `{proposal_id, decision, by: "user"\|"batch_policy"}` |
+| `approval.requested` / `approval.decided` | approvals | `{proposal_id, decision, by: "user"\|"batch_policy"}` (+ `turnover`) |
 | `order.filled` | ledger | `{ticker, action, units, price_gbp, amount_gbp, cost_gbp}` |
 | `monitor.fired` | monitors | `{monitor_id, rule, ticker, value, threshold}` |
 | `monitor.created` / `monitor.shadow_result` / `monitor.activated` / `monitor.disabled` | monitors | `{monitor_id, spec?, result?}` |
