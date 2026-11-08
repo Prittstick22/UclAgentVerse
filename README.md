@@ -12,12 +12,12 @@ Paper trading only. No real money, accounts or personal financial data. Not fina
 
 ## Live demo (for judges)
 
-**Link:** https://165-22-115-152.sslip.io
+**Link:** https://165-22-115-152.nip.io
 **Password:** `pSUpuvVTqe`
 
 - Choose **Demo** to watch the recorded historical run (Priya, 7 Jul → 6 Nov 2026). It loads instantly and never waits on an API call.
 - Choose **Live** to run the same system on today's data (takes a few minutes while the Gemini agents stream).
-- Second persona (recorded only): https://caroline.165-22-115-152.sslip.io
+- Second persona (recorded only): https://caroline.165-22-115-152.nip.io
 
 Paper trading only. Simulated numbers are labelled. Not financial advice.
 
