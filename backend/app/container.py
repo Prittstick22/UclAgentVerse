@@ -17,6 +17,7 @@ from app.data.gateway import DataGateway
 from app.data.live import LiveUpdates
 from app.data.snapshot import load_snapshot
 from app.engine.ledger import Ledger
+from app.profile.demo import demo_mandate
 from app.profile.quiz import mandate_for
 from app.schemas import Mandate
 from app.settings import Settings, get_settings
@@ -51,8 +52,9 @@ def build_state(settings: Settings | None = None, db_path: str | None = None) ->
     gw = DataGateway(clock, load_snapshot(snapshot_path), events)
     ledger = Ledger(catalogue={i.ticker: i for i in gw.catalogue(eligible_only=False)})
     llm = LLM(db, s, fake=FakeBrain())
+    mandate = demo_mandate() if s.app_mode == "historical" else mandate_for("balanced")
     state = AppState(settings=s, clock=clock, db=db, events=events, gw=gw, ledger=ledger,
-                     mandate=mandate_for("balanced"), llm=llm, supervisor=None)  # type: ignore[arg-type]
+                     mandate=mandate, llm=llm, supervisor=None)  # type: ignore[arg-type]
     tools = default_registry(ToolContext(gw=gw, events=events, state=state))
     state.supervisor = Supervisor(llm, tools, events)
     state.modes[s.app_mode] = state

@@ -27,6 +27,7 @@ from app.engine import optimiser, risk
 from app.engine.portfolio import record_checkpoint
 from app.monitors import rules
 from app.monitors.cooldowns import Cooldowns, describe, primary_kind
+from app.profile.demo import demo_mandate
 from app.profile.quiz import mandate_for
 from app.sim import approvals as approvals_mod
 from app.sim.approvals import ApprovalMode
@@ -398,7 +399,9 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
         Path(a.record).parent.mkdir(parents=True, exist_ok=True)
         Path(a.record).unlink(missing_ok=True)
     state = build_state(db_path=a.record)
-    state.mandate = mandate_for(a.profile)
+    persona_mandate = demo_mandate()
+    state.mandate = persona_mandate if a.profile == persona_mandate.profile else mandate_for(a.profile)
+    state.db.put("sim_mandate", "initial", state.mandate.model_dump_json())
     state.forecast_off = a.no_forecast
     r = asyncio.run(run(state, a.start, a.end, agents=a.agents, approvals=a.approvals))
     print(f"Simulated {r.days} trading days {r.start} to {r.end} ({'agents' if a.agents else 'engine only'}, "
