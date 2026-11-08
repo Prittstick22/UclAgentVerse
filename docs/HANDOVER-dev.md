@@ -11,6 +11,7 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 - **#28 agent loop on real Argon (PR #88):** schema retry, Gemini retries + backup keys (`GEMINI_API_KEY_BACKUPS`), per-step token budget, cache-stable prompts, `cost_estimate_usd`/`duration_s` in `run.completed`, `RunSummary` in kv `runs`. About 1,850 tokens and $0.007 per call, about 10 s per call; reruns cost 0 tokens.
 - **#29 core tools (PR #90):** tools wired to engine + gateway; construction runs end `built` with a `Proposal` (live Argon: 6 calls, $0.044). `gw.earnings()` added (past dates only). The `forecast` tool returns `not_available` until Cem's #73 lands (`app.engine.forecast.forecast(gw, tickers, as_of, horizon=10)`).
 - #7 reassigned from Jin to Dev (board handoff posted to Jin).
+- **#60 finance kit reviewed:** see `docs/finance-kit.md`. The organisers' kit is at `../agentverse/` (outside the repo, never commit it). Their hidden **challenge** mode is how unseen-data testing is likely judged; the packs that fit us are `markets` and `real-markets`.
 
 ### Next, in order (mvp before feature)
 1. **#7 news / filings / earnings fetch** (`gh issue view 7`). Branch `dev/7-fetch-text`.
@@ -22,8 +23,9 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
    - Write `news.jsonl`, `filings.jsonl` and `earnings.jsonl` (one JSON object per line) to `--out` (default `backend/data/snapshot`). Never overwrite Jin's price files.
    - **Tests** (`backend/tests/test_fetch_text.py`, offline, stub adapters): the `available_at` rule (before/after 16:30, Friday evening → Monday, weekend), mapping + dedupe, passage extraction, and `gw.news()` never returns items after as_of on fetched-shape rows.
    - Then run it for real (keys in `.env`), report counts per ticker, and post a board `fyi` with a shortlist of **hero events** from real 7 Jul – 6 Nov 2026 headlines: one *material* (→ adjust) and one *alarming but immaterial* (→ maintain) per hero pick (docs/06 §6), for Cem/Jin to agree. PR `Closes #7`, board post to Jin.
-2. **#30 prompts** (`backend/app/agents/prompts/*.md`, `roles.py`). The live lead asks for a non-existent `scout` role: list the exact role names it may spawn (`RESEARCH_SPAWNABLE` in `roles.py`) and the tool arguments (`weights` or `option`). Then run `--run construction` live and check that the spawns are accepted.
+2. **#30 prompts** (also: remove `temperature=0.2` from `LLM._call_live` in `agents/llm.py`, because Argon ignores it with a deprecation warning; optionally pass `thinking_level`, see docs/finance-kit.md) (`backend/app/agents/prompts/*.md`, `roles.py`). The live lead asks for a non-existent `scout` role: list the exact role names it may spawn (`RESEARCH_SPAWNABLE` in `roles.py`) and the tool arguments (`weights` or `option`). Then run `--run construction` live and check that the spawns are accepted.
 3. #31 review/trigger plans → #20 benchmarks → #37 the 2-week slice, then the 4-month run at 03:00 (**config frozen at the 02:30 `eval-freeze` tag**).
+3b. **#61 finance-kit adapter** (do it while the 4-month run is going): `backend/app/eval/finance_kit_adapter.py`. Read stdin JSONL, reply on stdout and log to stderr only. For `market_step`, use a deterministic rule built on `app.engine.risk` from the observed history only (stay invested; go to cash on a fixed drawdown/vol band breach; re-enter when calm), with constants fixed before any challenge run. Return `{"error":"unsupported_task"}` for cashflow/transactions. **Never import kit code** (challenge mode scans for it). Add an offline test. Practise with `python ../agentverse/finance/bench.py generate/run`, then run `bench.py challenge --pack markets` and `--pack real-markets` and commit the REPORT/COMMITMENT/SEED-REVEAL under `eval/finance-kit/`. Report results honestly vs buy-and-hold, labelled "organiser synthetic test data". Full spec: `docs/finance-kit.md`.
 4. Before 03:00: DigitalOcean account + billing for Jin (#56): Dev does this himself.
 
 ### Environment (Dev's PC: Windows, Git Bash + PowerShell)
@@ -33,6 +35,7 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 - The synthetic snapshot is in `backend/data/snapshot` (git-ignored). Manual live run: `cd backend && STATE_DB=<scratch path>.sqlite .venv/Scripts/python -m app.agents.supervisor --run construction` (about $0.04; reruns are free from the cache).
 - `EDGAR_USER_AGENT` still has a placeholder email: ask Dev for the team email.
 - News sources: **Finnhub (US) + EODHD (UK). Alpha Vantage is NOT used.** Alpaca is deferred (#80).
+- Judging (organisers' builder guide): live software, a named user, a verification loop, a human approval gate, a demo **under 3 min**, and a README with exact model IDs + the verification loop. The deck/README (#39/#70) must say this.
 
 ### How to work here
 - **Teammates push to `main` constantly:** `git fetch && git merge origin/main` into your branch at the start, before every commit, and right before opening and merging a PR. Commit before merging; never `git checkout origin/main -- .` over your work.
