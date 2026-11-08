@@ -42,8 +42,6 @@ def validate(mandate: Mandate, current: Mandate | None = None) -> dict[str, str]
     for name, value in mandate.triggers.model_dump().items():
         if not math.isfinite(value) or not 0 <= value <= 1:
             errors[f"triggers.{name}"] = "Enter a finite fraction between 0 and 1."
-    if not mandate.approval.require_user_approval:
-        errors["approval.require_user_approval"] = "Live paper trades require user approval."
     turnover = mandate.approval.batch_auto_approve_turnover_max
     if not math.isfinite(turnover) or not 0 <= turnover <= 1:
         errors["approval.batch_auto_approve_turnover_max"] = "Enter a finite fraction between 0 and 1."

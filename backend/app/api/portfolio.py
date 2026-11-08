@@ -190,7 +190,7 @@ class PortfolioView:
                     run_id = event.run_id if event.run_id in approval_by_run else None
                     proposal_id = approval_by_run.get(run_id) if run_id else None
                 if run_id:
-                    fills[event.as_of, run_id, proposal_id].append(event)
+                    fills[event.payload.get("date", event.as_of), run_id, proposal_id].append(event)
 
         points = self._points()
         days = sorted(points)

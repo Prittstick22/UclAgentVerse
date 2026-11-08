@@ -28,7 +28,7 @@
 | Web search | Blocked | Gemini grounding allowed inside investigations |
 | Portfolio | Fictional historical portfolio | Persistent paper portfolio |
 | Memory | `historical` namespace | `live` namespace; demo outcomes never leak in |
-| Approvals | Simulated by policy in the overnight batch (labelled); manual for the demo hero decision | Manual |
+| Approvals | Simulated by policy in the overnight batch (labelled); manual for the demo hero decision | Manual by default. A saved opt-in can auto-approve paper proposals within the user’s turnover limit after the assurance checks. |
 | Label | "Historical demo · As of {date}" | "Current markets · Paper portfolio" |
 
 ## 3. The day loop (historical)

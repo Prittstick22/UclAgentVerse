@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { Area, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
+import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import CorrelationLattice from "../components/CorrelationLattice";
 import AgentAvatar from "../components/AgentAvatar";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ProposalDialog } from "./Decisions";
 import HoldingIssuer from "../components/HoldingIssuer";
 import { TerminalBrand } from "../components/TerminalShellUi";
-import { api, MOCK } from "../lib/api";
+import { api, get, MOCK } from "../lib/api";
 import { portfolioQueries, type ReviewSummary } from "../lib/portfolioQueries";
-import type { Holding, Notification, PnlPeriod, Portfolio, PortfolioHistory, PortfolioPnl } from "../lib/types";
+import type { Holding, HoldingPrices, NewsFeed, Notification, PnlPeriod, Portfolio, PortfolioHistory, PortfolioPnl } from "../lib/types";
 import "./portfolio-home.css";
 
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
@@ -17,7 +17,7 @@ const percent = new Intl.NumberFormat("en-GB", { style: "percent", maximumFracti
 const signedPercent = new Intl.NumberFormat("en-GB", { style: "percent", maximumFractionDigits: 2, signDisplay: "exceptZero" });
 const units = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 4 });
 const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-const chartMoney = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", notation: "compact", maximumFractionDigits: 1 });
+const chartMoney = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 const periods: Record<PnlPeriod, string> = {
   since_purchase: "Since purchase", "1m": "1 month", "3m": "3 months", ytd: "Year to date", sim_year: "Replay window",
 };
@@ -119,18 +119,18 @@ function Watchlist({ portfolio, holdings, history, selected, select, pending }: 
     {holdings.length > 0 ? <ul className="portfolio-watch-rows">{holdings.map((holding) => (
       <li key={holding.ticker}>
         <button type="button" className="portfolio-watch-row" aria-current={selected === holding.ticker ? "true" : undefined}
-          aria-label={`Show ${holding.name} in Positions`} onClick={() => select(holding.ticker)}>
+          aria-label={`Show ${holding.name} performance`} onClick={() => select(holding.ticker)}>
           <span className="portfolio-watch-asset">
             <HoldingMark ticker={holding.ticker} name={holding.name} />
             <span><strong title={holding.name}>{shortHoldingName(holding.name)}</strong><small>{assetLabel(holding.ticker)}</small></span>
           </span>
+          <WeightSparkline ticker={holding.ticker} history={history} />
           <span className="portfolio-watch-price">
             <strong>{holding.price_gbp > 0 ? money.format(holding.price_gbp) : "—"}</strong>
             <small className={holding.stale ? "is-stale" : undefined}>
               {holding.stale && "Stale · "}<time dateTime={holding.price_as_of}>{dateLabel(holding.price_as_of)}</time>
             </small>
           </span>
-          <WeightSparkline ticker={holding.ticker} history={history} />
         </button>
       </li>
     ))}</ul> : <p className="portfolio-empty">{portfolio ? "No paper holdings yet" : pending ? "Loading holdings" : "Holding data is unavailable"}</p>}
@@ -138,7 +138,8 @@ function Watchlist({ portfolio, holdings, history, selected, select, pending }: 
   </aside>;
 }
 
-function PerformanceChart({ points, reviews }: { points: HistoryPoint[]; reviews: ReviewSummary[] }) {
+function PerformanceChart({ points, reviews, holding }: { points: HistoryPoint[]; reviews: ReviewSummary[]; holding?: Holding }) {
+  const seriesLabel = holding ? "Adjusted close" : "Portfolio value";
   const paidIn = points.some((point) => point.contributions_gbp !== null);
   const last = points.at(-1);
   const reviewsByDate = new Map<string, ReviewSummary>();
@@ -149,30 +150,36 @@ function PerformanceChart({ points, reviews }: { points: HistoryPoint[]; reviews
   const byDate = new Map(series.map((point) => [point.date, point]));
   const hasMarkers = series.some((point) => point.review_nav !== null);
   return <section className="portfolio-performance" aria-labelledby="performance-heading">
-    <header><div><h2 id="performance-heading">Portfolio performance</h2><p>Recorded value at each close</p></div>
+    <header><div><h2 id="performance-heading">{holding ? holding.name : "Portfolio performance"}</h2>
+      <p>{holding ? assetLabel(holding.ticker) + " · Daily adjusted close in GBP" : "Recorded value at each close"}</p></div>
       {last && <strong>{money.format(last.nav_gbp)}</strong>}
     </header>
-    {!last ? <p className="portfolio-empty">No portfolio closes recorded yet</p> : <>
-      <div className="portfolio-performance-plot" role="region" aria-label="Portfolio value over the recorded closes">
+    {!last ? <p className="portfolio-empty">{holding ? "No recorded closes for this holding" : "No portfolio closes recorded yet"}</p> : <>
+      <div className="portfolio-performance-plot" role="region" aria-label={holding ? assetLabel(holding.ticker) + " price history" : "Portfolio value over the recorded closes"}>
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <ComposedChart data={series} margin={{ left: 0, right: 16, top: 12, bottom: 4 }} accessibilityLayer>
-            <CartesianGrid vertical={false} stroke="var(--terminal-edge)" />
+            <defs><linearGradient id="portfolio-value-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--terminal-chart)" stopOpacity={.14} />
+              <stop offset="100%" stopColor="var(--terminal-chart)" stopOpacity={0} />
+            </linearGradient></defs>
+            <CartesianGrid stroke="var(--terminal-edge)" strokeOpacity={.68} />
             <XAxis dataKey="date" tickFormatter={dateLabel} tickLine={false} minTickGap={28}
               tick={{ fill: "var(--terminal-muted)", fontSize: 11 }} axisLine={{ stroke: "var(--terminal-edge)" }} />
-            <YAxis tickFormatter={(value: number) => chartMoney.format(value)} tickLine={false} width={52}
+            <YAxis orientation="right" tickFormatter={(value: number) => (holding ? money : chartMoney).format(value)} tickLine={false} width={66}
               tick={{ fill: "var(--terminal-muted)", fontSize: 11 }} axisLine={false} domain={["auto", "auto"]} />
             <Tooltip content={({ active, label }) => {
               const point = typeof label === "string" ? byDate.get(label) : undefined;
               if (!active || !point) return null;
               const review = reviewsByDate.get(point.date);
               return <div className="portfolio-performance-tooltip">
-                <strong>{dateLabel(point.date)}</strong><span>Portfolio value {money.format(point.nav_gbp)}</span>
+                <strong>{dateLabel(point.date)}</strong><span>{seriesLabel} {money.format(point.nav_gbp)}</span>
                 {point.contributions_gbp !== null && <span>Paid in {money.format(point.contributions_gbp)}</span>}
                 {review && <span className="portfolio-performance-review">{reviewResult(review)}</span>}
               </div>;
             }} />
-            <Area type="linear" dataKey="nav_gbp" name="Portfolio value" stroke="var(--terminal-accent)" strokeWidth={2}
-              fill="var(--terminal-accent)" fillOpacity={0.13} isAnimationActive={false} dot={points.length === 1} />
+            <ReferenceLine y={last.nav_gbp} stroke="var(--terminal-chart)" strokeOpacity={.38} strokeDasharray="3 4" />
+            <Area type="linear" dataKey="nav_gbp" name={seriesLabel} stroke="var(--terminal-chart)" strokeWidth={1.8}
+              fill="url(#portfolio-value-fill)" fillOpacity={1} isAnimationActive={false} dot={points.length === 1} />
             {paidIn && <Line type="stepAfter" dataKey="contributions_gbp" name="Paid in" stroke="var(--terminal-muted)"
               strokeDasharray="4 4" dot={false} isAnimationActive={false} />}
             {hasMarkers && <Line dataKey="review_nav" name="Recorded review" stroke="none" activeDot={false}
@@ -180,7 +187,7 @@ function PerformanceChart({ points, reviews }: { points: HistoryPoint[]; reviews
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <div className="portfolio-performance-legend"><span><i />Portfolio value</span>
+      <div className="portfolio-performance-legend"><span><i />{seriesLabel}</span>
         {paidIn && <span><i className="portfolio-paid-in-key" />Paid in</span>}
         {hasMarkers && <span><i className="portfolio-review-key" />Recorded review</span>}
       </div>
@@ -188,9 +195,52 @@ function PerformanceChart({ points, reviews }: { points: HistoryPoint[]; reviews
   </section>;
 }
 
-function Positions({ portfolio, holdings, pnl, period, selectPeriod, selected, pending, error }: {
+function HoldingsTabs({ news, setNews }: { news: boolean; setNews: (news: boolean) => void }) {
+  return <div className="portfolio-content-tabs" role="group" aria-label="Portfolio details">
+    <button type="button" aria-pressed={!news} onClick={() => setNews(false)}>Positions</button>
+    <button type="button" aria-pressed={news} onClick={() => setNews(true)}>Latest news</button>
+  </div>;
+}
+
+const loadNews = (signal: AbortSignal) => get<NewsFeed>("/news", "news", signal);
+
+function LatestNews({ portfolio, revision, setNews }: { portfolio: Portfolio | null; revision: number; setNews: (news: boolean) => void }) {
+  const feed = useQuery(loadNews, revision);
+  const held = new Set(portfolio?.holdings.map(holding => holding.ticker));
+  const [holdingsOnly, setHoldingsOnly] = useState(false);
+  const items = (feed.value?.items ?? []).filter(item => !holdingsOnly || item.tickers.some(ticker => held.has(ticker)));
+  function story(item: NewsFeed["items"][number]) {
+    const url = item.url && /^https?:\/\//i.test(item.url) ? item.url : null;
+    return <li key={item.id}>
+      <div className="portfolio-news-meta"><time dateTime={item.published_at}>{dateLabel(item.published_at)}</time>
+        <span>{item.source}{item.synthetic && !/synthetic/i.test(item.source) ? " · Synthetic" : ""}</span></div>
+      <h3>{url ? <a href={url} target="_blank" rel="noreferrer">{item.headline} ↗</a> : item.headline}</h3>
+      {item.summary && <p>{item.summary}</p>}
+      {item.tickers.length > 0 && <div className="portfolio-news-tags">{item.tickers.map(ticker =>
+        <span key={ticker} data-held={held.has(ticker)}>{assetLabel(ticker)}</span>)}</div>}
+    </li>;
+  }
+  return <section className="portfolio-panel terminal-glass portfolio-positions" aria-label="Latest news" aria-busy={feed.pending}>
+    <header className="portfolio-panel-heading">
+      <HoldingsTabs news setNews={setNews} />
+      {held.size > 0 && <label><input type="checkbox" checked={holdingsOnly} onChange={event => setHoldingsOnly(event.currentTarget.checked)} /> My holdings</label>}
+    </header>
+    {items.length > 0 ? <div className="portfolio-news-scroll" key={String(holdingsOnly)}>
+      <ul className="portfolio-news-list">{items.slice(0, 4).map(story)}</ul>
+      {items.length > 4 && <details className="desk-disclosure portfolio-news-more">
+        <summary><span>More stories</span><small>{items.length - 4}</small></summary>
+        <ul className="portfolio-news-list">{items.slice(4).map(story)}</ul>
+      </details>}
+    </div> : <p className="portfolio-empty" role={feed.error ? "alert" : "status"}>
+      {feed.error ? "Couldn’t load news" : feed.pending ? "Loading latest news…" : holdingsOnly ? "No cached stories match your holdings" : "No news available for this date"}
+    </p>}
+    {feed.value && <footer>Cached news · As of {dateLabel(feed.value.as_of)}</footer>}
+  </section>;
+}
+
+function Positions({ portfolio, holdings, pnl, period, selectPeriod, selected, pending, error, setNews }: {
   portfolio: Portfolio | null; holdings: Holding[]; pnl: PortfolioPnl | null; period: PnlPeriod;
-  selectPeriod: (period: PnlPeriod) => void; selected: string | null; pending: boolean; error: string;
+  selectPeriod: (period: PnlPeriod) => void; selected: string | null; pending: boolean; error: string; setNews: (news: boolean) => void;
 }) {
   const byTicker = new Map(pnl?.rows.map((row) => [row.ticker, row]));
   const holdingTickers = new Set(holdings.map((holding) => holding.ticker));
@@ -198,9 +248,9 @@ function Positions({ portfolio, holdings, pnl, period, selectPeriod, selected, p
     ...holdings.map((holding) => ({ ticker: holding.ticker, name: holding.name, holding })),
     ...(pnl?.rows.filter((row) => !holdingTickers.has(row.ticker)) ?? []).map(({ ticker, name }) => ({ ticker, name, holding: undefined })),
   ];
-  return <section className="portfolio-panel terminal-glass portfolio-positions" aria-labelledby="positions-heading" aria-busy={pending}>
+  return <section className="portfolio-panel terminal-glass portfolio-positions" aria-label="Positions" aria-busy={pending}>
     <header className="portfolio-panel-heading">
-      <h2 id="positions-heading">Positions</h2>
+      <HoldingsTabs news={false} setNews={setNews} />
       <label><span>P&amp;L period</span><select value={period} onChange={(event) => selectPeriod(event.currentTarget.value as PnlPeriod)}>
         {Object.entries(periods).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
       </select></label>
@@ -250,9 +300,9 @@ function reviewResult(review: ReviewSummary) {
   return "Review completed";
 }
 
-function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificationError, markRead, marking, revision }: {
+function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificationError, markRead, marking, revision, startCheck, checking, checkError }: {
   portfolio: Portfolio | null; reviews: ReviewSummary[]; notifications: Notification[];
-  reviewError: string; notificationError: string; markRead: (id: string) => void; marking: string | null; revision: number;
+  reviewError: string; notificationError: string; markRead: (id: string) => void; marking: string | null; revision: number; startCheck: () => void; checking: boolean; checkError: string;
 }) {
   const [view, setView] = useState<ActivityView>("Reviews");
   const [selected, setSelected] = useState<string | null>(null);
@@ -268,6 +318,10 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
   return <aside className="portfolio-panel terminal-glass portfolio-review" aria-labelledby="portfolio-review-heading">
     <div className="portfolio-panel-heading"><span className="portfolio-review-glyph"><TerminalBrand /></span>
       <h2 id="portfolio-review-heading">Agent review</h2></div>
+    {portfolio?.mode === "live" && <div className="portfolio-review-action">
+      <button type="button" className="mvp-action primary" disabled={checking} onClick={startCheck}>{checking ? "Starting investigation…" : portfolio.holdings.length ? "Check portfolio now" : "Build my paper portfolio"}</button>
+      {checkError && <p role="alert">{checkError}</p>}
+    </div>}
     <div className="portfolio-review-switch" role="group" aria-label="Review views">
       {activityViews.map((item) => <button type="button" key={item} aria-pressed={view === item} onClick={() => setView(item)}>{item}</button>)}
     </div>
@@ -307,11 +361,18 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
       <h3>Review history</h3>
       {review && <Link className="mvp-link" to={"/runs/" + encodeURIComponent(review.run_id)}>Open investigation ↗</Link>}
       {reviewError && <p className="portfolio-inline-error" role="alert">Couldn’t load review history</p>}
-      {reviews.length > 0 ? <ul className="portfolio-review-history">{reviews.map((item) => <li key={item.run_id}>
+      {reviews.length > 0 ? <div><ul className="portfolio-review-history">{reviews.slice(0, 4).map((item) => <li key={item.run_id}>
         <button type="button" aria-pressed={item.run_id === review?.run_id} onClick={() => setSelected(item.run_id)}>
           <time dateTime={item.as_of}>{dateLabel(item.as_of)}</time><span>{reviewResult(item)}</span><b aria-hidden="true">›</b>
         </button>
-      </li>)}</ul> : !reviewError && <p className="portfolio-empty">No recorded reviews yet</p>}
+      </li>)}</ul>{reviews.length > 4 && <details className="desk-disclosure">
+        <summary><span>Earlier reviews</span><small>{reviews.length - 4}</small></summary>
+        <ul className="portfolio-review-history">{reviews.slice(4).map(item => <li key={item.run_id}>
+          <button type="button" aria-pressed={item.run_id === review?.run_id} onClick={() => setSelected(item.run_id)}>
+            <time dateTime={item.as_of}>{dateLabel(item.as_of)}</time><span>{reviewResult(item)}</span><b aria-hidden="true">›</b>
+          </button>
+        </li>)}</ul>
+      </details>}</div> : !reviewError && <p className="portfolio-empty">No recorded reviews yet</p>}
     </section> : <section className="portfolio-activity" aria-label={view === "Watch" ? "Portfolio activity digest" : "Decision notifications"}>
       <h3>{view === "Watch" ? "Activity digest" : "Decisions"}</h3>
       {notificationError && <p className="portfolio-inline-error" role="alert">{notificationError}</p>}
@@ -332,15 +393,27 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
 export default function Home({ onClockChange }: { onClockChange?: (date: string) => void }) {
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((current) => current + 1), []);
-  const [view, setView] = useState<ChartView>("Connections");
+  const [view, setView] = useState<ChartView>("Performance");
   const [period, setPeriod] = useState<PnlPeriod>("since_purchase");
   const [selected, setSelected] = useState<string | null>(null);
+  const [showNews, setNews] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState("");
+  const navigate = useNavigate();
   const [read, setRead] = useState<string[]>([]);
   const [marking, setMarking] = useState<string | null>(null);
   const [markError, setMarkError] = useState("");
   const loadPnl = useCallback((signal: AbortSignal) => portfolioQueries.pnl(period, signal), [period]);
   const summary = useQuery(portfolioQueries.summary, revision);
   const history = useQuery(portfolioQueries.history, revision);
+  const loadHoldingPrices = useCallback(async (signal: AbortSignal) => {
+    if (!selected || view === "Connections") return null;
+    const path = "/portfolio/holdings/" + encodeURIComponent(selected) + "/prices";
+    if (!MOCK) return get<HoldingPrices>(path, "", signal);
+    const series = await get<Record<string, HoldingPrices>>(path, "holding_prices", signal);
+    return series[selected] ?? null;
+  }, [selected, view]);
+  const holdingPrices = useQuery(loadHoldingPrices, revision);
   const tickers = (summary.value?.holdings ?? []).map(({ ticker }) => ticker).sort().join(",");
   const loadCorrelation = useCallback((signal: AbortSignal) =>
     tickers ? portfolioQueries.correlations(tickers, signal) : Promise.resolve(null), [tickers]);
@@ -383,15 +456,34 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
   }
 
   function selectHolding(ticker: string) {
+    setView("Performance");
+    if (showNews) {
+      setNews(false);
+      setSelected(ticker);
+      return;
+    }
     setSelected(ticker);
     const row = document.getElementById(positionId(ticker));
-    row?.focus({ preventScroll: true });
     row?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   const portfolio = summary.value;
+  async function startCheck() {
+    if (!portfolio || checking) return;
+    setChecking(true);
+    setCheckError("");
+    try {
+      const { run_id } = await (portfolio.holdings.length ? api.review() : api.build());
+      navigate("/runs/" + encodeURIComponent(run_id) + "?live=1");
+    } catch (error) {
+      setCheckError((error as Error).message);
+      setChecking(false);
+    }
+  }
   const holdings = [...(portfolio?.holdings ?? [])].sort((a, b) => b.weight - a.weight);
   const points = history.value?.points ?? [];
+  const chartHolding = holdings.find(holding => holding.ticker === selected);
+  const holdingPoints = (holdingPrices.value?.points ?? []).map(({ date, close_gbp }) => ({ date, nav_gbp: close_gbp, weights: {}, contributions_gbp: null }));
   const availableNotifications = notifications.value?.items.map((item) => read.includes(item.id) ? { ...item, read: true } : item) ?? [];
   return <div className="portfolio-home">
     {summary.error && <div className="portfolio-summary-error" role="alert"><span>Couldn’t load the latest portfolio summary · {summary.error}</span>
@@ -402,6 +494,8 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
         {chartViews.map((item) => <button type="button" key={item} aria-pressed={view === item} onClick={() => setView(item)}>
           <ViewIcon view={item} />{item}
         </button>)}
+        {chartHolding && view !== "Connections" && <button type="button" className="portfolio-return-chart"
+          onClick={() => setSelected(null)}>← Portfolio</button>}
       </nav>
       <div className={`portfolio-chart-content${view === "Split view" ? " is-split" : ""}`}>
         {view !== "Performance" && (correlation.value ? <CorrelationLattice report={correlation.value} holdings={holdings}
@@ -409,15 +503,20 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
           {correlation.error || summary.error ? "Holding connections are unavailable" :
             summary.pending || correlation.pending ? "Loading holding connections" : "Connections appear after you add holdings"}
         </p>)}
-        {view !== "Connections" && (history.error ? <p className="portfolio-inline-error" role="alert">Couldn’t load portfolio history · {history.error}</p>
+        {view !== "Connections" && (chartHolding ? <div className="holding-performance" key={chartHolding.ticker}>
+          {holdingPrices.pending && !holdingPrices.value ? <p className="portfolio-empty" role="status">Loading {assetLabel(chartHolding.ticker)} price history…</p> :
+            holdingPrices.error ? <p className="portfolio-inline-error" role="alert">Couldn’t load this holding’s prices</p> :
+              <PerformanceChart points={holdingPoints} reviews={[]} holding={chartHolding} />}
+        </div> : history.error ? <p className="portfolio-inline-error" role="alert">Couldn’t load portfolio history · {history.error}</p>
           : history.pending && !history.value ? <p className="portfolio-empty">Loading recorded closes</p>
             : <PerformanceChart points={points} reviews={reviews.value ?? []} />)}
       </div>
     </section>
-    <Positions portfolio={portfolio} holdings={holdings} pnl={pnl.error ? null : pnl.value} period={period} selectPeriod={setPeriod}
-      selected={selected} pending={pnl.pending} error={pnl.error} />
+    {showNews ? <LatestNews portfolio={portfolio} revision={revision} setNews={setNews} /> :
+      <Positions portfolio={portfolio} holdings={holdings} pnl={pnl.error ? null : pnl.value} period={period} selectPeriod={setPeriod}
+        selected={selected} pending={pnl.pending} error={pnl.error} setNews={setNews} />}
     <ReviewPanel portfolio={portfolio} reviews={reviews.value?.slice(0, 8) ?? []} notifications={availableNotifications}
       reviewError={reviews.error} notificationError={markError || (notifications.error && "Couldn’t load portfolio activity")}
-      markRead={markRead} marking={marking} revision={revision} />
+      markRead={markRead} marking={marking} revision={revision} startCheck={() => void startCheck()} checking={checking} checkError={checkError} />
   </div>;
 }

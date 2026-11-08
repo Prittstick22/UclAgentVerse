@@ -5,16 +5,22 @@ batch_policy: overnight run only. Auto-approve only if no gate failed, the indep
               and turnover <= mandate.approval.batch_auto_approve_turnover_max. The very first (construction)
               portfolio is exempt from the turnover limit, since buying from cash is always 100% turnover.
               Always labelled by="batch_policy".
+live:         manual by default; explicit mandate opt-in allows bounded live paper proposals through
+              the same revalidation and queueing as manual approval. Labelled by="user_policy".
 """
 from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, datetime
+from copy import deepcopy
+from dataclasses import asdict
+from datetime import UTC
 from typing import Any, Literal
 
 from app.config import params
 from app.engine import checker
+from app.engine.ledger import Fill, Ledger, Position
+from app.engine.portfolio import capture
 from app.schemas import Mandate, OrderChange, Proposal
 
 ApprovalMode = Literal["manual", "batch_policy"]
@@ -48,7 +54,8 @@ def handle(state: Any, prop: Proposal, mode: ApprovalMode, construction: bool = 
         return _set(state, prop, "blocked", f"Proposal {prop.id} has no '{prop.selected}' option"), "blocked"
     weights, cash = picked
     rep = checker.check_proposal(weights, cash, state.mandate, state.gw.catalogue())
-    gates_ok = bool(prop.gates) and all(g.status in PASSING for g in prop.gates)   # unchecked = not ok
+    gates_ok = (_live_gates_complete(prop) if state.clock.mode == "live" else
+                bool(prop.gates) and all(g.status in PASSING for g in prop.gates))
     if not rep.passed or not gates_ok:
         why = ("; ".join(v.message for v in rep.violations[:3])
                or ("a gate failed" if prop.gates else "not checked by the assurance gate"))
@@ -69,6 +76,30 @@ def handle(state: Any, prop: Proposal, mode: ApprovalMode, construction: bool = 
     return None, "awaiting_approval"
 
 
+def _live_gates_complete(prop: Proposal) -> bool:
+    from app.agents.gate import gates_for
+
+    passed = {gate.gate for gate in prop.gates if gate.status in ("pass", "pass_with_flags")}
+    return set(gates_for("adjust")) <= passed and all(gate.status in ("pass", "pass_with_flags") for gate in prop.gates)
+
+
+def handle_live(state: Any, prop: Proposal) -> None:
+    """Apply the saved opt-in to a fresh live proposal, otherwise request a human decision."""
+    with state.mandate_lock:
+        if prop.status != "draft":
+            return
+        preference = state.mandate.approval
+        if not preference.require_user_approval and _live_gates_complete(prop):
+            try:
+                _approve(state, prop.id, None, by="user_policy")
+            except ApprovalError:
+                # Above-cap, stale or competing orders still need a manual decision.
+                pass
+            else:
+                return
+        handle(state, prop, "manual")
+
+
 def _set(state: Any, prop: Proposal, status: str, note: str | None = None) -> None:
     prop.status = status  # type: ignore[assignment]
     if note and note not in prop.uncertainties:
@@ -80,6 +111,7 @@ def _set(state: Any, prop: Proposal, status: str, note: str | None = None) -> No
 # ---------------------------------------------------------------------- user approval (#23)
 
 CTX_NS = "proposal_ctx"
+LIVE_LEDGER_NS = "live_order_state"
 APPROVABLE = {"draft", "awaiting_approval"}
 
 
@@ -120,16 +152,11 @@ def _context(state: Any, prop: Proposal) -> dict:
 
 
 def _price_dates(state: Any, tickers: list[str]) -> dict[str, str]:
-    px = state.gw.prices(caller="approvals.revalidate")   # all tickers: an unknown one reads as stale, not a 500
-    out = {}
-    for t in tickers:
-        s = px[t].dropna() if t in px.columns else None
-        out[t] = s.index[-1].date().isoformat() if s is not None and len(s) else "1900-01-01"
-    return out
+    observed = state.gw.last_quote_dates(tickers)
+    return {ticker: observed.get(ticker, "1900-01-01") for ticker in tickers}
 
 
-def _orders(state: Any, weights: dict[str, float]) -> list[OrderChange]:
-    led = state.ledger
+def _orders(led: Ledger, weights: dict[str, float]) -> list[OrderChange]:
     nav = led.nav()
     now = led.weights()
     min_trade = float(params()["min_trade_gbp"])   # the ledger skips smaller trades, so don't promise them
@@ -150,8 +177,11 @@ def _next_close(state: Any) -> str | None:
 
 def approve_by_user(state: Any, proposal_id: str, option: str | None = None) -> dict:
     """Revalidate, then queue the orders for the next close. Raises ApprovalError (404/409/422)."""
-    from app.engine import checker as chk
+    with state.mandate_lock:
+        return _approve(state, proposal_id, option, by="user")
 
+
+def _approve(state: Any, proposal_id: str, option: str | None, *, by: Literal["user", "user_policy"]) -> dict:
     prop = state.proposals.get(proposal_id)
     if prop is None:
         raise ApprovalError(404, "not_found", "proposal not found")
@@ -159,11 +189,14 @@ def approve_by_user(state: Any, proposal_id: str, option: str | None = None) -> 
         raise ApprovalError(409, "duplicate_order", "This proposal was already approved")
     if prop.status not in APPROVABLE:
         raise ApprovalError(409, "conflict", f"This proposal is {prop.status} and can't be approved")
-    if not prop.gates:   # never checked (e.g. the run timed out mid-gate): no checks, no approval
+    live = state.clock.mode == "live"
+    if not prop.gates:
         raise ApprovalError(409, "conflict", "This proposal hasn't been through the assurance checks")
     if any(g.status == "fail" for g in prop.gates):   # belt and braces: the gate blocks these already
         raise ApprovalError(409, "conflict", "The assurance checks failed for this proposal; it can't be approved",
                             {"failed_gates": [g.gate for g in prop.gates if g.status == "fail"]})
+    if live and not _live_gates_complete(prop):
+        raise ApprovalError(409, "conflict", "This proposal hasn't finished all assurance checks")
     chosen = option or prop.selected
     if not any(o.label == chosen for o in prop.options):
         raise ApprovalError(422, "validation_error", f"No option '{chosen}' in this proposal",
@@ -181,8 +214,8 @@ def approve_by_user(state: Any, proposal_id: str, option: str | None = None) -> 
     if other:   # queue_rebalance would silently replace it
         raise ApprovalError(409, "duplicate_order", f"Another approved order ({other[9:]}) is waiting for the "
                             "next close; approve this one after it fills")
-    rep = chk.revalidate(
-        proposal_as_of=prop.as_of, price_dates=_price_dates(state, list(weights)), today=today,
+    rep = checker.revalidate(
+        proposal_as_of=prop.as_of, price_dates=_price_dates(state, sorted(set(weights) | set(led.weights()))), today=today,
         mandate_version_at_proposal=ctx.get("mandate_version", state.mandate.version),
         mandate_version_now=state.mandate.version,
         holdings_hash_at_proposal=ctx.get("trades", _trade_marker(led)), holdings_hash_now=_trade_marker(led),
@@ -192,25 +225,115 @@ def approve_by_user(state: Any, proposal_id: str, option: str | None = None) -> 
         code = {"stale_data": "stale_data", "duplicate_order": "duplicate_order", "mandate_changed": "mandate_changed",
                 "holdings_changed": "holdings_changed"}.get(v.code, "conflict")
         raise ApprovalError(409, code, v.message, {"violations": [x.model_dump(exclude_none=True) for x in rep.violations]})
-    check = chk.check_proposal(weights, cash, state.mandate, state.gw.catalogue())
+    check = checker.check_proposal(weights, cash, state.mandate, state.gw.catalogue())
     if not check.passed:
         raise ApprovalError(409, "mandate_violation", "; ".join(x.message for x in check.violations[:3]),
                             {"violations": [x.model_dump(exclude_none=True) for x in check.violations]})
 
-    prop.selected = chosen  # type: ignore[assignment]
-    orders = _orders(state, weights)
+    if live:
+        led = deepcopy(led)
+        if not led.contributions_gbp and not led.positions:
+            led.deposit(state.mandate.goal.starting_amount_gbp)
+        led.mark_to_market(state.gw.latest_prices().to_dict())
+    live_turnover = None
+    if by == "user_policy":
+        current = led.weights()
+        current_cash = max(0.0, 1.0 - sum(current.values()))
+        live_turnover = turnover(weights, current) + abs(cash - current_cash) / 2
+        if live_turnover > state.mandate.approval.batch_auto_approve_turnover_max + 1e-9:
+            raise ApprovalError(409, "conflict", "This proposal exceeds your auto-approval turnover limit")
+    orders = _orders(led, weights)
+    if live and not orders:
+        raise ApprovalError(409, "conflict", "There are no paper trades above the minimum order size")
+    fill_date = _next_close(state)
+    decision = {"decision": "approved", "by": by, "option": chosen,
+                "at": state.clock.now().astimezone(UTC).isoformat(), "fill_date": fill_date}
+    if live_turnover is not None:
+        decision["turnover"] = round(live_turnover, 4)
     led.queue_rebalance(weights, f"proposal:{prop.id}")
+    if live:
+        led.pending[0]["approved_as_of"] = today
+        prop = prop.model_copy(update={"selected": chosen, "status": "approved"})
+        _save_live_order_state(state, led, prop, decision)
+    else:
+        prop.selected = chosen  # type: ignore[assignment]
+        _set(state, prop, "approved")
+        state.db.put("proposal_decisions", prop.id, json.dumps(decision))
     sim = getattr(getattr(state, "sim_controller", None), "sim", None)
     if sim is not None and not sim.done:
         sim.targets = weights          # monitors now measure drift against what the user approved
-    fill_date = _next_close(state)
-    _set(state, prop, "approved")
-    state.db.put("proposal_decisions", prop.id, json.dumps({
-        "decision": "approved", "by": "user", "option": prop.selected, "at": datetime.now(UTC).isoformat()}))
-    state.events.emit("approval.decided", run_id=prop.run_id, title=f"You approved: {prop.decision_card.headline}"[:120],
-                      payload={"proposal_id": prop.id, "decision": "approved", "by": "user", "option": prop.selected,
-                               "fill_date": fill_date})
+    title = "Your auto-approval settings approved" if by == "user_policy" else "You approved"
+    state.events.emit("approval.decided", run_id=prop.run_id, title=f"{title}: {prop.decision_card.headline}"[:120],
+                      payload={"proposal_id": prop.id, **{key: value for key, value in decision.items() if key != "at"}})
     return {"proposal": prop, "orders": orders, "fill_date": fill_date}
+
+
+def restore_live_orders(state: Any) -> None:
+    """Restore accepted and declined proposals, positions, and any queued live paper order."""
+    state.proposals.update({key: Proposal.model_validate_json(raw) for key, raw in state.db.list("proposals")})
+    raw = state.db.get(LIVE_LEDGER_NS, "ledger")
+    if raw is None:
+        return
+    saved = json.loads(raw)
+    saved["positions"] = {ticker: Position(**data) for ticker, data in saved["positions"].items()}
+    saved["fills"] = [Fill(**data) for data in saved["fills"]]
+    state.ledger = Ledger(catalogue=state.ledger.catalogue, **saved)
+
+
+def _save_live_order_state(state: Any, ledger: Ledger, proposal: Proposal, decision: dict | None = None,
+                           fill_day: str | None = None) -> None:
+    saved = asdict(ledger)
+    del saved["catalogue"]
+    rows = [(LIVE_LEDGER_NS, "ledger", json.dumps(saved)), ("proposals", proposal.id, proposal.model_dump_json())]
+    if decision is not None:
+        rows.append(("proposal_decisions", proposal.id, json.dumps(decision)))
+    if fill_day is not None:
+        targets = selected_weights(proposal)
+        rows.append(("ledger_checkpoints:live", fill_day,
+                     capture(ledger, fill_day, targets[0] if targets else None).model_dump_json()))
+    values = ", ".join("(?, ?, ?)" for _ in rows)
+    state.db.execute(
+        f"INSERT OR REPLACE INTO kv(ns, key, json) VALUES {values}",
+        tuple(value for row in rows for value in row),
+    )
+    state.ledger = ledger
+    state.proposals[proposal.id] = proposal
+
+
+def fill_live_orders(state: Any) -> None:
+    """Fill only at a later close with observed quotes for every affected holding."""
+    with state.mandate_lock:
+        if not state.ledger.pending:
+            return
+        order = state.ledger.pending[0]
+        proposal = state.proposals.get(order["reason"].removeprefix("proposal:"))
+        if proposal is None or proposal.status != "approved":
+            return
+        tickers = sorted(set(order["target_weights"]) | set(state.ledger.weights()))
+        after, today = order["approved_as_of"], state.clock.as_of_str()
+        for date in state.gw.trading_days(after, today):
+            day = date.date().isoformat()
+            if day <= after:
+                continue
+            observed = state.gw.last_quote_dates(tickers, end=day)
+            if any(observed.get(ticker) != day for ticker in tickers):
+                continue
+            if any(ticker.endswith(".US") for ticker in tickers) and date not in state.gw.fx(end=day).index:
+                continue
+            prices = state.gw.prices(tickers, start=day, end=day, caller="approvals.live_fill").iloc[0]
+            if prices.isna().any() or (prices <= 0).any():
+                continue
+            ledger = deepcopy(state.ledger)
+            fills = ledger.fill_pending(day, prices.to_dict())
+            proposal = proposal.model_copy(update={"status": "executed" if fills else "expired"})
+            _save_live_order_state(state, ledger, proposal, fill_day=day)
+            for fill in fills:
+                state.events.emit(
+                    "order.filled", run_id=proposal.run_id,
+                    title=f"{fill.action.capitalize()} {fill.ticker} £{fill.amount_gbp:,.0f}",
+                    payload={**asdict(fill), "proposal_id": proposal.id},
+                )
+            return
 
 
 def mark_executed(state: Any, reason: str | None, fills: list) -> None:
@@ -222,6 +345,11 @@ def mark_executed(state: Any, reason: str | None, fills: list) -> None:
 
 
 def decline_by_user(state: Any, proposal_id: str, reason: str | None = None) -> dict:
+    with state.mandate_lock:
+        return _decline(state, proposal_id, reason)
+
+
+def _decline(state: Any, proposal_id: str, reason: str | None) -> dict:
     prop = state.proposals.get(proposal_id)
     if prop is None:
         raise ApprovalError(404, "not_found", "proposal not found")
@@ -230,7 +358,7 @@ def decline_by_user(state: Any, proposal_id: str, reason: str | None = None) -> 
     note = (reason or "").strip()[:500]
     _set(state, prop, "declined", f"Declined: {note}" if note else None)
     state.db.put("proposal_decisions", prop.id, json.dumps({
-        "decision": "declined", "by": "user", "reason": note, "at": datetime.now(UTC).isoformat()}))
+        "decision": "declined", "by": "user", "reason": note, "at": state.clock.now().astimezone(UTC).isoformat()}))
     state.events.emit("approval.decided", run_id=prop.run_id, title="You declined the proposal",
                       payload={"proposal_id": prop.id, "decision": "declined", "by": "user", "reason": note})
     return {"proposal": prop}

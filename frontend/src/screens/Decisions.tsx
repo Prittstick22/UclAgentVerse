@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AgentAvatar from "../components/AgentAvatar";
 import HoldingIssuer from "../components/HoldingIssuer";
+import { AssuranceStrip, ProposalBacktest, ProposalEvidenceDrawer, proposalCalculations } from "../components/ProposalEvidence";
+export { EvidenceView } from "../components/ProposalEvidence";
 import { api, get, mockEvents, MOCK, post } from "../lib/api";
-import type { AgentNode, DecisionCard, GateResult, Mode, Notification } from "../lib/types";
+import type { AgentEvent, AgentNode, DecisionCard, GateResult, Mode, Notification } from "../lib/types";
 import { useResource } from "../lib/useResource";
 
 type Option = {
@@ -15,8 +17,6 @@ type Proposal = {
   id: string; run_id: string; selected: string; status: string; as_of: string; options: Option[];
   decision_card: DecisionCard; uncertainties: string[]; gates: GateResult[];
 };
-type Evidence = { title: string; source: string; excerpt: string | null; available_at: string; published_at: string | null; url: string | null; data: unknown; quarantined: boolean };
-
 export const gbp = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 export const pct = new Intl.NumberFormat("en-GB", { style: "percent", maximumFractionDigits: 2 });
 export const words = (value: string) => value.replaceAll("_", " ");
@@ -39,27 +39,6 @@ function recordedFixture(id: string): Proposal {
       changes: [], risk_warning: "Recorded paper portfolio · Synthetic fixture", simulated: true } };
 }
 
-export function EvidenceView({ id }: { id: string }) {
-  const evidence = useResource(id, async signal => {
-    if (!MOCK) return get<Evidence>("/evidence/" + encodeURIComponent(id), "", signal);
-    const event = mockEvents().find(item => item.type === "calc.result" && "calc:" + item.id === id);
-    if (!event) throw new Error("Source unavailable in the fixture recording.");
-    return { title: event.title, source: "Recorded calculation", excerpt: null, available_at: event.as_of,
-      published_at: null, url: null, data: event.payload, quarantined: false };
-  });
-  if (!evidence.value) return <p role={evidence.error ? "alert" : "status"}>{evidence.error ?? "Loading source…"}</p>;
-  const item = evidence.value;
-  const url = item.url && /^https?:\/\//i.test(item.url) ? item.url : null;
-  return <div className="evidence-box">
-    <strong>{item.title}</strong><p>{item.source} · Available {item.available_at}</p>
-    {item.quarantined ? <p>This source was quarantined by the assurance gate.</p> : <>
-      {item.excerpt && <blockquote>{item.excerpt}</blockquote>}
-      {item.data != null && <pre>{JSON.stringify(item.data, null, 2)}</pre>}
-      {url && <a href={url} target="_blank" rel="noreferrer">Open source ↗</a>}
-    </>}
-  </div>;
-}
-
 export function ProposalDialog({ id, mode, close, changed }: {
   id: string; mode?: Mode; close: () => void; changed?: () => void;
 }) {
@@ -71,11 +50,24 @@ export function ProposalDialog({ id, mode, close, changed }: {
   const run = useResource(runId ?? "", signal => runId ?
     get<{ agents: AgentNode[] }>("/runs/" + encodeURIComponent(runId), "run_detail", signal) : Promise.resolve(null));
   const [selection, setSelection] = useState("");
-  const [source, setSource] = useState("");
+  const events = useResource(runId ?? "", signal => !runId ? Promise.resolve({ items: [] as AgentEvent[] }) :
+    MOCK ? Promise.resolve({ items: mockEvents() }) :
+      get<{ items: AgentEvent[] }>("/runs/" + encodeURIComponent(runId) + "/events?format=json", "", signal));
+  const [source, setSource] = useState<{ id: string; seq?: number }>();
   const [outcome, setOutcome] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const option = proposal?.options.find(item => item.label === (selection || proposal.selected)) ?? proposal?.options[0];
+  const changes = option?.label === proposal?.selected ? proposal?.decision_card.changes ?? [] : [];
+  const changesByTicker = new Map(changes.map(change => [change.ticker, change]));
+  const exits = changes.filter(change => !option?.holdings.some(item => item.ticker === change.ticker));
+  const { selection: selectedFigures, allocation } = option && events.value ?
+    proposalCalculations(events.value.items, id, option.label, option.holdings) : {};
+  const calculation = selectedFigures ?? allocation;
+
+  function showCalculation() {
+    if (calculation) setSource({ id: "calc:" + calculation.id, seq: calculation.seq });
+  }
 
   useEffect(() => {
     const element = dialog.current;
@@ -89,7 +81,7 @@ export function ProposalDialog({ id, mode, close, changed }: {
     try {
       const result = await post<{ fill_date?: string }>(pathFor(id) + "/" + decision,
         decision === "approve" ? { option: option?.label } : {}, "");
-      setOutcome(decision === "approve" ? (result.fill_date ? "Approved · Scheduled for " + result.fill_date : "Approved") : "Portfolio kept as is");
+      setOutcome(decision === "approve" ? (result.fill_date ? "Approved · Scheduled for " + result.fill_date : "Approved · Queued for the next available close") : "Portfolio kept as is");
       changed?.();
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
@@ -104,39 +96,50 @@ export function ProposalDialog({ id, mode, close, changed }: {
       {run.value?.agents.length ? <div className="proposal-team">{run.value.agents.filter(agent => agent.status !== "denied").slice(0, 4).map(agent =>
         <div key={agent.agent_id}><AgentAvatar role={agent.role} /><span>{words(agent.role === "lead" ? "Lead agent" : agent.role)}</span></div>)}</div> : null}
       {proposal.decision_card.body && <p className="proposal-message">{proposal.decision_card.body}</p>}
-      {option?.label === proposal.selected && proposal.decision_card.changes.length > 0 && <ul className="proposal-gates">{proposal.decision_card.changes.map(change =>
-        <li key={change.ticker}>{words(change.action)} {gbp.format(change.amount_gbp)} · {change.ticker}</li>)}</ul>}
+      <AssuranceStrip results={proposal.gates} draft={proposal.status === "draft" && !MOCK} />
       <div className="mvp-toolbar proposal-options" aria-label="Portfolio options">{proposal.options.map(item =>
         <button className="mvp-action" key={item.label} aria-pressed={item === option} disabled={busy || !!outcome}
-          onClick={() => { setSelection(item.label); setSource(""); }}>{words(item.label)}</button>)}</div>
+          onClick={() => { setSelection(item.label); setSource(undefined); }}>{words(item.label)}</button>)}
+        {calculation && <button className="mvp-link" type="button" onClick={showCalculation}>Show calculations</button>}
+      </div>
+      {source && <ProposalEvidenceDrawer id={source.id} seq={source.seq} runId={proposal.run_id} close={() => setSource(undefined)} />}
       {option && <>
         <div className="proposal-holdings">
           <header><h2>{option.holdings.length} proposed holdings</h2><span>Cash {pct.format(option.cash_weight)} · Est. cost {gbp.format(option.stats.cost_gbp)}</span></header>
           {option.holdings.map(item => {
             const ticker = item.ticker.split(".")[0];
+            const change = changesByTicker.get(item.ticker);
             const fullName = catalogue.value?.instruments.find(instrument => instrument.ticker === item.ticker)?.name ?? ticker;
             const name = fullName.replace(/^(Vanguard|iShares) /, "").replace(/ UCITS ETF\b.*$/, "");
             return <article className="proposal-holding" key={item.ticker}>
               <span className="proposal-issuer"><HoldingIssuer name={fullName} ticker={item.ticker} /></span>
               <div><strong title={fullName}>{name}</strong><small>{item.ticker}{item.purpose && " · " + item.purpose}</small>
                 {item.why_not_alternatives && <details><summary>Why this holding?</summary>{item.why_not_alternatives}</details>}
-                {item.evidence_ids.map(id => <button key={id} className="mvp-link" onClick={() => setSource(id)}>Evidence</button>)}</div>
+                {item.evidence_ids.map((id, index) => <button key={id} className="mvp-link" type="button"
+                  aria-label={"Supporting evidence " + (index + 1) + " for " + ticker} onClick={() => setSource({ id })}>
+                  Evidence{item.evidence_ids.length > 1 ? " " + (index + 1) : ""}
+                </button>)}</div>
               <div className="proposal-weight"><strong>{pct.format(item.weight)}</strong>
-                <span aria-hidden="true"><i style={{ width: pct.format(item.weight) }} /></span></div>
+                <span aria-hidden="true"><i style={{ width: pct.format(item.weight) }} /></span>
+                {change && <small>{change.action === "buy" ? "Buy" : "Sell"} {gbp.format(change.amount_gbp)}</small>}</div>
             </article>;
           })}
+          {exits.length > 0 && <section className="proposal-exits"><h3>Positions to close</h3>
+            <ul>{exits.map(change => <li key={change.ticker}><span>{change.ticker.split(".")[0]}</span>
+              <strong>{change.action === "sell" ? "Sell" : "Buy"} {gbp.format(change.amount_gbp)}</strong></li>)}</ul>
+          </section>}
         </div>
-        {option.stats.max_drawdown_backtest != null && <p className="mvp-muted">Historical backtest drawdown {pct.format(option.stats.max_drawdown_backtest)} · Pre-start data</p>}
+        <ProposalBacktest event={allocation} asOf={proposal.as_of} />
+        {option.stats.max_drawdown_backtest != null && <p className="mvp-muted">Historical worst drawdown {pct.format(option.stats.max_drawdown_backtest)} · Simulated, not a forecast</p>}
       </>}
-      {source && <EvidenceView key={source} id={source} />}
-      {proposal.gates.length > 0 && <ul className="proposal-gates" aria-label="Assurance checks">{proposal.gates.map((gate, index) =>
-        <li key={gate.gate + index} title={gate.issues.join(" · ")} data-status={gate.status}>{words(gate.gate)} · {words(gate.status)}</li>)}</ul>}
+      {option && events.value && !calculation && <p className="mvp-muted">This recording has no calculation for this option.</p>}
       {proposal.uncertainties.length > 0 && <ul className="proposal-uncertainties">{proposal.uncertainties.map((item, i) => <li key={i}>{item}</li>)}</ul>}
       <p className="mvp-muted">{proposal.decision_card.risk_warning}</p>
       {outcome && <p role="status">{outcome}</p>}
       {error && <p role="alert" className="mvp-error">{error}</p>}
       <footer className="mvp-toolbar">
-        <Link to={"/runs/" + encodeURIComponent(proposal.run_id)} className="mvp-action" onClick={close}>Open investigation</Link>
+        <Link to={"/runs/" + encodeURIComponent(proposal.run_id) + "?replay=1"} className="mvp-action" onClick={close}>Why this proposal?</Link>
+        {mode === "live" && <Link to="/profile" className="mvp-action" onClick={close}>Change preferences</Link>}
         {!MOCK && mode === "live" && proposal.status === "awaiting_approval" && !outcome && <>
           <button className="mvp-action" disabled={busy} onClick={() => void decide("decline")}>Decline · Keep current portfolio</button>
           <button className="mvp-action primary" disabled={busy || !option} onClick={() => void decide("approve")}>Approve</button>
@@ -172,7 +175,9 @@ export function DecisionList({ mode }: { mode?: Mode }) {
           <div><strong>{item.title}</strong><p>{item.body}</p><small>{item.created_at.slice(0, 10)}</small></div>
           <div className="mvp-toolbar">
             {item.proposal_id && <button className="mvp-action primary" onClick={() => select(item.proposal_id ?? "")}>Review proposal</button>}
-            {item.run_id && <Link className="mvp-action" to={"/runs/" + encodeURIComponent(item.run_id)}>Open investigation</Link>}
+            {item.run_id && <Link className="mvp-action" to={"/runs/" + encodeURIComponent(item.run_id) + "?replay=1"}>
+              {item.kind === "decision" ? "Why?" : "Open investigation"}
+            </Link>}
             {!item.read && !MOCK && <button className="mvp-action" disabled={!!marking} onClick={() => void markRead(item.id)}>Mark as read</button>}
           </div>
         </article>)}

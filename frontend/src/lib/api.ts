@@ -77,7 +77,7 @@ export async function get<T>(path: string, mock: string, signal?: AbortSignal): 
 }
 
 function canAskForPasscode(path: string, body: unknown): boolean {
-  return path === "/chat" || path === "/portfolio/build" || (
+  return path === "/chat" || path === "/portfolio/build" || path === "/portfolio/review" || (
     path === "/sim/start" && !!body && typeof body === "object" && "run_agents" in body && body.run_agents === true
   );
 }
@@ -147,6 +147,7 @@ export const api = {
   runs: () => get<{ items: Omit<RunSummary, "agents">[] }>("/runs", "runs"),
   runDetail: (runId: string) => get<RunSummary>(`/runs/${encodeURIComponent(runId)}`, "run_detail"),
   build: () => post<{ run_id: string }>("/portfolio/build", {}, "runs").then((r) => ("run_id" in r ? r : { run_id: "mock" })),
+  review: () => post<{ run_id: string }>("/portfolio/review", {}, ""),
   // TODO(#fe-*): pnl, rebalances, benchmarks, proposals, approve/decline, evidence, chat, sim controls
 };
 

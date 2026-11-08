@@ -135,7 +135,11 @@ profile policy ranges; cash minimum cannot fall below policy; caps must be
 non-negative and no larger than policy. Allocation minima cannot total above 1.
 `PUT` must use the current profile and version (use the quiz to change profiles).
 Amounts must be finite/non-negative, cadence positive, trigger/turnover fractions
-within [0,1], and live user approval cannot be disabled. Invalid requests leave
+within [0,1]. Live approval defaults to manual. Saving `approval.require_user_approval: false`
+explicitly opts into automatic approval for new live paper proposals whose one-way
+turnover, including cash, is at or below `approval.batch_auto_approve_turnover_max`.
+This limit is shared with the mandate field used by the separate historical batch policy.
+Saving `true` restores manual approval for future proposals. Invalid requests leave
 state/history unchanged and return 422 `validation_error` with `details.fields`
 mapping dotted field paths to messages. Successful quiz submissions and edits
 increment the current live version, atomically store the previous/new versions
@@ -163,9 +167,12 @@ answers retain conservative zero scores for backwards compatibility.
 | `GET /api/mandate` | — | `Mandate` | Jin |
 | `PUT /api/mandate` | `Mandate` | `Mandate` (version+1), or 422 `validation_error`; historical mode: 409 `validation_error` | Jin |
 | `GET /api/catalogue` | — | `{instruments: Instrument[]}` | Jin |
+| `GET /api/news` | `?limit=20` (1–500) | `{as_of: string, items: {id, tickers: string[], headline, summary, url: string\|null, source, published_at, available_at, synthetic: boolean}[]}`. Newest first, from the active mode's cached news, bounded by the clock. | Mo |
 | `POST /api/portfolio/build` | `{mandate_version?: number}` | `{run_id}` (202) | Dev |
+| `POST /api/portfolio/review` | — | `202 {run_id}`. Current markets and a funded portfolio. Runs a supervised review and applies the saved approval policy to any eligible proposed change. | Mo |
 | `GET /api/portfolio` | `?mode` | `Portfolio` | Mo |
 | `GET /api/portfolio/history` | `?mode&start&end` | `{points: {date, nav_gbp, weights: {[ticker]: number}, contributions_gbp: number\|null}[]}` | Mo |
+| `GET /api/portfolio/holdings/{ticker}/prices` | `?limit=90` (1–260) | `{ticker, as_of, points: [{date, close_gbp}]}` with ascending adjusted daily GBP closes through the active clock. | Mo |
 | `GET /api/portfolio/pnl` | `?mode&period=since_purchase\|1m\|3m\|ytd\|sim_year` | `{period, rows: {ticker, name, pnl_gbp, pnl_pct, realised_gbp, unrealised_gbp, contribution_to_return}[], total_pnl_gbp}` | Mo |
 | `GET /api/portfolio/rebalances` | `?mode&limit=20` | `{items: {date, run_id, trigger_kind, trigger_text, changes: OrderChange[], cost_gbp}[]}` | Mo |
 | `GET /api/benchmarks` | `?mode` | `{series: {[name]: {date, nav_gbp}[]}, metrics: {[name]: Metrics}, periods: {development: [start, end], held_out: [start, end]}}`, where `Metrics = {total_return, vol_annual, max_drawdown, sharpe, turnover, costs_gbp, trades}`; names: `ours`, `buy_and_hold`, `quarterly_rebalance`, `global_etf`, `mechanical_5pct` | Cem |
@@ -178,7 +185,7 @@ answers retain conservative zero scores for backwards compatibility.
 | `POST /api/proposals/{id}/approve` | `{option?: label}` | `{proposal: Proposal, orders: OrderChange[], fill_date: string\|null}` or 409 `stale_data` / `duplicate_order` / `mandate_violation` / `mandate_changed` / `holdings_changed` / `conflict` (declined, expired or blocked, or the assurance gate failed or never finished); 404; 422 unknown option | Cem |
 | `POST /api/proposals/{id}/decline` | `{reason?: string}` | `{proposal: Proposal}` | Cem |
 
-Approval notes (#23): approve revalidates (proposal older than `risk.stale_after_days` trading days or stale prices → `stale_data`; the mandate content changed since the proposal, including a new quiz result → `mandate_changed`; a trade filled since → `holdings_changed`; already approved or the same order pending → `duplicate_order`), re-runs the engine checker (`mandate_violation`), then queues the orders for the next close (`fill_date`) and emits `approval.decided {by: "user"}`. Decline stores the reason (also appended to `uncertainties` as `Declined: …`). In a manual-approval replay started via `/api/sim/start`, the replay pauses itself while a proposal is `awaiting_approval` and resumes after approve/decline.
+Approval notes (#23): approve revalidates (proposal older than `risk.stale_after_days` trading days or stale prices → `stale_data`; the mandate content changed since the proposal, including a new quiz result → `mandate_changed`; a trade filled since → `holdings_changed`; already approved or the same order pending → `duplicate_order`), re-runs the engine checker (`mandate_violation`), then queues the orders for the next close (`fill_date`) and emits `approval.decided {by: "user"}`. Live opt-in uses the same revalidation after all seven assurance checks have passed and emits `by: "user_policy"` with the checked turnover. Proposals outside the opt-in or cap ask for approval. Live paper orders use the first later close with observed quotes for all affected holdings. When the close date is unknown at approval, `fill_date` is null and the fill event records its actual date. Decline stores the reason (also appended to `uncertainties` as `Declined: …`). In a manual-approval replay started via `/api/sim/start`, the replay pauses itself while a proposal is `awaiting_approval` and resumes after approve/decline.
 | `GET /api/evidence/{id}` | — | `Evidence` | Jin |
 | `GET /api/notifications` | `?mode&unread=true` | `{items: {id, kind: "decision"\|"digest"\|"coverage", title, body, proposal_id, run_id, created_at, read}[]}` | Jin |
 | `POST /api/notifications/{id}/read` | — | `{ok: true}` | Jin |
@@ -249,7 +256,7 @@ interface Event {
 | `tool.call` | tool wrapper | `{tool, args}` |
 | `tool.result` | tool wrapper | `{tool, ok, summary, result_ref}` |
 | `source.inspect` | tool wrapper | `{evidence_id, kind, title, source, published_at}` |
-| `calc.result` | engine tool | `{name, inputs, outputs}` |
+| `calc.result` | engine tool | `{name, inputs, outputs}`. Tool calculations carry the calling agent's event metadata. Backtest outputs can include NAV points and correlation outputs can include the computed matrix. |
 | `finding` | agent | `{claim, confidence, uncertainties, recommendation}` |
 | `gate.started` / `gate.verdict` | gate | `{gate, status, issues, required_changes}` |
 | `revision.requested` | gate | `{by_gate, points}` |
@@ -258,8 +265,8 @@ interface Event {
 | `asof.violation` | gateway | `{requested_end, as_of, caller}` |
 | `decision.made` | lead | `{action: "maintain"\|"adjust"\|"investigate_further", reason}` |
 | `proposal.created` | supervisor | `{proposal_id, kind}` |
-| `approval.requested` / `approval.decided` | approvals | `{proposal_id, decision, by: "user"\|"batch_policy"}` (+ `turnover`) |
-| `order.filled` | ledger | `{ticker, action, units, price_gbp, amount_gbp, cost_gbp}` |
+| `approval.requested` / `approval.decided` | approvals | `{proposal_id, decision, by: "user"\|"batch_policy"\|"user_policy"}` (+ `turnover`, `fill_date`) |
+| `order.filled` | ledger | `{ticker, action, units, price_gbp, amount_gbp, cost_gbp}` (+ `proposal_id` and `date` for live fills) |
 | `monitor.fired` | monitors | `{monitor_id, rule, ticker, value, threshold}` |
 | `monitor.created` / `monitor.shadow_result` / `monitor.activated` / `monitor.disabled` | monitors | `{monitor_id, spec?, result?}` |
 | `rule.proposed` / `rule.tested` / `rule.promoted` / `rule.applied` | learning | `{rule_id, text, results?}` |

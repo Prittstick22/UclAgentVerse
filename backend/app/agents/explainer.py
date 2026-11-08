@@ -39,16 +39,29 @@ def percent_without_pound(text: str) -> list[str]:
     return [s.strip() for s in SENTENCE.split(text or "") if PCT.search(s) and "£" not in s]
 
 
+def decision_figures(option: PortfolioOption, changes: list[OrderChange], capital_gbp: float) -> dict[str, float]:
+    """Deterministic amounts behind the decision copy and the evidence drawer."""
+    buys = sum(change.amount_gbp for change in changes if change.action == "buy")
+    sells = sum(change.amount_gbp for change in changes if change.action == "sell")
+    return {
+        "invested_gbp": (1 - option.cash_weight) * capital_gbp,
+        "cash_gbp": option.cash_weight * capital_gbp,
+        "buy_total_gbp": buys,
+        "sell_total_gbp": sells,
+        "amount_moved_gbp": max(buys, sells),
+        "annual_fund_fees_gbp": option.stats.ocf_weighted * capital_gbp,
+    }
+
+
 def decision_card(kind: str, option: PortfolioOption, changes: list[OrderChange], capital_gbp: float,
                   cost_gbp: float, lookback_days: int) -> DecisionCard:
     """Build the card from code numbers only. `kind` is 'construction' or 'adjustment'."""
     n = len(option.holdings)
-    invested = (1 - option.cash_weight) * capital_gbp
-    cash = option.cash_weight * capital_gbp
-    buys = sum(c.amount_gbp for c in changes if c.action == "buy")
-    sells = sum(c.amount_gbp for c in changes if c.action == "sell")
+    figures = decision_figures(option, changes, capital_gbp)
+    invested, cash = figures["invested_gbp"], figures["cash_gbp"]
+    buys, sells = figures["buy_total_gbp"], figures["sell_total_gbp"]
     s = option.stats
-    fees_year = s.ocf_weighted * capital_gbp
+    fees_year = figures["annual_fund_fees_gbp"]
 
     holdings = f"{n} holding{'s' if n != 1 else ''}"
     if kind == "construction":
@@ -58,7 +71,7 @@ def decision_card(kind: str, option: PortfolioOption, changes: list[OrderChange]
         headline = "No trades needed: your portfolio already matches this option"
         what = "Keeps your holdings as they are; nothing would be bought or sold."
     else:
-        moved = max(buys, sells)
+        moved = figures["amount_moved_gbp"]
         headline = (f"Suggested change: {len(changes)} trade{'s' if len(changes) != 1 else ''}, "
                     f"about {gbp(moved)} moved")
         what = (f"Sells {gbp(sells)} and buys {gbp(buys)}, so about {pct_with_gbp(moved / capital_gbp, capital_gbp)} "

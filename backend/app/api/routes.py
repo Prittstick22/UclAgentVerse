@@ -8,18 +8,19 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
+from app.agents.guard import scan
 from app.api.demo_guard import check_budget, guard_agent_run, require_passcode
 from app.api.portfolio import PortfolioView
 from app.api.recorded_replay import controller as sim_controller
 from app.api.run_views import agent_tree, find_evidence, summarize
-from app.container import state_for_mode
+from app.container import AppState, state_for_mode
 from app.core.events import Event, sse_frame
 from app.data.gateway import AsOfViolation
 from app.data.live import updates
@@ -34,10 +35,13 @@ from app.schemas import (
     Evidence,
     Mandate,
     Mode,
+    NewsFeed,
     Notifications,
     PnlPeriod,
     Portfolio,
     PortfolioHistory,
+    HoldingPricePoint,
+    HoldingPrices,
     PortfolioPnl,
     PortfolioRebalances,
     QuizRequest,
@@ -150,17 +154,59 @@ async def build(request: Request):
         if recorded is None or recorded.as_of > s.clock.as_of_str():
             err(404, "not_found", "No construction run is visible in this recording")
         return {"run_id": recorded.run_id}
+    return _start_portfolio_investigation(s, "construction", "User asked to build a portfolio")
+
+
+@router.post("/portfolio/review", status_code=202, dependencies=[Depends(guard_agent_run)])
+async def review_now(request: Request):
+    s = S(request)
+    if s.clock.mode != "live":
+        err(409, "validation_error", "Switch to current markets to request a new portfolio review.")
+    if not s.ledger.weights():
+        err(409, "validation_error", "Build your paper portfolio before starting a review.")
+    return _start_portfolio_investigation(s, "review", "User requested a portfolio check")
+
+
+def _start_portfolio_investigation(s: AppState, kind: str, reason: str) -> dict[str, str]:
+    if kind == "review":
+        active_review = next((run_id for run_id, task in s.runs.items() if task.get_name() == "portfolio-review"), None)
+        if active_review:
+            return {"run_id": active_review}
     run_id = f"run_{uuid.uuid4().hex}"
-    task = asyncio.create_task(s.supervisor.start("construction", "User asked to build a portfolio", run_id=run_id))
+
+    async def investigate() -> None:
+        run = await s.supervisor.start(kind, reason, run_id=run_id)
+        proposal = s.proposals.get(run.proposal_id)
+        if proposal is not None and proposal.status == "draft":
+            if s.clock.mode == "live":
+                approvals.handle_live(s, proposal)
+            else:
+                approvals.handle(s, proposal, "manual", construction=kind == "construction")
+
+    task = asyncio.create_task(investigate(), name=f"portfolio-{kind}")
     s.runs[run_id] = task
 
     def finished(task: asyncio.Task) -> None:
         s.runs.pop(run_id, None)
         if not task.cancelled() and task.exception() is not None:
-            log.error("Portfolio build %s failed", run_id, exc_info=task.exception())
+            log.error("Portfolio investigation %s failed", run_id, exc_info=task.exception())
 
     task.add_done_callback(finished)
     return {"run_id": run_id}
+
+
+@router.get("/news")
+def latest_news(request: Request, limit: int = Query(default=20, ge=1, le=500)) -> NewsFeed:
+    s = S(request)
+    now = s.clock.now()
+    visible = sorted(
+        (item for item in s.gw.news(caller="api.news")
+         if datetime.fromisoformat(item.published_at) <= now and item.headline
+         and not scan(f"{item.headline} {item.summary}")),
+        key=lambda item: (datetime.fromisoformat(item.published_at), item.id),
+        reverse=True,
+    )
+    return NewsFeed(as_of=s.clock.as_of_str(), items=visible[:limit])
 
 
 @router.get("/portfolio")
@@ -199,6 +245,22 @@ def pnl(request: Request, mode: Mode | None = None, period: PnlPeriod = "since_p
         return PortfolioView(S(request, mode), mode).pnl(period)
     except PortfolioDataUnavailable as exc:
         err(409, "validation_error", str(exc))
+
+
+
+@router.get("/portfolio/holdings/{ticker}/prices")
+def holding_prices(request: Request, ticker: str, limit: int = Query(default=90, ge=1, le=260)) -> HoldingPrices:
+    s = S(request)
+    if not any(instrument.ticker == ticker for instrument in s.gw.catalogue(eligible_only=False)):
+        err(404, "not_found", "Unknown holding")
+    try:
+        closes = s.gw.prices([ticker], caller="api.holding_prices")[ticker]
+    except KeyError:
+        return HoldingPrices(ticker=ticker, as_of=s.clock.as_of_str(), points=[])
+    visible = closes[closes.gt(0) & closes.lt(float("inf"))].tail(limit)
+    return HoldingPrices(ticker=ticker, as_of=s.clock.as_of_str(), points=[
+        HoldingPricePoint(date=day.date().isoformat(), close_gbp=float(close)) for day, close in visible.items()
+    ])
 
 
 @router.get("/portfolio/rebalances")
