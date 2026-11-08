@@ -30,7 +30,11 @@ def catalogue_raw() -> list[dict]:
     return json.loads((CONFIG_DIR / "catalogue.json").read_text())["instruments"]
 
 
+PERSONA_FILES = {"priya": "demo_persona.yaml", "caroline": "demo_persona_caroline.yaml"}
+
+
 @lru_cache
-def demo_persona() -> dict:
-    """Fixed fictional persona for the historical demo (locked profile; the recorded run uses it)."""
-    return yaml.safe_load((CONFIG_DIR / "demo_persona.yaml").read_text(encoding="utf-8"))
+def demo_persona(name: str = "priya") -> dict:
+    """Fixed fictional persona for a historical demo (locked profile; its recorded run uses it).
+    priya = the recorded balanced demo (default, never changed); caroline = the higher-risk scenario."""
+    return yaml.safe_load((CONFIG_DIR / PERSONA_FILES[name]).read_text(encoding="utf-8"))

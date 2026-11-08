@@ -242,6 +242,8 @@ class Supervisor:
             return "MANDATE: unknown"
         stocks = (f"single stocks allowed up to {m.caps.stocks_total:.0%} in total, {m.caps.per_stock:.0%} each"
                   if m.caps.stocks_total > 0 else "NO single stocks (funds only)")
+        if m.caps.stocks_min > 0:
+            stocks += f", and at least {m.caps.stocks_min:.0%} in single stocks"
         g = m.goal
         return (f"MANDATE (v{m.version}): profile {m.profile} · shares {m.ranges.equity[0]:.0%}-{m.ranges.equity[1]:.0%} · "
                 f"bonds {m.ranges.bond[0]:.0%}-{m.ranges.bond[1]:.0%} · cash at least {m.ranges.cash_min:.0%} · "

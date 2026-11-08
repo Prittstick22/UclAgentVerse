@@ -13,6 +13,7 @@ from app.agents.llm import LLMError
 from app.api.run_views import find_evidence
 from app.container import build_state
 from app.profile.demo import demo_mandate
+from app.schemas import Mandate
 from app.settings import Settings
 from app.sim.evaluate import BENCHMARKS
 from app.sim.runner import Simulation
@@ -95,7 +96,8 @@ def validate_state(state, start: str, end: str, *, agents: bool) -> dict:
         raise CaptureError("Recording window or benchmark coverage is incomplete")
     if not state.ledger.fills or not state.ledger.positions:
         raise CaptureError("Recording has no invested portfolio")
-    if state.db.get("sim_mandate", "initial") != demo_mandate().model_dump_json():
+    raw = state.db.get("sim_mandate", "initial")
+    if not raw or Mandate.model_validate_json(raw) != demo_mandate():
         raise CaptureError("Initial mandate does not match Priya")
     if any(event["type"] in ("agent.status", "run.completed") and event.get("status") == "failed"
            or event["type"] == "budget.exceeded" for event in events):

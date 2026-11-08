@@ -99,6 +99,9 @@ Rules:
 | balanced | 40–60% | 35–55% | 3% | 10% | 3% | 50% |
 | growth | 60–80% | 15–35% | 2% | 15% | 4% | 60% |
 | adventurous | 80–98% | 0–15% | 2% | 20% | 5% | 60% |
+| aggressive (scenario) | 95–98% | 0% | 2% | **57–60%** (`stocks_min` 0.57) | 10% | 30% |
+
+`aggressive` is the higher-risk second demo scenario (Caroline, `demo_persona_caroline.yaml`): about 60% single stocks + 40% equity ETFs, no bonds. It was added on Dev's instruction on 8 Nov, after `eval-freeze`, as a NEW profile; the four profiles above are unchanged. It is not reachable from the quiz (top band = adventurous). `stocks_min` (optional, default 0) is a floor on single stocks in total, enforced by the optimiser (`stocks_min` constraint) and the checker (`stocks_min` violation).
 
 `params.yaml`:
 

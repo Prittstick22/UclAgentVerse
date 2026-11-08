@@ -31,8 +31,8 @@ def validate(mandate: Mandate, current: Mandate | None = None) -> dict[str, str]
     elif mandate.ranges.equity[0] + mandate.ranges.bond[0] + cash > 1 + 1e-9:
         errors["ranges.cash_min"] = "Minimum equity, bond and cash weights cannot total more than 1."
     for name, value in mandate.caps.model_dump().items():
-        if not math.isfinite(value) or not 0 <= value <= limits[name]:
-            errors[f"caps.{name}"] = f"Choose a cap between 0 and {limits[name]}."
+        if not math.isfinite(value) or not 0 <= value <= limits.get(name, 0.0):   # stocks_min: 0 unless set
+            errors[f"caps.{name}"] = f"Choose a cap between 0 and {limits.get(name, 0.0)}."
     for name in ("starting_amount_gbp", "monthly_contribution_gbp"):
         value = getattr(mandate.goal, name)
         if not math.isfinite(value) or value < 0:

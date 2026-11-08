@@ -8,7 +8,11 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 **Model note:** the session switched Opus 5.5 → Sonnet 5.5 at ~05:00 and **back to Opus 5.5** at ~05:10. Use whatever attribution line your own harness gives you. When you post live-run results, say which model produced them.
 
-### Latest: portable public bundle + handoff prepared (Codex, 8 Nov)
+### Latest: Caroline higher-risk scenario profile (Claude Opus 5.5, 8 Nov)
+
+Branch `dev/caroline-aggressive-profile`. Added the `aggressive` profile (policy.yaml, new entry only), `Caps.stocks_min` (optional, default 0, enforced by the optimiser + checker), persona `caroline` (`demo_persona("caroline")`, `demo_mandate("caroline")`) and `runner --persona caroline`. Priya's persona, mandate and prompts are byte-identical. 457 backend tests pass. Engine-only real-snapshot construction: 57.0% stocks / 39.1% ETFs / 0% bonds. **Next (needs Dev):** decide on the Caroline capture (paid) and how the demo offers a second recording; see handoff/STATE.md.
+
+### Earlier: portable public bundle + handoff prepared (Codex, 8 Nov)
 
 **COMPLETE / published:** PR #139 merged as 144a4a7 after BOTH GitHub CI jobs passed. All 454 backend tests, 7 frontend tests/build and targeted lint passed. The documented `python scripts/demo.py --setup --port 8012` was run from a FRESH local git clone with a new venv/npm install, no .env, and a deliberately conflicting host LLM_MODE=live/dummy key. The launcher correctly forced replay/cleared provider credentials. UI HTML/assets and all 54 evidence IDs worked; full saved stepping, 5 comparison series, 4 holdings, 9 runs, separate cautious fictional quiz and explicit 409 refusals for new Live build/review passed. Zero Live model calls; source recording hash unchanged. Only the verified fresh-clone test server was stopped afterward; Dev's original :8000/:5173 app remains running. Validation evidence is ignored at backend/runs/portable-validation/result.json.
 

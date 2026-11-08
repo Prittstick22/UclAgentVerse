@@ -34,7 +34,7 @@ def check_proposal(weights: dict[str, float], cash_weight: float, mandate: Manda
                    catalogue: list[Instrument], current_weights: dict[str, float] | None = None,
                    nav_gbp: float | None = None) -> CheckReport:
     """Every mandate rule in docs/07 §3, recomputed from scratch. Violation codes: not_a_number, sum, cash_min,
-    ineligible, units, short, excluded, concentration, equity_range, bond_range, stocks_total."""
+    ineligible, units, short, excluded, concentration, equity_range, bond_range, stocks_total, stocks_min."""
     by_ticker = {i.ticker: i for i in catalogue}
     v: list[Violation] = []
     def number(x) -> bool:   # bool is an int in Python: True would otherwise count as a 100% weight
@@ -84,6 +84,9 @@ def check_proposal(weights: dict[str, float], cash_weight: float, mandate: Manda
     if stocks > mandate.caps.stocks_total + 1e-6:
         v.append(Violation(code="stocks_total", message=f"Single stocks {stocks:.1%} above {mandate.caps.stocks_total:.0%}",
                            value=stocks, limit=mandate.caps.stocks_total))
+    if stocks < mandate.caps.stocks_min - 1e-6:
+        v.append(Violation(code="stocks_min", message=f"Single stocks {stocks:.1%} below {mandate.caps.stocks_min:.0%}",
+                           value=stocks, limit=mandate.caps.stocks_min))
 
     ocf = sum(w * by_ticker[t].ocf for t, w in weights.items() if t in by_ticker)
     recomputed: dict = {"equity": eq, "bond": bd, "stocks": stocks, "cash": cash_weight, "sum": total,

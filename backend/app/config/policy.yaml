@@ -29,3 +29,14 @@ profiles:
     stocks_total: 0.20
     per_stock: 0.05
     per_fund: 0.60
+  # Higher-risk SCENARIO profile for the second historical demo (Caroline). Not reachable from the quiz (its top band
+  # is adventurous); added on Dev's instruction 8 Nov, after eval-freeze, without changing the four profiles above.
+  # About 60% single stocks + 40% equity ETFs, no bonds. stocks_min is a floor so the optimiser can't drift to funds.
+  aggressive:
+    equity: [0.95, 0.98]
+    bond: [0.00, 0.00]
+    cash_min: 0.02
+    stocks_min: 0.57
+    stocks_total: 0.60
+    per_stock: 0.10
+    per_fund: 0.30
