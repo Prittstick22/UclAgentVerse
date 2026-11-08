@@ -116,8 +116,13 @@ def _weights_from(ctx: ToolContext, args: dict, run: Any) -> tuple[dict[str, flo
 
 
 def _capital(ctx: ToolContext) -> float:
+    """Portfolio value; before the first deposit, the plan's starting amount (what approval will deposit)."""
     nav = ctx.state.ledger.nav()
-    return nav if nav > 0 else float(params()["sim"]["capital_gbp"])
+    if nav > 0:
+        return nav
+    mandate = getattr(ctx.state, "mandate", None)
+    start = getattr(getattr(mandate, "goal", None), "starting_amount_gbp", None)
+    return float(start) if start else float(params()["sim"]["capital_gbp"])
 
 
 def _cov(ctx: ToolContext, tickers: list[str], caller: str) -> pd.DataFrame:

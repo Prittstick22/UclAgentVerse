@@ -230,6 +230,12 @@ function MandateReview({ mandate: initial, profile, busy, submit, saveOnly = fal
       <label>Review every (trading days)<input className="terminal-field" type="number" min="1" required value={mandate.review_every_n_days}
         onChange={e => setMandate({ ...mandate, review_every_n_days: Number(e.target.value) })} />
         <small>10 trading days is roughly two weeks. A review checks the portfolio and can propose a change.</small></label>
+      {(["starting_amount_gbp", "monthly_contribution_gbp"] as const).map(field =>
+        <label key={field}>{field === "starting_amount_gbp" ? "Starting amount (£)" : "Monthly contribution (£)"}
+          <input className="terminal-field" type="number" min={field === "starting_amount_gbp" ? 100 : 0} step="50" required
+            defaultValue={mandate.goal[field]}
+            onChange={e => { if (e.target.value.trim() !== "" && Number.isFinite(Number(e.target.value)))
+              setMandate({ ...mandate, goal: { ...mandate.goal, [field]: Number(e.target.value) } }); }} /></label>)}
       <label>Exclusions (comma separated)<input className="terminal-field" defaultValue={mandate.exclusions.join(", ")}
         onChange={e => setMandate({ ...mandate, exclusions: e.target.value.split(",").map(x => x.trim()).filter(Boolean) })} />
         <small>Enter exact tickers or catalogue groups, separated by commas. Leave blank for no exclusions.</small></label>
