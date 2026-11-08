@@ -46,14 +46,19 @@ export default function Quiz({ mode, changing, onMode, complete }: {
     return () => { abort.abort(); window.clearTimeout(timer.current); };
   }, []);
 
-  async function chooseMode(next: Mode) {
+  async function chooseMode(next: Mode, persona: "priya" | "caroline" = "priya") {
     setBusy(true);
     setError("");
     try {
+      // One URL, two recordings: the server's proxy sends requests with persona=caroline to Caroline's replay.
+      document.cookie = persona === "caroline" && next === "historical"
+        ? "persona=caroline; path=/; SameSite=Lax" : "persona=; path=/; max-age=0; SameSite=Lax";
       if (!await onMode(next)) throw new Error("Couldn’t change the market mode. Try again.");
       if (next === "historical") {
         const profile = await get<DemoProfile>("/profile/demo", "demo_profile");
-        setDemo({ ...profile, ranges: profile.mandate.ranges, recording: true });
+        // Without the proxy (local dev), Caroline's button still shows her example profile.
+        if (persona === "caroline" && profile.name !== "Caroline") setDemo(caroline);
+        else setDemo({ ...profile, ranges: profile.mandate.ranges, recording: true });
       } else setDemo(null);
       setStep(1);
     } catch (e) { setError((e as Error).message); }
@@ -136,8 +141,8 @@ export default function Quiz({ mode, changing, onMode, complete }: {
           <div className="onboard-options">
             <button className="glass-feedback" disabled={busy || changing || !mode} onClick={() => void chooseMode("historical")}><strong>Priya</strong>
               <span>Lower risk tolerance · Full portfolio replay</span></button>
-            <button className="glass-feedback" disabled={busy || changing} onClick={() => { setDemo(caroline); setError(""); setStep(1); }}><strong>Caroline</strong>
-              <span>Higher risk tolerance · Profile walkthrough</span></button>
+            <button className="glass-feedback" disabled={busy || changing} onClick={() => void chooseMode("historical", "caroline")}><strong>Caroline</strong>
+              <span>Higher risk tolerance · Full portfolio replay</span></button>
           </div>
         </section>}
         {entry === "live" && <button className="mvp-action onboard-start mvp-enter" disabled={busy || changing || !mode}

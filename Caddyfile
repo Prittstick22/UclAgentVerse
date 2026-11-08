@@ -1,13 +1,15 @@
 {$DOMAIN} {
 	encode gzip
-	reverse_proxy app:8000 {
-		flush_interval -1
+	# One URL, two recorded demos: the landing page sets persona=caroline for Caroline's replay.
+	@caroline header_regexp Cookie (^|;\s*)persona=caroline(;|$)
+	handle @caroline {
+		reverse_proxy caroline:8000 {
+			flush_interval -1
+		}
 	}
-}
-
-caroline.{$DOMAIN} {
-	encode gzip
-	reverse_proxy caroline:8000 {
-		flush_interval -1
+	handle {
+		reverse_proxy app:8000 {
+			flush_interval -1
+		}
 	}
 }
