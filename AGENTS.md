@@ -38,7 +38,8 @@ Shared and contract files (change only with a board message, §5): `docs/04-api-
 6. **No secrets in git.** Keys go in `.env` (git-ignored) (on the DigitalOcean droplet only). Never print keys in logs or events.
 7. **No real personal or financial data.** Profiles and amounts are fictional. Paper trading only. Synthetic data must be labelled `synthetic` in its source field and in the UI.
 8. **Offline-friendly.** Code must run with `LLM_MODE=fake` (no Gemini key) and with the synthetic snapshot (no data keys). Tests must not hit the network.
-9. **Keep it small.** We have hours, not weeks. Prefer the simplest thing that satisfies the issue's acceptance criteria. No new frameworks without a board message.
+9. **Keep the organisers' kit out of our code.** The AgentVerse finance kit lives outside the repo at `../agentverse/` (gitignored). Never copy its files into the repo except into `.agents/skills/`, and never write these names in our code, even in comments: `bench`, `testbed`, `core` imports from the kit, `answers.jsonl`, `SEED-REVEAL`, `AGENTVERSE_CHALLENGE`, `data.binance.vision`. The organisers' hidden-test provenance scan flags them in our judging report. Details: `docs/finance-kit.md`.
+10. **Keep it small.** We have hours, not weeks. Prefer the simplest thing that satisfies the issue's acceptance criteria. No new frameworks without a board message.
 
 ## 4. How to work an issue
 
