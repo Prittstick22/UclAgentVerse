@@ -135,7 +135,7 @@ interface AgentNode {
 | `GET /api/portfolio/pnl` | `?mode&period=since_purchase\|1m\|3m\|ytd\|sim_year` | `{period, rows: {ticker, name, pnl_gbp, pnl_pct, realised_gbp, unrealised_gbp, contribution_to_return}[], total_pnl_gbp}` | Cem |
 | `GET /api/portfolio/rebalances` | `?mode&limit=20` | `{items: {date, run_id, trigger_kind, trigger_text, changes: OrderChange[], cost_gbp}[]}` | Cem |
 | `GET /api/benchmarks` | `?mode` | `{series: {[name]: {date, nav_gbp}[]}, metrics: {[name]: Metrics}, periods: {development: [start, end], held_out: [start, end]}}`, where `Metrics = {total_return, vol_annual, max_drawdown, sharpe, turnover, costs_gbp, trades}`; names: `ours`, `buy_and_hold`, `quarterly_rebalance`, `global_etf`, `mechanical_5pct` | Cem |
-| `GET /api/risk/correlation` | `?mode&as_of&lookback=252` | `{as_of, lookback, tickers: string[], matrix: number[][], avg_pairwise: number, callouts: {a, b, corr, text}[]}` | Cem |
+| `GET /api/risk/correlation` | `?mode&as_of&lookback&tickers` (`lookback` default = params `optimiser.lookback`, 504; `as_of` = any past date, future → 400 `asof_violation`) | `{as_of, lookback, tickers: string[], matrix: number[][], avg_pairwise: number, callouts: {a, b, corr, text}[], history_days: number, short_history: boolean}` (`short_history` = fewer than 252 return rows were available; used anyway, flagged) | Cem |
 | `GET /api/runs` | `?mode&kind&limit` | `{items: RunSummary[]}` (agents omitted) | Jin |
 | `GET /api/runs/{run_id}` | — | `RunSummary` | Jin |
 | `GET /api/runs/{run_id}/events` | `?after=seq&format=sse\|json` | SSE stream of `Event` (default), or `{items: Event[]}` | Jin |
@@ -211,7 +211,8 @@ interface Event {
 ```python
 # Engine (Cem), called by agents' tools (Dev) and the simulator
 engine.risk.covariance(returns: pd.DataFrame) -> pd.DataFrame          # Ledoit-Wolf, annualised
-engine.risk.correlation_report(gw, tickers, as_of, lookback=252) -> CorrelationReport
+engine.risk.correlation_report(prices, as_of, lookback=None, names=None) -> CorrelationReport   # lookback None = params 504
+engine.risk.risk_stats(weights, prices, benchmark=None, lookback=None) -> RiskStats   # vol, max_drawdown, beta, herfindahl, history flag
 engine.optimiser.optimise(req: OptimiseRequest) -> OptimiseResult        # variant: recommended|lower_cost|lower_risk; optional req.mu (pd.Series, from engine.forecast, #73); status "error" if a candidate has no risk data
 engine.checker.check_proposal(proposal_weights, mandate, catalogue, prices) -> CheckReport   # numbers + mandate
 engine.checker.revalidate(proposal, ledger, gw) -> CheckReport

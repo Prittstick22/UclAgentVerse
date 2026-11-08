@@ -68,6 +68,9 @@ def main() -> None:
         if "manifest" in steps:
             write_manifest(out, coverage)
     for step in a.only.split(","):
+        if step in {"news", "filings", "earnings"}:
+            from scripts.fetch_text import run_step; run_step(step, a.out, date.fromisoformat(a.end))
+            continue
         if step in {"prices", "fx", "checks", "manifest"}:
             print(f"[{step}] complete")
             continue

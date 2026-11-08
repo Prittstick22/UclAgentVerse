@@ -180,9 +180,10 @@ async def get_prices(ctx: ToolContext, args: dict, run: Any) -> dict:
 async def correlation_lattice(ctx: ToolContext, args: dict, run: Any) -> dict:
     tickers = args.get("tickers") or [i.ticker for i in ctx.gw.catalogue()][:10]
     prices = ctx.gw.prices(tickers, caller="tool.correlation_lattice")
-    rep = risk.correlation_report(prices, ctx.gw.clock.as_of_str(), args.get("lookback", 252))
-    eid = _calc(ctx, run, "correlation_lattice", {"tickers": tickers}, {"avg_pairwise": rep.avg_pairwise},
-                "Correlation lattice computed")
+    rep = risk.correlation_report(prices, ctx.gw.clock.as_of_str(), args.get("lookback"))
+    eid = _calc(ctx, run, "correlation_lattice", {"tickers": tickers, "lookback": rep.lookback},
+                {"avg_pairwise": rep.avg_pairwise, "history_days": rep.history_days,
+                 "short_history": rep.short_history}, "Correlation lattice computed")
     return {"ok": True, "summary": f"avg pairwise correlation {rep.avg_pairwise:.2f}",
             "callouts": [c.text for c in rep.callouts[:4]], "evidence_ids": [eid]}
 
