@@ -127,6 +127,7 @@ class Simulation:
             raise ValueError("run() needs a fresh ledger: this one already has money in it (build a new state)")
         self.targets = targets
         self.n_review = state.mandate.review_every_n_days
+        self.review_change: tuple[int, int] | None = None   # (from day index, new cadence); capture fallback only
         self.cool = Cooldowns(prm["cooldown_days"], prm["fold_into_review_days"])
         self.res = SimResult(start=str(self.days[0].date()), end=str(self.days[-1].date()), days=len(self.days))
         self.bench: list[Benchmark] = []
@@ -137,6 +138,19 @@ class Simulation:
         self.i = 0
         self.capital = float(prm["sim"]["capital_gbp"])
         self.flows: dict[str, float] = {}         # date -> contribution (for time-weighted returns)
+
+    def set_review_every_from(self, date: str, n: int) -> None:
+        """From `date`, review every n trading days, counted from the last regular review before it."""
+        i0 = next((k for k, d in enumerate(self.days) if str(d.date()) >= date), len(self.days))
+        self.review_change = (i0 - i0 % self.n_review, int(n))
+
+    def _review_cadence(self, i: int) -> tuple[bool, int]:
+        """(is today a review day, trading days until the next review)."""
+        base, n = (0, self.n_review)
+        if self.review_change is not None and i > self.review_change[0]:
+            base, n = self.review_change
+        k = (i - base) % n
+        return k == 0, (n if k == 0 else n - k)
 
     @property
     def done(self) -> bool:
@@ -214,9 +228,8 @@ class Simulation:
                     + rules.price_move_hits(day_ret, since, trg["price_move_day"], trg["price_move_since_review"])
                     + rules.nav_drop_hit(led.nav(), self.nav_at_last_review, trg["nav_drop"])
                     + self._news_hits(held))
-            review_day = i % self.n_review == 0
             # on a review day nothing is "folded into the review": the hits ARE part of it, so keep them
-            days_to_review = self.n_review if review_day else self.n_review - (i % self.n_review)
+            review_day, days_to_review = self._review_cadence(i)
             acted = self.cool.filter(hits, i, days_to_review)
             if hits and not acted and not review_day:
                 res.trigger_counts["suppressed"] += 1   # in cooldown, or folded into a review due soon

@@ -101,23 +101,35 @@ def test_provider_error_messages_do_not_include_request_secrets():
     assert "do-not-emit-this" not in str(error.value)
 
 
-@pytest.mark.parametrize("event_type,title", [
-    ("agent.status", "Agent failed"), ("run.completed", "Run failed"),
-    ("budget.exceeded", "Run limit"), ("decision.made", "Initial portfolio built by the engine"),
+@pytest.mark.parametrize("event_type,title,status,payload,stops", [
+    ("agent.status", "Agent failed", "failed", {"reason": "LLMError: Gemini unreachable after retries"}, True),
+    ("run.completed", "Run failed", "failed", {}, True),
+    ("decision.made", "Initial portfolio built by the engine", "ok", {}, True),
+    ("agent.status", "Agent failed", "failed", {"reason": "reply did not match the schema after 2 attempts"}, False),
+    ("budget.exceeded", "Run hit its token budget", None, {"limit": "tokens"}, False),
 ])
-def test_agent_failure_or_fallback_stops_before_next_day(tmp_path, snapshot_dir, monkeypatch, event_type, title):
+def test_only_provider_failures_or_fallback_stop_the_capture(tmp_path, snapshot_dir, monkeypatch, event_type, title,
+                                                              status, payload, stops):
+    """Dev, 8 Nov: a recording stops only for real API/key failures (or a crashed run / engine construction)."""
     monkeypatch.setattr("app.sim.capture.check_real_inputs", lambda state: None)
     days = []
     async def failed_step(self):
         days.append(self.i)
-        self.state.events.emit(event_type, title=title, status="failed")
+        self.state.events.emit(event_type, title=title, status=status, payload=payload)
         self.i += 1
     monkeypatch.setattr("app.sim.capture.Simulation.step", failed_step)
     out = tmp_path / "failed-agent"
-    with pytest.raises(CaptureError, match="technical agent failure"):
-        asyncio.run(capture(Settings(snapshot_dir=snapshot_dir, llm_mode="live"), out,
-                            tmp_path / "budget.json", 5, "2026-07-07", "2026-07-10"))
-    assert days == [0] and not (out / "READY.json").exists()
+    run = capture(Settings(snapshot_dir=snapshot_dir, llm_mode="live"), out, tmp_path / "budget.json", 5,
+                  "2026-07-07", "2026-07-10")
+    if stops:
+        with pytest.raises(CaptureError, match="provider failure or a crashed run"):
+            asyncio.run(run)
+        assert days == [0]
+    else:
+        with pytest.raises(CaptureError):   # the fake step makes no portfolio, so it stops later for that reason
+            asyncio.run(run)
+        assert "provider failure" not in json.loads((out / "attempt.json").read_text())["reason"]
+    assert not (out / "READY.json").exists()
 
 
 def test_snapshot_text_is_utf8(tmp_path, snapshot_dir):
