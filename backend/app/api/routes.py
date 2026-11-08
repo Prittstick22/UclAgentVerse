@@ -43,6 +43,15 @@ def get_mode(request: Request):
             "sim": {"running": False, "speed": 1, "start": None, "end": None}}  # TODO(#sim-api)
 
 
+class ModeBody(BaseModel):
+    mode: str
+
+
+@router.post("/mode")
+def set_mode(body: ModeBody, request: Request):
+    err(501, "internal", "TODO(#11): swap SimClock/LiveClock and the portfolio namespace")
+
+
 # ------------------------------------------------------------------ profile + mandate
 @router.get("/profile/questions")
 def profile_questions():
@@ -245,10 +254,25 @@ def notifications(request: Request):
     return {"items": []}  # TODO(#notifications)
 
 
+@router.post("/notifications/{notification_id}/read")
+def notification_read(notification_id: str, request: Request):
+    return {"ok": True}  # TODO(#10)
+
+
 # ------------------------------------------------------------------ sim, chat, tasks
 @router.post("/sim/start")
 def sim_start(request: Request):
     err(501, "internal", "TODO(#sim-api): start runner as a background task")
+
+
+@router.post("/sim/pause")
+def sim_pause(request: Request):
+    err(501, "internal", "TODO(#22)")
+
+
+@router.post("/sim/step")
+def sim_step(request: Request):
+    err(501, "internal", "TODO(#22)")
 
 
 @router.get("/sim/status")
@@ -275,6 +299,14 @@ def live_eod(request: Request):
     if not s.settings.task_secret or request.headers.get("X-Task-Secret") != s.settings.task_secret:
         err(401, "unauthorized", "bad task secret")
     return {"ok": False, "fetched": 0, "stale": []}  # TODO(#live-mode)
+
+
+@router.post("/tasks/live-news")
+def live_news(request: Request):
+    s = S(request)
+    if not s.settings.task_secret or request.headers.get("X-Task-Secret") != s.settings.task_secret:
+        err(401, "unauthorized", "bad task secret")
+    return {"ok": False, "fetched": 0, "stale": []}  # TODO(#11)
 
 
 _ = json  # keep import for handlers that need it
