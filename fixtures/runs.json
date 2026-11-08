@@ -1,15 +1,15 @@
 {
  "items": [
   {
-   "run_id": "run_cc0e55525e",
+   "run_id": "run_58c6cd6186",
    "kind": "construction",
    "trigger_text": "User asked to build a portfolio",
    "as_of": "2026-07-07",
    "status": "completed",
-   "outcome": "adjust",
-   "started_at": "2026-11-07T22:44:57.279717+00:00",
-   "finished_at": "2026-11-07T22:44:57.282418+00:00",
-   "proposal_id": null
+   "outcome": "built",
+   "started_at": "2026-11-08T03:22:16.218553+00:00",
+   "finished_at": "2026-11-08T03:24:59.696817+00:00",
+   "proposal_id": "prop_5da5fe68d4"
   }
  ]
 }

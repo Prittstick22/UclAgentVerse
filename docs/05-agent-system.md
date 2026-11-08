@@ -51,6 +51,8 @@ schema_retry: 1
 - **Token budget** is checked before and after every LLM call; going over emits `budget.exceeded {limit: "tokens"}` once and agents stop, so the lead concludes (`investigate_further` if it has no decision).
 - **Cache:** prompts are deterministic (tool results are compacted and `calc:<event id>` is replaced by a stable alias mapped back in findings), so a rerun at the same `as_of` costs zero tokens. `run.completed` reports `tokens`, `cost_estimate_usd` (prices in `agents.yaml` `pricing:`), `duration_s`, `llm_calls`, `cached_calls`.
 - **Manual live check:** `cd backend && python -m app.agents.supervisor --run construction`.
+- **Generated context (#30):** every agent's system prompt ends with a code-generated "What you can do" section: the exact roles it may spawn (none at the deepest level) and the implemented tools it may call, with argument examples (`roles.TOOL_DOCS`). Every step's header carries a code-made `MANDATE` line (profile, ranges, caps, stocks allowed, exclusions, £ amounts). Prompts never hard-code role or tool names, so they can't drift from the code.
+- **Construction flow (#30):** lead spawns equity_scout, bond_scout and risk_analyst, plus stock_analyst if the mandate allows stocks, in parallel → `build_options` on their `SHORTLIST:` tickers (falls back to all eligible if infeasible) → `save_investment_case` for every holding **in one call** → `propose_adjustment` (purposes and evidence come from the cases, plus `why_not` per holding) → decision. Measured on Argon (synthetic snapshot): **~163 s, 14 calls, ~$0.18**; every holding has a purpose, a why-not and evidence ids. Random ids (`calc:<uuid>`, `prop_<id>`) are aliased in prompts so reruns are fully cached.
 
 ## 4. Roles
 

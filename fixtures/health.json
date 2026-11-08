@@ -3,6 +3,6 @@
  "mode": "historical",
  "as_of": "2026-07-07",
  "version": "0.1.0",
- "llm_mode": "fake",
+ "llm_mode": "replay",
  "data_source": "synthetic"
 }

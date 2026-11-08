@@ -195,7 +195,7 @@ class LLM:
     async def _call_live(self, model: str, system: str, prompt: str, schema: type[BaseModel] | None, use_search: bool):
         from google.genai import types
 
-        config = types.GenerateContentConfig(system_instruction=system, temperature=0.2)
+        config = types.GenerateContentConfig(system_instruction=system)  # Argon ignores temperature (deprecation warning)
         if schema is not None:
             config.response_mime_type = "application/json"
             config.response_schema = schema

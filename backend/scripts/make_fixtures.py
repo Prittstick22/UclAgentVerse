@@ -2,14 +2,18 @@
 """Generate fixtures/ for the frontend mock mode from a fake construction run + sample API responses.
 
     python scripts/make_fixtures.py     (needs a snapshot: run make_synthetic_snapshot.py first)
+    python scripts/make_fixtures.py --from-db <live run>.sqlite   # a recorded real Argon run (no LLM calls)
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
 import json
+import shutil
+import tempfile
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -38,17 +42,35 @@ def profile_fixtures(c: TestClient) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profiles-only", action="store_true", help="refresh profile fixtures without unrelated run IDs")
-    args = parser.parse_args()
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--from-db", help="SQLite of a recorded real construction run: use its events/proposal (no LLM)")
+    ap.add_argument("--profiles-only", action="store_true", help="refresh profile fixtures without unrelated run IDs")
+    a = ap.parse_args()
     OUT.mkdir(exist_ok=True)
-    state = build_state(Settings(llm_mode="fake", app_mode="historical"), db_path=":memory:")
+    if a.from_db:  # work on a copy so the recording is never modified
+        copy = Path(tempfile.mkdtemp()) / "recorded.sqlite"
+        shutil.copy(a.from_db, copy)
+        state = build_state(Settings(llm_mode="replay", app_mode="historical"), db_path=str(copy))
+        starts = [e for e in state.events.history(None) if e.type == "run.started" and e.trigger_kind == "construction"]
+        if not starts:
+            raise SystemExit("No construction run in that database; fixtures NOT written.")
+        run_id = starts[-1].run_id
+        done = [e for e in state.events.history(run_id) if e.type == "run.completed"]
+        proposal_id = done[-1].payload.get("proposal_id") if done else None
+        if not proposal_id or not state.db.get("proposals", proposal_id):
+            raise SystemExit("That run has no stored proposal; fixtures NOT written.")
+        from app.schemas import Proposal
+        state.proposals[proposal_id] = Proposal.model_validate_json(state.db.get("proposals", proposal_id))
+        run = SimpleNamespace(run_id=run_id, proposal_id=proposal_id)
+    else:
+        state = build_state(Settings(llm_mode="fake", app_mode="historical"), db_path=":memory:")
     app.state.app = state
     c = TestClient(app)
-    if args.profiles_only:
+    if a.profiles_only:
         profile_fixtures(c)
         return
-    run = asyncio.run(state.supervisor.start("construction", "User asked to build a portfolio"))
+    if not a.from_db:
+        run = asyncio.run(state.supervisor.start("construction", "User asked to build a portfolio"))
     events = [e.model_dump() for e in state.events.history(run.run_id)]
     (OUT / "events_construction.json").write_text(json.dumps(events, indent=1))
     for name, path in {
