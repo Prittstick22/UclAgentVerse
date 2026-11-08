@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ValidationError
 
+from app.agents import gate
 from app.agents.llm import LLM, LLMCacheMiss, LLMError, LLMSchemaError
 from app.agents.roles import ROLES, TOOL_DOCS
 from app.agents.schemas import AgentFinal, AgentStep, Decision, Finding, SpawnRequest
@@ -93,15 +94,18 @@ class Supervisor:
                 self._run_agent(run, "lead", question or f"{kind}: {trigger_text}", "Lead this run", None, 0, "lead"),
                 timeout=self.cfg["run_wall_time_s"],
             )
+            if run.proposal_id:   # nothing reaches the user before the assurance gate (#32)
+                await asyncio.wait_for(self._assure(run), timeout=self.cfg["run_wall_time_s"])
         except TimeoutError:
             status = "failed"
+            self._block_unchecked(run)
             self.events.emit("budget.exceeded", run_id=run.run_id, title="Run hit its wall-time limit",
                              payload={"limit": "wall_time_s", "value": self.cfg["run_wall_time_s"]})
         except (Exception, asyncio.CancelledError):
             status = "failed"
+            self._block_unchecked(run)
             raise
         finally:
-            # TODO(#32): run app.agents.gate.run_gate on run.proposal_id before marking awaiting_approval
             outcome = run.decision.action if run.decision else "investigate_further"
             if kind == "construction" and run.proposal_id:
                 outcome = "built"
@@ -116,13 +120,64 @@ class Supervisor:
                                datetime.now(UTC).isoformat())
         return run
 
+    # ------------------------------------------------------------------ assurance gate (#32)
+    def _block_unchecked(self, run: RunState) -> None:
+        """A run that stopped before its gate finished must not leave an approvable, unchecked proposal."""
+        ctx = self.tools.ctx
+        prop = ctx.state.proposals.get(run.proposal_id) if run.proposal_id else None
+        if prop is not None and (len(prop.gates) < len(gate.FULL_GATE) or not gate.passed(prop.gates)):
+            prop.status = "blocked"
+            ctx.state.db.put("proposals", prop.id, prop.model_dump_json())
+
+    async def _assure(self, run: RunState) -> None:
+        """Gate the proposal; on failure ask the lead for ONE revision; a second failure blocks it."""
+        ctx = self.tools.ctx
+        outcome = "adjust"   # a proposal is a change: always the FULL gate, whatever the lead's decision says
+        for attempt in (1, 2):
+            prop = ctx.state.proposals.get(run.proposal_id)
+            if prop is None:
+                return
+            results = gate.run_gate(ctx, run, prop, outcome)
+            prop.gates = results
+            ctx.state.db.put("proposals", prop.id, prop.model_dump_json())
+            if gate.passed(results):
+                return
+            failed = [r for r in results if r.status == "fail"]
+            points = [f"{r.gate}: {i}" for r in failed for i in (r.issues or ["failed"])]
+            if attempt == 2:
+                break
+            dropped = gate.unusable_findings(ctx, run)   # claims rewording can't fix: remove them, say so
+            run.findings = [f for f in run.findings if f not in dropped]
+            if dropped:
+                points.append("removed unsupported or unsafe claims: " + "; ".join(f.claim[:60] for f in dropped[:5]))
+            self.events.emit("revision.requested", run_id=run.run_id, title=f"Gate asked for a revision ({len(points)})",
+                             payload={"by_gate": [r.gate for r in failed], "points": points[:10],
+                                      "proposal_id": prop.id, "dropped_claims": [f.claim[:120] for f in dropped]})
+            prop.status = "blocked"
+            ctx.state.db.put("proposals", prop.id, prop.model_dump_json())
+            run.proposal_id, run.decision = None, None
+            await self._run_agent(run, "lead", "REVISE: the assurance gate rejected your proposal. Fix exactly these "
+                                  "points, then propose again: " + "; ".join(points[:10]),
+                                  "Revise after the assurance gate", None, 0, "lead.revise")
+            if not run.proposal_id:   # the lead gave up or chose not to propose: nothing to gate
+                break
+        prop = ctx.state.proposals.get(run.proposal_id) if run.proposal_id else None
+        if prop is not None:
+            prop.status = "blocked"
+            ctx.state.db.put("proposals", prop.id, prop.model_dump_json())
+        run.decision = Decision(action="investigate_further",
+                                reason="The assurance gate rejected the proposal twice: " + "; ".join(points[:3]))
+        self.events.emit("decision.made", run_id=run.run_id, title="Decision: investigate_further (gate)",
+                         payload=run.decision.model_dump())
+
     # ------------------------------------------------------------------ limits
     def _max_agents(self, kind: str) -> int:
         m = self.cfg["max_agents_per_run"]
         return m.get(kind, m.get("trigger", 8))
 
     def _budget(self, kind: str) -> int:
-        return self.cfg["run_token_budget"].get(kind, 100000)
+        b = self.cfg["run_token_budget"]
+        return b.get(kind, b.get("trigger", 100000))   # drift / price_move / news / ... are trigger runs
 
     def check_spawn(self, run: RunState, parent_role: str, req: SpawnRequest, parent_depth: int,
                     children_so_far: int) -> None:
@@ -154,7 +209,29 @@ class Supervisor:
         clock = self.events.clock
         head = (f"AS_OF: {clock.as_of_str()} (you know nothing after this date) · MODE: {clock.mode} · "
                 f"RUN: {run.kind} · YOUR ROLE: {role_name} · TOOL CALLS LEFT: {tool_calls_left}")
-        return head + "\n" + self._mandate_line()
+        lines = [head, self._mandate_line()]
+        if run.kind != "construction":
+            lines.append(self._portfolio_line())
+        return "\n".join(lines)
+
+    def _portfolio_line(self) -> str:
+        """Current holdings vs targets, made by code (agents can't reason about what they can't see)."""
+        state = getattr(self.tools.ctx, "state", None)
+        led = getattr(state, "ledger", None)
+        if led is None or led.nav() <= 0:
+            return "PORTFOLIO: not invested yet"
+        targets: dict[str, float] = {}
+        try:
+            from app.engine.portfolio import checkpoints
+            marks = checkpoints(state.db, self.events.clock.mode)
+            targets = marks[-1].targets if marks else {}
+        except Exception:  # noqa: BLE001 - context only, never fail a run over it
+            targets = {}
+        w = led.weights()
+        nav = led.nav()
+        held = ", ".join(f"{t} {x:.1%}" + (f" (target {targets[t]:.1%})" if t in targets else "")
+                         for t, x in sorted(w.items(), key=lambda kv: -kv[1]))
+        return f"PORTFOLIO: £{nav:,.0f} · cash £{led.cash_gbp:,.0f} ({led.cash_gbp / nav:.1%}) · holdings: {held}"
 
     def _mandate_line(self) -> str:
         """The user's mandate in one line, made by code (agents never see it otherwise)."""

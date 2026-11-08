@@ -52,6 +52,8 @@ schema_retry: 1
 - **Cache:** prompts are deterministic (tool results are compacted and `calc:<event id>` is replaced by a stable alias mapped back in findings), so a rerun at the same `as_of` costs zero tokens. `run.completed` reports `tokens`, `cost_estimate_usd` (prices in `agents.yaml` `pricing:`), `duration_s`, `llm_calls`, `cached_calls`.
 - **Manual live check:** `cd backend && python -m app.agents.supervisor --run construction`.
 - **Generated context (#30):** every agent's system prompt ends with a code-generated "What you can do" section: the exact roles it may spawn (none at the deepest level) and the implemented tools it may call, with argument examples (`roles.TOOL_DOCS`). Every step's header carries a code-made `MANDATE` line (profile, ranges, caps, stocks allowed, exclusions, £ amounts). Prompts never hard-code role or tool names, so they can't drift from the code.
+- **Review and trigger plans (#31):** reviews are lean (lead + risk_analyst; maintain unless the mandate is breached or a `reconsider_if` is clearly met). Trigger runs triage first: news/price_move → news_analyst (`MATERIAL:` / `NOT MATERIAL:`), nav_drop/drift/cap_breach → risk_analyst. **Escalate to adjust only if** the mandate is breached or the triage is material *and* meets a held position's `reconsider_if`; otherwise maintain with a plain-English explanation. Non-construction runs see a code-made `PORTFOLIO:` line (weights vs targets). `get_investment_case {}` returns all cases. Trigger kinds get the `trigger` token budget.
+- **News trigger (#31, code):** `monitors.rules.news_hits`: on tickers the portfolio **holds directly**, fire once per ticker per day when **≥ 2 distinct strong-event headlines** (word list in `NEWS_STRONG`: guidance, warning, downgrade, probe, plunge/surge, record revenue, export curbs, …; written from general principles, not tuned to known events) became available since the previous close. Injection-like headlines are skipped. Cooldowns and same-day grouping as for the other triggers.
 - **Construction flow (#30):** lead spawns equity_scout, bond_scout and risk_analyst, plus stock_analyst if the mandate allows stocks, in parallel → `build_options` on their `SHORTLIST:` tickers (falls back to all eligible if infeasible) → `save_investment_case` for every holding **in one call** → `propose_adjustment` (purposes and evidence come from the cases, plus `why_not` per holding) → decision. Measured on Argon (synthetic snapshot): **~163 s, 14 calls, ~$0.18**; every holding has a purpose, a why-not and evidence ids. Random ids (`calc:<uuid>`, `prop_<id>`) are aliased in prompts so reruns are fully cached.
 
 ## 4. Roles
@@ -146,6 +148,27 @@ Every tool is our code. It goes through `DataGateway` (as_of-enforced), emits `t
 | Price move explained as noise | evidence on the explanation only |
 | Rebalance (drift/cap) | numbers + mandate + compliance + explainer; critic only if turnover > 5% |
 | Chat answer | evidence on cited claims; full gate if it produces a proposal |
+
+**Implemented (#32, `agents/gate.py`, run by `Supervisor._assure` on every proposal before `run.completed`):** all seven checks are **code**: deterministic, and they can't be argued round.
+- **`injection_guard`:** guard patterns in the card, purposes and findings, plus findings citing quarantined content.
+- **`evidence`:** every finding must cite an id a tool returned in this run or that `find_evidence` resolves. Fail on an unsupported high-confidence claim or a majority unsupported; otherwise flag.
+- **`numbers`:** each option is recomputed with the independent `engine/checker.py` (sum, fees, turnover against the card).
+- **`mandate`:** the checker on the selected option.
+- **`critic`:** judgement flags only, never a fail: turnover > 20% on an adjustment, a holding at its cap, cost > 0.5% NAV, low-confidence findings.
+- **`compliance`:** banned promises, the risk warning, and the `simulated` label.
+- **`qa`:** the selected option exists, the card has a headline and body; holdings without a purpose are flagged.
+
+Each check emits `gate.started` and `gate.verdict {gate, status, issues, required_changes, proposal_id}`, and the results are stored in `Proposal.gates`. A check that crashes **fails closed**.
+
+**Every proposal gets the full gate**, even if the lead's decision is `maintain`, because a proposal is a change. On any `fail`, the draft is marked `blocked`. Findings a rewording can't fix (no or unknown evidence, injected text, quarantined sources) are **removed** and listed in `revision.requested {by_gate, points, dropped_claims}`, and the lead runs once more with those points. If the revision fails again, that proposal is `blocked` too and the decision becomes `investigate_further`. Approvals (`sim/approvals.py`) never execute a proposal with a failed gate. A Flash wording review and an LLM critic can be layered on later; they're not needed for the controls above.
+
+**Decision card (#34, `agents/explainer.py`):**
+- `propose_adjustment` builds the card from **code numbers only**: the option stats, the trade list and the capital.
+- The headline is in £ ("Your starting portfolio: £10,000 across 6 holdings", "Suggested change: 2 trades, about £600 moved", or "No trades needed…" when nothing would trade).
+- The body covers what is invested and what stays in cash, the one-off trading cost, the yearly fund fees in £, the past worst fall and the typical yearly swing. Past numbers are labelled "simulated on past prices, not a forecast" and "an estimate, not a promise". It ends with "Nothing is bought or sold until you approve."
+- **Every % on the card has its £ in the same sentence**, and small fees show as 0.08%, never 0%. The compliance gate re-checks this (`percent without a £ amount` fails).
+- The risk warning and `simulated: true` are on every card.
+- A model never writes the card's numbers. A Flash rewording pass could be added for tone only, re-checked by the same gate.
 
 **Badges** (never one generic "verified"): `source_retrieved` (gateway), `claim_supported` (evidence checker), `relationship_uncertain` (dependency, T3), `calculation_recomputed` (numbers verifier), `judgement_uncertain` (critic/lead).
 
