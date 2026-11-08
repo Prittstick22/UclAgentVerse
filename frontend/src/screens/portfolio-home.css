@@ -309,7 +309,7 @@
 .portfolio-review-detail :is(span, p) { color: var(--terminal-muted); font-size: 11px; }
 .portfolio-review-detail > strong { font-size: 20px; line-height: 1.2; font-weight: 600; }
 .portfolio-review-detail > div { display: flex; justify-content: space-between; gap: 8px; }
-.portfolio-home .portfolio-review-team { display: grid; gap: 4px; padding-bottom: 8px; }
+.portfolio-home .portfolio-review-team { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-bottom: 8px; }
 .portfolio-review-team li {
   display: flex;
   align-items: center;
