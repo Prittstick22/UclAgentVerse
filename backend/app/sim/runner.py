@@ -401,7 +401,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     state.mandate = mandate_for(a.profile)
     state.forecast_off = a.no_forecast
     r = asyncio.run(run(state, a.start, a.end, agents=a.agents, approvals=a.approvals))
-    print(f"Simulated {r.days} trading days {r.start} → {r.end} ({'agents' if a.agents else 'engine only'}, "
+    print(f"Simulated {r.days} trading days {r.start} to {r.end} ({'agents' if a.agents else 'engine only'}, "
           f"{a.profile}). Simulated results, not a forecast.")
     print(f"NAV £{r.final_nav:,.2f} from £{r.contributions_gbp:,.2f} paid in; {r.fills} fills")
     print("Triggers: " + (", ".join(f"{k} {v}" for k, v in sorted(r.trigger_counts.items())) or "none"))

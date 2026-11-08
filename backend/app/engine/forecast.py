@@ -190,12 +190,12 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
         state = build_state()
         res = calibrate_lambda(state, a.target_turnover)
         print(f"Data source: {state.gw.snapshot.source_label}. Development reviews: {res['review_dates']} "
-              f"({res['period'][0]} → {res['period'][1]}); sim-window data not used.")
+              f"({res['period'][0]} to {res['period'][1]}); sim-window data not used.")
         print("Median share of the portfolio moved by the forecast alone (tilt caps off):")
         print("lambda   " + "  ".join(f"{p:>11s}" for p in PROFILES))
         for lam in LAMBDA_GRID:
             print(f"{lam:<8} " + "  ".join(f"{res['median_added_turnover'][p][lam]:>11.1%}" for p in PROFILES))
-        print(f"Rule: largest lambda with median ≤ {a.target_turnover:.0%} for every profile → "
+        print(f"Rule: largest lambda with median <= {a.target_turnover:.0%} for every profile -> "
               f"lambda_return = {res['chosen']}")
         print(json.dumps({"lambda_return": res["chosen"]}))
 
