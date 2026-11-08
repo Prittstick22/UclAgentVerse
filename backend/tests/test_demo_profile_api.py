@@ -1,5 +1,8 @@
 """Historical persona is fixed; live visitors can still create and edit their mandate."""
 
+import json
+import sqlite3
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -85,3 +88,31 @@ def test_historical_state_created_from_live_uses_persona(snapshot_dir):
     persona = demo_persona()
     assert historical.mandate == mandate_for(persona["profile"], Goal(**persona["goal"]), persona["exclusions"])
     assert live.mandate == mandate_for("balanced")
+
+
+@pytest.mark.parametrize("profile", ["balanced", "cautious", "growth", "adventurous"])
+def test_cli_recording_keeps_full_starting_mandate(api, state, tmp_path, monkeypatch, profile):
+    from app.container import build_state as real_build_state
+    from app.settings import Settings
+    from app.sim import runner
+
+    def offline_state(db_path):
+        settings = Settings(_env_file=None, snapshot_dir=state.settings.snapshot_dir, llm_mode="fake")
+        return real_build_state(settings, db_path=db_path)
+
+    monkeypatch.setattr(runner, "build_state", offline_state)
+    record = tmp_path / f"{profile}.sqlite"
+    days = state.gw.trading_days(state.clock.as_of_str())
+    runner.main(["--no-agents", "--start", str(days[0].date()), "--end", str(days[1].date()),
+                 "--profile", profile, "--record", str(record)])
+
+    with sqlite3.connect(f"{record.as_uri()}?mode=ro", uri=True) as db:
+        stored = db.execute("SELECT json FROM kv WHERE ns = ? AND key = ?", ("sim_mandate", "initial")).fetchone()
+        assert stored is not None
+        mandate = json.loads(stored[0])
+        assert db.execute("SELECT COUNT(*) FROM events").fetchone()[0] > 0
+        assert db.execute("SELECT json FROM kv WHERE ns = 'sim_results' AND key = 'latest'").fetchone()
+
+    expected = (api.get("/api/profile/demo").json()["mandate"] if profile == "balanced"
+                else mandate_for(profile).model_dump(mode="json"))
+    assert mandate == expected

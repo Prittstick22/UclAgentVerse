@@ -125,6 +125,10 @@ message `This demo follows Priya. Switch to live mode to create your own profile
 mandate editing are unchanged. `GET /api/profile/demo` is read-only in either mode and never
 changes the visitor's live mandate. Its `result` uses the existing quiz scoring and its `mandate`
 uses the persona's configured goal, profile and exclusions. No provider or LLM is called.
+The balanced historical CLI recording uses the same persona mandate; other CLI profiles retain
+their policy defaults. New CLI recordings store the full starting mandate in SQLite `kv`
+(`ns=sim_mandate`, `key=initial`) so it can be compared field-for-field with this endpoint.
+Older recordings without this metadata are not automatically certified or rewritten.
 
 | Method + path | Body / query | Response | Owner |
 |---|---|---|---|
