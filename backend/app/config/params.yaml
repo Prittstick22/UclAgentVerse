@@ -31,8 +31,11 @@ forecast:                      # walk-forward 2-week outlook (engine/forecast.py
   horizon_days: 10
   ewma_halflife_days: 10
   shrink: 0.5                  # shrink mu towards 0
-  lambda_return: 0.05          # 0 = no-forecast ablation. Mu enters the optimiser scaled to the horizon (x10/252).
+  lambda_return: 0.1           # 0 = no-forecast ablation. Mu enters the optimiser scaled to the horizon (x10/252).
                                # Chosen on development data only: python -m app.engine.forecast --calibrate
+                               # Calibrated on the REAL EODHD snapshot (Sun 8 Nov ~01:45): 65 reviews 2023-12-26 -> 2026-06-23,
+                               # median forecast-only turnover at 0.1 = 4.0/5.3/5.4/5.2% (cautious/balanced/growth/adventurous);
+                               # 0.2 fails the 10% rule (balanced 10.5%). The synthetic snapshot had given 0.05.
   max_tilt_per_holding: 0.03   # forecast may move any one holding at most 3 pp from the no-forecast portfolio
   max_tilt_total: 0.10         # ... and at most 10% of the portfolio in total (one-way)
   max_view_tilt: 0.02          # cap on agent-view tilt to annualised mu (#74)
