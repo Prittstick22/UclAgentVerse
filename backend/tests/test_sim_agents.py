@@ -26,7 +26,7 @@ def test_two_week_agent_run_with_batch_policy_trades_and_records(state):
     assert r.runs[0]["kind"] == "construction" and r.runs[0]["action"] == "approved"
     assert state.ledger.fills and min(f.date for f in state.ledger.fills) == r.nav_series[1][0]   # t+1 fill
     props = list(state.proposals.values())
-    assert props and props[0].status == "approved" and props[0].kind == "construction"
+    assert props and props[0].status == "executed" and props[0].kind == "construction"
     decided = _events(state, "approval.decided")
     assert decided and decided[0].payload["by"] == "batch_policy"
     started = _events(state, "run.started")   # timeline markers
@@ -144,13 +144,16 @@ def test_api_rejects_bad_input(api):
 def test_api_restart_replaces_history_and_expires_old_proposals(api, state):
     from app.engine.portfolio import checkpoints
 
-    api.post("/api/sim/start", json={"end": _end(state, 12), "speed": 0, "run_agents": True})
+    api.post("/api/sim/start", json={"end": _end(state, 12), "speed": 0, "run_agents": True,
+                                     "approvals": "batch_policy"})
     _wait(api, lambda s: s["progress"] == 1.0 and not s["sim"]["running"])
+    api.post("/api/sim/start", json={"end": _end(state, 6), "speed": 0, "run_agents": True})   # manual
+    _wait(api, lambda s: not s["sim"]["running"])          # pauses on day 0 for the user's approval
     api.post("/api/sim/start", json={"end": _end(state, 4), "speed": 0})
     _wait(api, lambda s: s["progress"] == 1.0 and not s["sim"]["running"])
     days = [c.date for c in checkpoints(state.db, state.clock.mode)]
     assert max(days) == _end(state, 4)   # nothing left over from the longer first replay
-    assert all(p.status in ("approved", "expired", "blocked") for p in state.proposals.values())
+    assert all(p.status in ("executed", "expired", "blocked") for p in state.proposals.values())
 
 
 def test_pause_returns_quickly_even_mid_day(state):

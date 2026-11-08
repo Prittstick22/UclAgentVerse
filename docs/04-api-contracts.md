@@ -141,8 +141,10 @@ interface AgentNode {
 | `GET /api/runs/{run_id}/events` | `?after=seq&format=sse\|json` | SSE stream of `Event` (default), or `{items: Event[]}` | Jin |
 | `GET /api/events/stream` | `?mode` | SSE of **all** new events (home/timeline live updates) | Jin |
 | `GET /api/proposals/{id}` | — | `Proposal` | Dev |
-| `POST /api/proposals/{id}/approve` | `{option?: label}` | `{proposal: Proposal, orders: OrderChange[], fill_date: string}` or 409 `stale_data` / `duplicate_order` / `mandate_violation` | Cem |
+| `POST /api/proposals/{id}/approve` | `{option?: label}` | `{proposal: Proposal, orders: OrderChange[], fill_date: string\|null}` or 409 `stale_data` / `duplicate_order` / `mandate_violation` / `mandate_changed` / `holdings_changed` / `conflict` (declined, expired or blocked); 404; 422 unknown option | Cem |
 | `POST /api/proposals/{id}/decline` | `{reason?: string}` | `{proposal: Proposal}` | Cem |
+
+Approval notes (#23): approve revalidates (proposal older than `risk.stale_after_days` trading days or stale prices → `stale_data`; the mandate content changed since the proposal, including a new quiz result → `mandate_changed`; a trade filled since → `holdings_changed`; already approved or the same order pending → `duplicate_order`), re-runs the engine checker (`mandate_violation`), then queues the orders for the next close (`fill_date`) and emits `approval.decided {by: "user"}`. Decline stores the reason (also appended to `uncertainties` as `Declined: …`). In a manual-approval replay started via `/api/sim/start`, the replay pauses itself while a proposal is `awaiting_approval` and resumes after approve/decline.
 | `GET /api/evidence/{id}` | — | `Evidence` | Jin |
 | `GET /api/notifications` | `?mode&unread=true` | `{items: {id, kind: "decision"\|"digest"\|"coverage", title, body, proposal_id, run_id, created_at, read}[]}` | Jin |
 | `POST /api/notifications/{id}/read` | — | `{ok: true}` | Jin |

@@ -38,6 +38,8 @@ from app.schemas import (
     RunSummary,
     TriggerKind,
 )
+from app.sim import approvals
+from app.sim.approvals import ApprovalError
 from app.sim.controller import SimError
 from app.sim.controller import controller as sim_controller
 
@@ -296,14 +298,39 @@ def proposal(proposal_id: str, request: Request):
     return p
 
 
+class ApproveBody(BaseModel):
+    option: str | None = None
+
+
+class DeclineBody(BaseModel):
+    reason: str | None = None
+
+
+def _approval_err(e: ApprovalError):
+    raise HTTPException(status_code=e.status,
+                        detail={"error": {"code": e.code, "message": e.message, "details": e.details}})
+
+
 @router.post("/proposals/{proposal_id}/approve")
-def approve(proposal_id: str, request: Request):
-    err(501, "internal", "TODO(#approve): revalidate → queue orders → approval.decided event")
+async def approve(proposal_id: str, request: Request, body: ApproveBody | None = None):
+    s = S(request)
+    try:
+        out = approvals.approve_by_user(s, proposal_id, (body or ApproveBody()).option)
+    except ApprovalError as e:
+        _approval_err(e)
+    await sim_controller(s).after_decision()
+    return out
 
 
 @router.post("/proposals/{proposal_id}/decline")
-def decline(proposal_id: str, request: Request):
-    err(501, "internal", "TODO(#approve)")
+async def decline(proposal_id: str, request: Request, body: DeclineBody | None = None):
+    s = S(request)
+    try:
+        out = approvals.decline_by_user(s, proposal_id, (body or DeclineBody()).reason)
+    except ApprovalError as e:
+        _approval_err(e)
+    await sim_controller(s).after_decision()
+    return out
 
 
 @router.get("/evidence/{evidence_id}")

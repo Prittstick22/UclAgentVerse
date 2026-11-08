@@ -153,7 +153,10 @@ class Simulation:
         # fees as known today (e.g. VWRP's OCF cut on 28 Jul 2026); benchmarks share this dict
         led.catalogue.update({inst.ticker: inst for inst in gw.catalogue(eligible_only=False)})
         prices = {k: float(v) for k, v in gw.latest_prices().items() if pd.notna(v)}
-        for f in led.fill_pending(date, prices):
+        order_reason = str(led.pending[0].get("reason", "")) if led.pending else None
+        fills = led.fill_pending(date, prices)
+        approvals_mod.mark_executed(state, order_reason, fills)
+        for f in fills:
             res.fills += 1
             ev.emit("order.filled", title=f"{f.action.capitalize()} {f.ticker} £{f.amount_gbp:,.0f}",
                     payload={"ticker": f.ticker, "action": f.action, "units": f.units, "price_gbp": f.price_gbp,
@@ -260,7 +263,7 @@ class Simulation:
             self.res.runs.append({"date": date, "kind": "construction", "text": text, "action": action})
             if targets:
                 self.targets = targets
-                led.queue_rebalance(targets, "initial portfolio (approved proposal)")
+                led.queue_rebalance(targets, _last_approved_key(state))
                 return
             if action == "awaiting_approval":
                 return   # manual mode: stays in cash until the user approves (#23)
@@ -289,6 +292,12 @@ async def run(state: AppState, start: str, end: str | None = None, agents: bool 
     return await Simulation(state, start, end, agents, targets, approvals).run_to_end()
 
 
+def _last_approved_key(state: AppState) -> str:
+    """Order key of the proposal the batch policy just approved, so it is marked 'executed' when it fills."""
+    approved = [p for p in state.proposals.values() if p.status == "approved"]
+    return f"proposal:{approved[-1].id}" if approved else "approved proposal"
+
+
 async def _agent_run(state: AppState, kind: str, text: str, approvals: ApprovalMode, construction: bool = False
                      ) -> tuple[dict[str, float] | None, str]:
     """Hand the day to the supervisor; turn an 'adjust' decision with a proposal into orders via the policy."""
@@ -314,7 +323,7 @@ async def _decide(state: AppState, kind: str, text: str, agents: bool, approvals
     if agents:
         targets, action = await _agent_run(state, kind, text, approvals)
         if targets:
-            led.queue_rebalance(targets, f"{kind}: approved proposal")
+            led.queue_rebalance(targets, _last_approved_key(state))
         return targets, action
     trg = params()["triggers"]
     weights = led.weights()
