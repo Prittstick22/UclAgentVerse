@@ -400,6 +400,8 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     g.add_argument("--no-agents", dest="agents", action="store_false", help="engine-only baseline (default)")
     p.add_argument("--profile", default="balanced", choices=["cautious", "balanced", "growth", "adventurous"])
     p.add_argument("--approvals", default="manual", choices=["manual", "batch_policy"])
+    p.add_argument("--no-agent-views", action="store_true",
+                   help="ablation: agents may not nudge the forecast with views (#74); params stay frozen")
     p.add_argument("--no-forecast", action="store_true",
                    help="ablation: no 2-week forecast term (same as forecast.lambda_return 0); params stay frozen")
     p.add_argument("--record", default=None, help="SQLite file for the event log (replaced if it exists)")
@@ -412,6 +414,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
     state.mandate = persona_mandate if a.profile == persona_mandate.profile else mandate_for(a.profile)
     state.db.put("sim_mandate", "initial", state.mandate.model_dump_json())
     state.forecast_off = a.no_forecast
+    state.views_off = a.no_agent_views
     r = asyncio.run(run(state, a.start, a.end, agents=a.agents, approvals=a.approvals))
     print(f"Simulated {r.days} trading days {r.start} to {r.end} ({'agents' if a.agents else 'engine only'}, "
           f"{a.profile}). Simulated results, not a forecast.")

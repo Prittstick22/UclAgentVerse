@@ -130,16 +130,43 @@ def _lookback_start(ctx: ToolContext, days: int) -> str:
     return str(idx[max(0, len(idx) - days - 1)].date())
 
 
-def _forecast_mu(ctx: ToolContext, run: Any, tickers: list[str]) -> tuple[pd.Series | None, str | None]:
-    """Engine 2-week forecast (#73) for the optimiser's bounded tilt; None if the module is missing."""
+def _active_views(ctx: ToolContext) -> list[dict]:
+    """Saved agent views made on or before today and within their horizon (trading days). No future views."""
+    today = ctx.gw.clock.as_of_str()
+    out = []
+    for _, raw in ctx.state.db.list("agent_views"):
+        v = json.loads(raw)
+        if v["as_of"] > today:
+            continue
+        age = len(ctx.gw.trading_days(v["as_of"], today)) - 1
+        if age <= int(v.get("horizon_days", 10)):
+            out.append(v)
+    return out
+
+
+def _forecast_mu(ctx: ToolContext, run: Any, tickers: list[str]) -> tuple[pd.Series | None, list[str]]:
+    """Engine 2-week forecast (#73) + active agent views (#74), for the optimiser's bounded tilt.
+    `state.forecast_off` = no forecast (ablation); `state.views_off` = forecast without agent views (ablation)."""
+    if getattr(ctx.state, "forecast_off", False):
+        return None, []
     try:
         from app.engine import forecast as fc
     except ImportError:
-        return None, None
+        return None, []
     res = fc.forecast(ctx.gw, tickers, ctx.gw.clock.as_of_str())
-    eid = _calc(ctx, run, "forecast_2w", {"tickers": tickers, "horizon": res.horizon_days},
-                {"mu": res.mu, "skipped": res.skipped, "label": res.label}, "2-week estimate (not a promise)")
-    return (pd.Series(res.mu, dtype=float) if res.mu else None), eid
+    eids = [_calc(ctx, run, "forecast_2w", {"tickers": tickers, "horizon": res.horizon_days},
+                  {"mu": res.mu, "skipped": res.skipped, "label": res.label}, "2-week estimate (not a promise)")]
+    mu = dict(res.mu)
+    views = [] if getattr(ctx.state, "views_off", False) else _active_views(ctx)
+    if mu and views:
+        mu, audit = fc.apply_views(mu, views, float(params()["forecast"]["max_view_tilt"]))
+        if audit:
+            eids.append(_calc(ctx, run, "agent_view_tilt",
+                              {"views": [{k: v[k] for k in ("ticker", "direction", "confidence", "as_of", "role")}
+                                         for v in views]},
+                              {"tilts": audit, "cap": params()["forecast"]["max_view_tilt"]},
+                              f"Agent views nudged the 2-week estimate for {len(audit)} ticker(s) (capped)"))
+    return (pd.Series(mu, dtype=float) if mu else None), eids
 
 
 def _trades(ctx: ToolContext, target: dict[str, float]) -> tuple[list[OrderChange], float, float]:
@@ -291,7 +318,7 @@ async def build_options(ctx: ToolContext, args: dict, run: Any) -> dict:
     if not insts:
         return {"ok": False, "error": "no_candidates", "summary": "none of the tickers are eligible"}
     cov = _cov(ctx, [i.ticker for i in insts], "tool.build_options")
-    mu, fc_eid = _forecast_mu(ctx, run, [i.ticker for i in insts])   # same bounded tilt as the sim (#73)
+    mu, fc_eids = _forecast_mu(ctx, run, [i.ticker for i in insts])   # same bounded tilt as the sim (#73, #74)
     current = ctx.state.ledger.weights()
     lookback_start = _lookback_start(ctx, params()["optimiser"]["lookback"])
     options: dict[str, PortfolioOption] = {}
@@ -324,7 +351,7 @@ async def build_options(ctx: ToolContext, args: dict, run: Any) -> dict:
         return {"ok": False, "error": "infeasible", "summary": "no option satisfies the mandate", "failed": failed}
     return {"ok": True, "summary": f"built {len(options)} options: {', '.join(options)}"
                                    + (" (with the bounded 2-week forecast tilt)" if mu is not None else ""),
-            "options": summary_rows, "failed": failed, "evidence_ids": eids + ([fc_eid] if fc_eid else [])}
+            "options": summary_rows, "failed": failed, "evidence_ids": eids + fc_eids}
 
 
 async def cost_turnover(ctx: ToolContext, args: dict, run: Any) -> dict:

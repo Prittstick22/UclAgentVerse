@@ -202,3 +202,27 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
 
 if __name__ == "__main__":  # pragma: no cover
     main()
+
+
+# ---------------------------------------------------------------------- agent views (#74): agents predict, code sizes
+VIEW_SIGN = {"up": 1.0, "down": -1.0, "neutral": 0.0}
+VIEW_CONF_SCALE = {"low": 0.25, "med": 0.5, "high": 1.0}   # fixed before any evaluation (#74)
+
+
+def apply_views(mu: dict[str, float], views: list[dict], max_view_tilt: float) -> tuple[dict[str, float], list[dict]]:
+    """Nudge annualised mu by agents' views. Each view = sign x confidence scale x max_view_tilt; views on one ticker
+    are summed then clipped to +-max_view_tilt. Tickers without a forecast are ignored. Returns (mu, audit)."""
+    adj: dict[str, float] = {}
+    for v in views:
+        t = v.get("ticker")
+        if t not in mu:
+            continue
+        adj[t] = adj.get(t, 0.0) + VIEW_SIGN.get(v.get("direction"), 0.0) * VIEW_CONF_SCALE.get(v.get("confidence"), 0.0) \
+            * max_view_tilt
+    out, audit = dict(mu), []
+    for t, a in sorted(adj.items()):
+        a = max(-max_view_tilt, min(max_view_tilt, a))
+        if a:
+            out[t] = mu[t] + a
+            audit.append({"ticker": t, "mu_before": round(mu[t], 6), "tilt": round(a, 6), "mu_after": round(out[t], 6)})
+    return out, audit

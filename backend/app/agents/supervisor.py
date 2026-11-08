@@ -31,6 +31,7 @@ from app.schemas import RunSummary
 
 RESULT_CHARS = 1500          # max characters of one tool result fed back to the model
 LIST_ITEMS = 10              # max items kept from any list in a tool result
+VIEW_ROLES = {"stock_analyst", "news_analyst"}   # who may state views (#74)
 _CALC_ID = re.compile(r"calc:[0-9a-f]{32}|prop_[0-9a-f]{10}")   # random ids -> stable aliases (cache)
 _ALIAS = re.compile(r"(?:calc|ref):[\w.]+:\d+")
 
@@ -395,6 +396,8 @@ class Supervisor:
                 run.findings.append(f)
                 self.events.emit("finding", title=f.claim[:120], evidence_ids=f.evidence_ids,
                                  payload=f.model_dump(), **common)
+            if final.views:
+                self._collect_views(run, role_name, agent_id, final.views, common)
             if role_name == "lead" and final.decision:
                 d = final.decision.model_copy(update={"evidence_ids": self._real_ids(run, final.decision.evidence_ids)})
                 run.decision = d
@@ -402,6 +405,37 @@ class Supervisor:
                                  payload=d.model_dump(), **common)
         self.events.emit("agent.status", title=f"{role_name} done", status="ok", payload={"status": "done"}, **common)
         return AgentResult(agent_id=agent_id, role=role_name, final=final)
+
+    def _collect_views(self, run: RunState, role_name: str, agent_id: str, views: list, common: dict) -> None:
+        """Keep a view only from a role allowed to hold one, citing evidence a tool really returned in this run
+        (resolvable, not quarantined, not just the catalogue). Saved with as_of; code sizes it later (#74)."""
+        from app.agents import gate
+        ctx = self.tools.ctx
+        known = gate._known_evidence(ctx, run)
+        quarantined = {i for e in self.events.history(run.run_id) if e.type == "content.quarantined"
+                       for i in (e.evidence_ids or [e.payload.get("evidence_id")]) if i}
+        as_of = self.events.clock.as_of_str()
+        for v in views[:5]:
+            ids = self._real_ids(run, v.evidence_ids)
+            good = [i for i in ids if i in known and i not in quarantined and i not in gate.ALWAYS_EVIDENCE
+                    and gate._resolvable(ctx, i)]
+            reason = ("role may not state views" if role_name not in VIEW_ROLES
+                      else None if good else "no supported evidence")
+            if reason:
+                # audit note only (event), not a claim: it must not count as an unsupported finding in the gate
+                f = Finding(claim=f"View on {v.ticker} ({v.direction}) dropped: {reason}", confidence="low",
+                            uncertainties=[f"{role_name} view on {v.ticker} not used: {reason}"])
+                self.events.emit("finding", title=f.claim[:120], payload={**f.model_dump(), "view_dropped": True},
+                                 **common)
+                continue
+            rec = {**v.model_dump(), "evidence_ids": good, "as_of": as_of, "role": role_name,
+                   "run_id": run.run_id, "agent_id": agent_id}
+            self.events.db.put("agent_views", f"{as_of}|{run.run_id}|{agent_id}|{v.ticker}", json.dumps(rec))
+            f = Finding(claim=f"View: {v.ticker} {v.direction} ({v.confidence} confidence, next ~{v.horizon_days} days)",
+                        evidence_ids=good, confidence=v.confidence)
+            run.findings.append(f)
+            self.events.emit("finding", title=f.claim[:120], evidence_ids=good,
+                             payload={**f.model_dump(), "view": rec}, **common)
 
     def _fail(self, run: RunState, role_name: str, agent_id: str, reason: str, common: dict) -> AgentResult:
         f = Finding(claim=f"{role_name} could not finish", confidence="low",
