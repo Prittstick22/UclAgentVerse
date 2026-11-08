@@ -42,7 +42,7 @@ function recordedFixture(id: string): Proposal {
 export function EvidenceView({ id }: { id: string }) {
   const evidence = useResource(id, async signal => {
     if (!MOCK) return get<Evidence>("/evidence/" + encodeURIComponent(id), "", signal);
-    const event = mockEvents().find(item => item.evidence_ids.includes(id) && item.type === "calc.result");
+    const event = mockEvents().find(item => item.type === "calc.result" && "calc:" + item.id === id);
     if (!event) throw new Error("Source unavailable in the fixture recording.");
     return { title: event.title, source: "Recorded calculation", excerpt: null, available_at: event.as_of,
       published_at: null, url: null, data: event.payload, quarantined: false };

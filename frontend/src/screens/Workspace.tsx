@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import AgentAvatar from "../components/AgentAvatar";
 import { api, get, mockEvents, MOCK } from "../lib/api";
 import { useRunEvents } from "../lib/useRunEvents";
@@ -8,6 +8,8 @@ import { useResource } from "../lib/useResource";
 import { EvidenceView, gbp, pct, ProposalDialog, words } from "./Decisions";
 
 const route = (id: string) => "/runs/" + encodeURIComponent(id);
+const evidenceFor = (event?: AgentEvent) =>
+  event?.type === "calc.result" ? ["calc:" + event.id] : event?.evidence_ids ?? [];
 type RunItem = Omit<RunSummary, "agents">;
 
 function RunPicker({ mode }: { mode?: Mode }) {
@@ -39,13 +41,16 @@ function RunPicker({ mode }: { mode?: Mode }) {
 
 export default function Workspace({ mode }: { mode?: Mode }) {
   const { runId } = useParams();
-  return runId ? <RunRoom key={runId} id={runId} mode={mode} /> : <RunPicker mode={mode} />;
+  const { search } = useLocation();
+  return runId ? <RunRoom key={runId + search} id={runId} mode={mode} /> : <RunPicker mode={mode} />;
 }
 
 function RunRoom({ id, mode }: { id: string; mode?: Mode }) {
   const [params] = useSearchParams();
-  const live = params.get("live") === "1" && mode === "live" && !MOCK;
-  const archive = useResource(id + live, signal => live ? Promise.resolve(null) :
+  const wantsLive = params.get("live") === "1" && !MOCK;
+  const live = wantsLive && mode === "live";
+  const waitingForMode = wantsLive && mode === undefined;
+  const archive = useResource(id + ":" + live + ":" + waitingForMode, signal => live || waitingForMode ? Promise.resolve(null) :
     MOCK ? Promise.resolve({ items: mockEvents() }) :
       get<{ items: AgentEvent[] }>(route(id) + "/events?format=json", "", signal));
   const stream = useRunEvents(id, live);
@@ -58,19 +63,29 @@ function RunRoom({ id, mode }: { id: string; mode?: Mode }) {
   const [resolved, setResolved] = useState(false);
   const initialSeq = Number(params.get("seq"));
   const events = live ? stream : archive.value?.items ?? [];
-  const initialIndex = initialSeq > 0 ? events.findIndex(event => event.seq >= initialSeq) : 0;
-  const index = Math.min(events.length - 1, live ? events.length - 1 : cursor ?? Math.max(0, initialIndex));
+  const initialIndex = Number.isInteger(initialSeq) && initialSeq > 0 ? events.findIndex(event => event.seq >= initialSeq) : 0;
+  const lastIndex = events.length - 1;
+  const index = live ? lastIndex : Math.min(lastIndex, cursor ?? (initialIndex < 0 ? lastIndex : initialIndex));
   const visible = events.slice(0, index + 1);
   const active = visible.at(-1);
   const agents = visible.filter(event => event.type === "agent.spawned" && event.agent_id);
   const selected = agents.find(agent => agent.agent_id === focused);
-  const working = agents.find(agent => agent.agent_id === active?.agent_id);
-  const stage = working && agents.indexOf(working) >= 3 ? [...agents.slice(0, 2), working] : agents.slice(0, 3);
+  const specialists = new Set(agents.slice(2).map(agent => agent.agent_id));
+  const recentSpecialist = visible.slice().reverse().find(event => specialists.has(event.agent_id));
+  const third = agents.find(agent => agent.agent_id === recentSpecialist?.agent_id);
+  const stage = third ? [...agents.slice(0, 2), third] : agents.slice(0, 3);
   const panels = selected ? [selected] : stage;
   const proposal = visible.slice().reverse().find(event => event.type === "proposal.created");
   const proposalId = typeof proposal?.payload.proposal_id === "string" ? proposal.payload.proposal_id : "";
   const nextFinding = events.findIndex((event, i) => i > index && event.type === "finding");
   const finished = visible.some(event => event.type === "run.completed");
+  const agentStatuses = new Map<string, string>();
+  for (const event of visible) {
+    if (event.type === "agent.status" && event.agent_id && typeof event.payload.status === "string") {
+      agentStatuses.set(event.agent_id, event.payload.status);
+    }
+  }
+  const statusFor = (agentId: string | null) => agentStatuses.get(agentId ?? "") ?? (finished ? "Run ended" : "Working");
 
   useEffect(() => {
     if (!live && playing && index >= 0 && index < events.length - 1) {
@@ -80,12 +95,19 @@ function RunRoom({ id, mode }: { id: string; mode?: Mode }) {
   }, [events.length, index, live, playing, speed]);
 
   function jump(next: number) {
-    setCursor(Math.max(0, Math.min(events.length - 1, next)));
+    const target = Math.max(0, Math.min(lastIndex, next));
+    setCursor(target);
     setPlaying(false);
     setSource("");
+    if (selected && selected.seq > events[target]?.seq) setFocused("");
   }
 
-  return <div className="agent-room mvp-enter">
+  function inspectEvidence(id: string) {
+    setPlaying(false);
+    setSource(id);
+  }
+
+  return <div className="agent-room">
     <div className="agent-room-body">
     <aside className="agent-room-side terminal-glass">
       <header><h1>Agent workspace</h1><Link to="/workspace" aria-label="Back to investigations">←</Link></header>
@@ -95,7 +117,7 @@ function RunRoom({ id, mode }: { id: string; mode?: Mode }) {
       {agents.map(agent => <button className="agent-participant" key={agent.id} aria-pressed={focused === agent.agent_id}
         onClick={() => setFocused(focused === agent.agent_id ? "" : agent.agent_id ?? "")}>
         <AgentAvatar role={agent.role ?? ""} /><span>{words(agent.role ?? "Specialist")}</span>
-        <small>{agent.agent_id === active?.agent_id && !finished ? "Current" : finished ? "Recorded" : "In room"}</small>
+        <small>{words(statusFor(agent.agent_id))}</small>
       </button>)}
     </aside>
     <div className="agent-room-center">
@@ -108,23 +130,23 @@ function RunRoom({ id, mode }: { id: string; mode?: Mode }) {
           (agent.role === "lead" && event.agent_id == null && event.type === "calc.result"));
         const current = activity.at(-1);
         const work = activity.slice().reverse().find(event => ["calc.result", "finding", "tool.result", "agent.message", "source.inspect"].includes(event.type));
-        const visual = activity.slice().reverse().find(event => event.type === "calc.result" &&
-          (current?.type === "calc.result" || (current?.type === "tool.result" && event.seq + 1 === current.seq)));
+        const visual = activity.slice().reverse().find(event => event.type === "calc.result" && event.payload.outputs);
         const parent = agents.find(item => item.agent_id === agent.parent_agent_id);
         const delegated = agents.filter(item => item.parent_agent_id === agent.agent_id);
-        const status = current?.type === "tool.call" ? "Tool running" : current?.payload.status ?? (finished ? "done" : "working");
-        return <section className="terminal-glass agent-tile mvp-enter" key={agent.id}>
+        const status = !finished && current?.type === "tool.call" ? "Tool running" : statusFor(agent.agent_id);
+        return <section className="terminal-glass agent-tile" key={agent.id}>
           <header><AgentAvatar role={agent.role ?? "lead"} /><div><h2>{words(agent.role === "lead" ? "Lead agent" : agent.role ?? "Agent")}</h2>
             <p>{parent ? "Delegated by " + words(parent.role ?? "lead") : "Coordinates the investigation"}</p></div>
-            <button className="mvp-action" onClick={() => setFocused(focused ? "" : agent.agent_id ?? "")}>{focused ? "Show team" : "Expand"}</button></header>
+            <button className="mvp-action" onClick={() => setFocused(selected ? "" : agent.agent_id ?? "")}>{selected ? "Show team" : "Expand"}</button></header>
           <div className="agent-tile-work">
             <p className="mvp-muted">{agent.purpose || String(agent.payload.question ?? "")}</p>
             <h3>{current?.type === "tool.call" ? current.title : work?.title ?? current?.title ?? "Preparing"}</h3>
-            {current?.type === "tool.call" && <div className="agent-tool" role="status">
+            {status === "Tool running" && current && <div className="agent-tool" role="status">
               <span />{typeof current.payload.tool === "string" ? words(current.payload.tool) : "Tool request"}
               <small>Waiting for output</small>
             </div>}
-            {visual && <>{visual.agent_id == null && <p className="mvp-muted">Engine calculation</p>}
+            {visual && <>{visual.id !== work?.id && <p className="mvp-muted">Latest calculation · {visual.title}</p>}
+              {visual.id === work?.id && visual.agent_id == null && <p className="mvp-muted">Engine calculation</p>}
               <AgentVisual key={visual.id} event={visual} /></>}
             {!MOCK && work?.type === "source.inspect" && work.evidence_ids[0] && <EvidenceView key={work.id} id={work.evidence_ids[0]} />}
             {delegated.length > 0 && <div className="agent-delegation" aria-label="Delegated work">{delegated.map(child =>
@@ -132,11 +154,11 @@ function RunRoom({ id, mode }: { id: string; mode?: Mode }) {
                 <AgentAvatar role={child.role ?? ""} />
                 <span><b>{words(child.role ?? "Specialist")}</b><small>{child.purpose}</small></span>
               </button>)}</div>}
-            {work?.evidence_ids.map(id => <button key={id} className="mvp-link" onClick={() => setSource(id)}>Inspect evidence</button>)}
-            {focused && <ol className="agent-events">{activity.map(event =>
+            {evidenceFor(work).map(id => <button key={id} className="mvp-link" onClick={() => inspectEvidence(id)}>Inspect evidence</button>)}
+            {selected && <ol className="agent-events">{activity.map(event =>
               <li key={event.id}><button disabled={live} onClick={() => jump(events.indexOf(event))}>{event.seq} · {event.title}</button></li>)}</ol>}
           </div>
-          <footer>{typeof status === "string" ? words(status) : "Working"}</footer>
+          <footer>{words(status)}</footer>
         </section>;
       })}
     </div>
@@ -144,12 +166,13 @@ function RunRoom({ id, mode }: { id: string; mode?: Mode }) {
       <p className="agent-refused" key={event.id}>{event.title}{event.purpose && " · " + event.purpose}</p>)}
     {proposalId && <div className="proposal-nudge terminal-glass"><strong>{resolved ? "Decision recorded" : proposal?.title}</strong>
       <button className="mvp-action primary" onClick={() => { setPlaying(false); setProposalOpen(true); }}>Review proposal</button></div>}
-    {source && <section className="mvp-panel terminal-glass"><button className="mvp-action" onClick={() => setSource("")}>Close evidence</button><EvidenceView key={source} id={source} /></section>}
     </div>
     <aside className="agent-room-side terminal-glass agent-room-activity">
-      <header><h2>Investigation activity</h2></header>
+      <header><h2>{source ? "Evidence" : "Investigation activity"}</h2>
+        {source && <button className="mvp-action" onClick={() => setSource("")}>Close evidence</button>}</header>
+      {source ? <div className="agent-room-evidence"><EvidenceView key={source} id={source} /></div> : <>
       {active && <div className="agent-room-brief"><small>Current step · {active.seq}</small><strong>{active.title}</strong>
-        {active.evidence_ids.map(id => <button key={id} className="mvp-link" onClick={() => setSource(id)}>Open source</button>)}
+        {evidenceFor(active).map(id => <button key={id} className="mvp-link" onClick={() => inspectEvidence(id)}>Open source</button>)}
         <details className="agent-terminal"><summary>Inspect payload</summary><pre>{JSON.stringify(active.payload, null, 2)}</pre></details>
       </div>}
       <ol className="agent-event-list">{visible.slice().reverse().map(event =>
@@ -158,25 +181,28 @@ function RunRoom({ id, mode }: { id: string; mode?: Mode }) {
       <details className="agent-terminal"><summary>Execution log</summary>
         <ol className="agent-events">{visible.map(event => <li key={event.id}>{event.seq} · {event.type} · {event.title}</li>)}</ol>
       </details>
+      </>}
     </aside>
     </div>
     <footer className="mvp-toolbar replay-controls terminal-glass">
       {!live && <>
         <button className="mvp-action" disabled={index <= 0} onClick={() => jump(index - 1)}>Previous</button>
-        <button className="mvp-action" disabled={!events.length} onClick={() => {
-          if (index === events.length - 1) { setCursor(0); setPlaying(true); }
-          else setPlaying(!playing);
+        <button className="mvp-action replay-play" disabled={!events.length} onClick={() => {
+          if (index === lastIndex) { jump(0); setPlaying(true); }
+          else { setSource(""); setPlaying(!playing); }
         }}>{playing && index < events.length - 1 ? "Pause" : "Play"}</button>
         <button className="mvp-action" disabled={index >= events.length - 1} onClick={() => jump(index + 1)}>Next</button>
-        <input aria-label="Investigation timeline" type="range" min="0" max={Math.max(0, events.length - 1)} value={Math.max(0, index)}
+        <input aria-label="Investigation timeline" aria-valuetext={active ? `Event ${active.seq}, ${index + 1} of ${events.length}` : undefined}
+          type="range" min="0" max={Math.max(0, lastIndex)} value={Math.max(0, index)} disabled={events.length < 2}
           onChange={event => jump(Number(event.target.value))} />
         <select className="terminal-field" aria-label="Playback speed" value={speed} onChange={event => setSpeed(Number(event.target.value))}>
           {[0.5, 1, 2, 4].map(value => <option key={value} value={value}>{value}×</option>)}
         </select>
         <button className="mvp-action" disabled={nextFinding < 0} onClick={() => jump(nextFinding)}>Next finding</button>
-        {active && <Link className="mvp-action" to={route(id) + "?seq=" + active.seq} onClick={() => jump(index)}>Event {active.seq}</Link>}
+        {active && <Link className="mvp-action replay-step-link" to={route(id) + "?seq=" + active.seq} onClick={() => jump(index)}>Event {active.seq}</Link>}
       </>}
-      <span className="mvp-muted">{index + 1} / {events.length} events</span>
+      {live && finished && <Link className="mvp-action primary" to={route(id)}>Replay run</Link>}
+      <span className="mvp-muted replay-count">{index + 1} / {events.length} events</span>
     </footer>
     {proposalOpen && proposalId && <ProposalDialog key={proposalId} id={proposalId} mode={mode}
       close={() => setProposalOpen(false)} changed={() => setResolved(true)} />}

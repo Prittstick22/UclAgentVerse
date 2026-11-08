@@ -129,12 +129,12 @@ export default function App() {
       <main className="terminal-main">
         <Routes>
           <Route path="/" element={setupComplete ? <Home key={modeVersion} onClockChange={showClock} /> : <Navigate replace to="/onboarding" />} />
+          <Route path="/runs/:runId" element={<section className="terminal-room-page terminal-glass"><Workspace mode={health?.mode} /></section>} />
           <Route element={<section className="terminal-page terminal-glass"><Outlet /></section>}>
             <Route path="/onboarding" element={<Quiz mode={health?.mode} changing={changing} onMode={changeMode} complete={finishSetup} />} />
             <Route path="/quiz" element={<Navigate replace to="/onboarding" />} />
             <Route path="/profile" element={<ProfileScreen mode={health?.mode} />} />
             <Route path="/workspace" element={<Workspace mode={health?.mode} />} />
-            <Route path="/runs/:runId" element={<Workspace mode={health?.mode} />} />
             <Route path="/timeline" element={<Timeline />} />
             <Route path="/decisions" element={<DecisionList mode={health?.mode} />} />
             <Route path="/benchmarks" element={<BenchmarkScreen />} />
