@@ -142,7 +142,7 @@ from any folder to start the frontend:
 ```powershell
 $repoRoot = Join-Path $HOME 'UclAgentVerse-public-demo'
 Set-Location (Join-Path $repoRoot 'frontend')
-npm install; if ($LASTEXITCODE -eq 0) { $env:VITE_MOCK='0'; npm run dev -- --host 127.0.0.1 }
+npm install; if ($LASTEXITCODE -eq 0) { $env:VITE_MOCK='0'; npm run dev -- --host=127.0.0.1 }
 ```
 
 These commands use separate local snapshot/state paths and
@@ -150,6 +150,12 @@ do not overwrite the default market snapshot. `RECORDED_RUN` must be unset for
 this walkthrough; remove a nonempty value from any existing root/backend `.env`
 if adapting the instructions to an existing checkout. No `.env` is required for
 a fresh checkout. Stop each server with Ctrl+C.
+
+Vite prints the actual frontend URL when it starts, for example
+`http://localhost:5173/`. Open that exact `Local:` URL. If port 5173 is already
+in use, Vite automatically selects the next available port, such as 5174; use
+the new URL it prints instead. To return to port 5173, stop any other frontend
+terminal with Ctrl+C and restart the command.
 
 Choose the historical demo for the offline walkthrough. Synthetic prices and
 fake reasoning are development aids, **not evidence of investment performance**.
