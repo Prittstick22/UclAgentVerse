@@ -361,6 +361,30 @@ async def exposure_tool(ctx: ToolContext, args: dict, run: Any) -> dict:
             **out, "evidence_ids": [eid]}
 
 
+async def overlap_tool(ctx: ToolContext, args: dict, run: Any) -> dict:
+    """How much two or more holdings are the same companies (#25). Ownership, not a predicted loss."""
+    cat = ctx.gw.catalogue(eligible_only=False)
+    raw = args.get("tickers") or list(ctx.state.ledger.weights()) or [i.ticker for i in cat if i.kind == "etf"][:6]
+    if isinstance(raw, str):   # models sometimes send "VWRP.LSE, VUAG.LSE" instead of a list
+        raw = raw.replace(";", ",").split(",")
+    tickers = list(dict.fromkeys(str(t).strip() for t in raw if str(t).strip()))[:12]
+    if len(tickers) < 2:
+        raise ValueError("pass at least two `tickers` to compare")
+    stocks = {i.ticker for i in cat if i.kind == "stock"}
+    pairs = exposure.overlap_pairs(tickers, {t: ctx.gw.etf_holdings(t) for t in tickers}, stocks)
+    # top 10 pairs only: the full matrix (up to 66 pairs) would flood the model's context
+    out = {"pairs": [p.model_dump() for p in pairs[:10]], "pairs_total": len(pairs), "note": exposure.OVERLAP_NOTE}
+    eid = _calc(ctx, run, "overlap", {"tickers": tickers}, out, f"Overlap between {len(tickers)} holdings")
+    known = [p for p in pairs if p.overlap is not None]
+    if known:
+        top = known[0]
+        summary = (f"{top.a} and {top.b} share {top.overlap:.1%} of their holdings by weight "
+                   "(ownership, not a predicted loss)")
+    else:
+        summary = "no look-through holdings data for these funds, so overlap is unknown (not zero)"
+    return {"ok": True, "summary": summary, **out, "evidence_ids": [eid]}
+
+
 async def forecast(ctx: ToolContext, args: dict, run: Any) -> dict:
     try:
         from app.engine import forecast as fc  # Cem's #73
@@ -474,7 +498,7 @@ def default_registry(ctx: ToolContext) -> ToolRegistry:
         "get_catalogue": get_catalogue, "get_prices": get_prices, "correlation_lattice": correlation_lattice,
         "search_news": search_news, "search_filings": search_filings, "earnings_calendar": earnings_calendar,
         "risk_stats": risk_stats, "backtest": backtest, "build_options": build_options,
-        "cost_turnover": cost_turnover, "check_proposal": check_proposal, "exposure": exposure_tool,
+        "cost_turnover": cost_turnover, "check_proposal": check_proposal, "exposure": exposure_tool, "overlap": overlap_tool,
         "forecast": forecast, "propose_adjustment": propose_adjustment,
         "get_investment_case": get_investment_case, "save_investment_case": save_investment_case,
         "web_search": web_search,
