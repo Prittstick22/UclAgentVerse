@@ -8,6 +8,14 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 **Model note:** the session switched Opus 5.5 → Sonnet 5.5 at ~05:00 and **back to Opus 5.5** at ~05:10. Use whatever attribution line your own harness gives you. When you post live-run results, say which model produced them.
 
+### Latest: evidence inspection fix active locally (Codex, 8 Nov)
+
+- User authorised bug fixes across the app while Mo continues frontend design. Reproduced the intermittent Inspect evidence errors: 6 distinct missing handlers repeated across the five saved runs (catalogue, four case:*:v1 IDs, proposal:*). The other 33 IDs worked; not an EODHD outage or exhausted tokens.
+- Branch `dev/evidence-inspection-fix`: backend resolves catalogue, exact case versions and proposals; earnings/calendar and saved web links also covered. New case saves preserve immutable version records. Future/wrong-mode/missing IDs still return 404; old recordings never substitute another case version. Proposal evidence omits later approval/selection/gate state. Matching Evidence kinds documented and exported in TS; no layout/CSS edits. Board contract-change notice posted on main.
+- Validation: all 435 backend tests passed; 12 focused evidence/contract tests passed after final lint cleanup; targeted ruff passed; frontend production build passed. Source recording SHA unchanged. All 39/39 evidence refs returned HTTP 200 through :5173 after restart; audits saved in `backend/runs/smoke/final-ui-20261108T063302Z/evidence-audit-*.json`.
+- Restarted ONLY backend to load fix: launcher PID 31388 / server PID 38328 (:8000); fixed frontend preview PID 39564 (:5173) unchanged. Same read-only recording, Sep 1 historical replay, real EODHD snapshot. Zero new model runs, no deployment. Verify PID identity before stopping.
+- Next: user refreshes VS Code app and retries Inspect evidence. Preserve their control. Do not run paid builds/reviews or extend simulation without instruction. If another link fails, collect its evidence ID/run and diagnose; do not regenerate evidence or relabel synthetic sources. Commit/push status is reported separately when publication finishes.
+
 ### Latest: fixed-build final UI retest ready (Codex, 8 Nov ~06:35)
 
 - Follow-up verification: user's subsequent pull reached 2ba7223, which only adds the handover above. GitHub main has no newer application commits than 3c4545c and no open PRs at this check. Running :5173 serves the isolated build's exact JS/CSS asset names (index-Cx2nwKCG.js / index-BkqFSRAS.css); no restart or new run performed. Explain that the handover is our session record, and guide Demo -> Open demo timeline -> Home for holding charts; onboarding is not the main redesigned dashboard.

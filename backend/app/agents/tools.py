@@ -520,6 +520,11 @@ async def save_investment_case(ctx: ToolContext, args: dict, run: Any) -> dict:
         prev = ctx.state.db.get("cases", ticker)
         version = InvestmentCase.model_validate_json(prev).version + 1 if prev else 1
         case = InvestmentCase.model_validate({**data, "case_id": f"case_{ticker}", "version": version})
+        # Keep exact cited versions available after a later review replaces the current case.
+        if prev:
+            previous = InvestmentCase.model_validate_json(prev)
+            ctx.state.db.put("case_versions", f"{ctx.gw.clock.mode}:case:{ticker}:v{previous.version}", prev)
+        ctx.state.db.put("case_versions", f"{ctx.gw.clock.mode}:case:{ticker}:v{version}", case.model_dump_json())
         ctx.state.db.put("cases", ticker, case.model_dump_json())
         saved.append({"ticker": ticker, "case_id": case.case_id, "version": version})
         ids.append(f"case:{ticker}:v{version}")
