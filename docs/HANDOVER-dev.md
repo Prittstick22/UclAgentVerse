@@ -8,6 +8,17 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 **Model note:** the session switched Opus 5.5 → Sonnet 5.5 at ~05:00 and **back to Opus 5.5** at ~05:10. Use whatever attribution line your own harness gives you. When you post live-run results, say which model produced them.
 
+### Latest: fixed-build final UI retest ready (Codex, 8 Nov ~06:35)
+
+- Dev requested another shutdown/pull/restart, specifically expecting holding selection charts and improved UI. Stopped only our owned standard backend (38660/41920) and Vite (40592), then fast-forwarded main 98d48a6 -> 3c4545c.
+- Incoming changes include frontend overhaul plus backend holding prices, news and live approval opt-in. Read Mo's board notes. Asset clicks now select Performance and GET /api/portfolio/holdings/{ticker}/prices; Portfolio button restores whole-portfolio graph. No frozen config changes.
+- Checks: 44 focused backend tests passed (holding prices/news/live policy/recorded replay/approve-decline/contracts), 7 frontend tests passed, production build passed. Generated tsbuildinfo restored if tracked; no source edits by Codex.
+- New isolated attempt: `backend/runs/smoke/final-ui-20261108T063302Z/`. Recorded SQLite and verified market data copied from prior retest; source protected and copied recording SHA remains unchanged. Backend server PID 40108 / launcher 33308, :8000; frontend Vite PREVIEW PID 39564, :5173. Verify ownership before stopping.
+- Frontend serves an isolated PRODUCTION build from attempt/frontend-dist, VITE_MOCK=0, commit 3c4545c. This intentionally does not hot-reload while Mo continues frontend-only source edits. Do not rebuild this directory or pull/restart mid-user-test. Backend/contract/shared-type changes need coordination.
+- Demo is read-only recorded replay through 1 Sep 2026, 4 holdings, GBP 10,549.34 NAV. No new Gemini calls. Live remains separate and is real-model capable; no new paid build/check was authorised.
+- VS Code integrated browser at /onboarding is under USER CONTROL. It caught the initial health request before backend startup and still showed Market mode unavailable/Internal Server Error at last observation. Subsequent proxy requests to /api/health, /api/portfolio and holding prices returned 200. User was asked to refresh once using the browser's reload arrow. Do not take over their mouse/keyboard. No code fix needed for that observed startup race yet; if it repeats after refresh, investigate.
+- Suggested test: Demo -> Open demo timeline -> Home -> click each asset to inspect its adjusted GBP price chart -> Portfolio -> Connections/Matrix/Performance/Split view -> Timeline, Benchmarks, Agents and evidence. User can navigate/replay freely. Avoid Live Build, Run review/check, saving approval preferences or approving/declining new proposals until explicitly testing those actions. Live onboarding may be explored up to plan review before Build.
+
 ### Latest: user-driven restart/retest ready (Codex, 8 Nov ~06:23)
 
 - Dev asked to stop the old app, pull main, and restart so he can control the UI. Stopped only our owned continuation/backend processes (38720/32200) and Vite (40940). Fast-forwarded main to 98d48a6. Incoming changes were README, handover and board ONLY; no frontend application changes beyond already-tested #132/#133.
