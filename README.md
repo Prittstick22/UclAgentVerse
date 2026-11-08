@@ -1,5 +1,13 @@
 # UclAgentVerse
 
+## Live demo (for judges)
+
+[Open Stead](https://161-35-175-207.nip.io/onboarding) · No password required.
+
+The previous `.sslip.io` URL was blocked on UCL Wi-Fi. Use the `.nip.io` link above.
+
+Choose Priya or Caroline for a recorded demo, or choose **Use the app live** to set up a paper portfolio.
+
 **An AI investment team for first-time UK investors.** UCL AgentVerse Hackathon 2026, Finance track (Google DeepMind, Gemini Argon).
 
 > Start investing in five minutes. Then forget about it. We'll tell you when something needs your decision.
@@ -9,17 +17,6 @@ You answer a short quiz. A supervised team of Gemini agents builds a **paper** p
 A historical mode replays **7 Jul → 6 Nov 2026** day by day, entirely after the model's knowledge cutoff, and every day sees only data up to that day. Live mode runs the same system on today's data.
 
 Paper trading only. No real money, accounts or personal financial data. Not financial advice.
-
-## Live demo (for judges)
-
-**Link:** https://165-22-115-152.nip.io
-**Password:** `pSUpuvVTqe`
-
-- Choose **Demo** to watch the recorded historical run (Priya, 7 Jul → 6 Nov 2026). It loads instantly and never waits on an API call.
-- Choose **Live** to run the same system on today's data (takes a few minutes while the Gemini agents stream).
-- Second persona (recorded only): https://caroline.165-22-115-152.nip.io
-
-Paper trading only. Simulated numbers are labelled. Not financial advice.
 
 [Data sources, terms and synthetic-data disclosure](docs/DATA_SOURCES.md).
 
