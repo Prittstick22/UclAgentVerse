@@ -31,6 +31,7 @@ class SimController:
         self.task: asyncio.Task | None = None
         self.speed: float = 1.0
         self.error: str | None = None
+        self.paused_for_approval = False
         self._stop = asyncio.Event()
 
     # ------------------------------------------------------------------ views
@@ -121,8 +122,12 @@ class SimController:
 
     async def _loop(self) -> None:
         try:
+            self.paused_for_approval = False
             while self.sim is not None and not self.sim.done and not self._stop.is_set():
                 await self.sim.step()
+                if self.sim.approvals == "manual" and self._awaiting():
+                    self.paused_for_approval = True   # wait for the user; approve/decline resumes (#23)
+                    break
                 delay = 1.0 / self.speed if self.speed > 0 else 0.0
                 try:   # sleep between days, but wake at once on pause
                     await asyncio.wait_for(self._stop.wait(), timeout=delay)
@@ -131,6 +136,16 @@ class SimController:
         except Exception as e:
             self.error = f"{type(e).__name__}: {e}"
             log.exception("simulation failed")
+
+
+    def _awaiting(self) -> bool:
+        return any(p.status == "awaiting_approval" for p in self.state.proposals.values())
+
+    async def after_decision(self) -> None:
+        """Called after the user approves or declines: resume a replay that paused for them."""
+        if self.paused_for_approval and not self._awaiting() and self.sim is not None and not self.sim.done:
+            self.paused_for_approval = False
+            self._launch()
 
 
 def controller(state: Any) -> SimController:
