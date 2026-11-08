@@ -28,6 +28,9 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 5. Features only if ahead: #32 minimal assurance gate (critic + code checks) is the most valuable; #38 lessons (0–3 per run, advice only).
 Known: construction takes ~163 s on Argon (floor = the lead's 4 sequential steps + the slowest specialist); the demo replays the recording, and live builds stream.
 
+### Model change (Sun 8 Nov ~05:00)
+Dev's Claude Code session switched from **Opus 5.5** to **Sonnet 5.5** (`claude-sonnet-5-5`). Work from this point may be authored by Sonnet, so new commits and PR descriptions carry `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` instead of Opus 5.5. Earlier commits stay as they are. Nothing else changes: same rules, same plan, and the in-progress tickets (#31, #74, #37) continue as written. If a result looks different after this point, that may be why; record the model in the notes when you report live-run results.
+
 ### Environment (Dev's PC: Windows, Git Bash + PowerShell)
 - `.env` in the repo root has every key (git-ignored; **never print, log or commit keys**). `LLM_MODE=live`; `GEMINI_MODEL_DEEP=gemini-4-argon` and `GEMINI_MODEL_FAST=gemini-3.8-flash` (Dev authorised mixed-model routing, #127). Existing deep roles stay on Argon; fast roles use Flash. Existing all-Argon cache replays need their original `GEMINI_MODEL_FAST=gemini-4-argon` setting; do not replace canonical recordings or compare runs without disclosing their models. Credits are free but finite: don't waste them, and use `LLM_MODE=fake` for anything that isn't a deliberate live check.
 - Venv: `backend/.venv` → run `cd backend && .venv/Scripts/python -m pytest -q` (`make` assumes Unix paths).
