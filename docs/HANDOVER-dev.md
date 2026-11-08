@@ -8,6 +8,16 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 **Model note:** the session switched Opus 5.5 → Sonnet 5.5 at ~05:00 and **back to Opus 5.5** at ~05:10. Use whatever attribution line your own harness gives you. When you post live-run results, say which model produced them.
 
+### Latest: five historical runs completed (Codex, 8 Nov ~06:08)
+
+- Dev authorised continuing Priya through history to five runs total, not four independent new starting portfolios. Completed initial build plus reviews on 21 Jul, 4 Aug, 18 Aug and 1 Sep 2026. All four reviews chose maintain. Simulation is STOPPED at 1 Sep after 41 trading days; do not extend without another instruction.
+- Continued in a separate ignored copy: `backend/runs/smoke/20261108T054104Z/continuation-2-to-5/`. `continue_smoke.py` is a local smoke harness, not tracked application code. Original one-day recording/database is preserved. Verified bootstrap reconstructed identical first targets using 13 cached responses and ZERO live calls before starting four new runs. Frozen config and application code were not changed.
+- New runs: 21 Jul `run_6d16649396` 28.46s/$0.0321; 4 Aug `run_59d2c5ffc1` 35.54s/$0.0357; 18 Aug `run_d83b184df7` 49.75s/$0.0342; 1 Sep `run_abebca899d` 40.94s/$0.0361. All maintain; estimated additional cost $0.1381. Models: Argon lead, Flash specialists. Reconstructed initial run is `run_b95155e0a9` (original evidence `run_1a9f6c1b7c`).
+- Four holdings are now filled: IGLS.LSE, VERG.LSE, VUAG.LSE, VUKG.LSE. Six fills including subsequent contribution purchases. Simulated NAV GBP 10,549.34 from GBP 10,400 contributions; cash GBP 740.55; API TWR approximately 1.493%. 41 history points; all five benchmark series available. These are partial-window simulated results, not the completed four-month evaluation.
+- Active local backend is the continuation harness on 127.0.0.1:8000 (server PID 38720, launcher 32200; verify before stopping), serving continuation state.sqlite. Frontend stays :5173. `final_report.json`, portfolio.json, history.json, benchmarks.json and runs.json are saved in the continuation directory. Source market snapshot remains the verified isolated EODHD copy.
+- USER PREFERENCE: open app pages inside VS Code's integrated browser from now on, not external browser tabs. Computer-use verification found the integrated browser still on the separate Live quiz. Navigated existing Demo entry -> Open demo timeline -> Home without an extra build. Assets, Connections lattice and Split view performance were visually verified inside VS Code. Keep user on Home. No live Build button was clicked.
+- Next: let Dev inspect Home (Connections/Performance/Split view), Timeline and Benchmarks in VS Code and report issues. No deployment or full four-month run. `RECORDED_RUN` remains unset for editable smoke state. The continuation now stores initial sim_mandate, but full final-demo packaging/promotion and retry/resume behavior remain separate work.
+
 ### Historical smoke result (Codex, 8 Nov ~05:53)
 
 - User completed Live onboarding to the investment-plan review. Live profile is adventurous; historical Priya remains balanced. UI questions: Review every is trading days (default 10); exclusions currently require exact ticker/sleeve codes, not free text. Mo should add help text.
