@@ -161,3 +161,13 @@ def test_prompt_carries_as_of_and_mode(live):
     state, _ = live(lambda key, c, n: (seen.append(c), lead_brain(c))[1])
     run(state)
     assert f"AS_OF: {state.clock.as_of_str()}" in seen[0] and "MODE: historical" in seen[0]
+
+
+def test_random_proposal_ids_are_aliased_in_prompts_and_mapped_back(state):
+    from app.agents.supervisor import RunState
+    sup, run = state.supervisor, RunState(run_id="r", kind="construction", trigger_text="t")
+    a = sup._compact(run, {"proposal_id": "prop_0123456789", "evidence_ids": ["proposal:prop_0123456789"]}, "lead.3")
+    b = sup._compact(RunState(run_id="r2", kind="construction", trigger_text="t"),
+                     {"proposal_id": "prop_abcdefabcd", "evidence_ids": ["proposal:prop_abcdefabcd"]}, "lead.3")
+    assert a == b and "prop_" not in a                       # same prompt text on every run -> cache hits
+    assert sup._real_ids(run, ["proposal:ref:lead.3:1"]) == ["proposal:prop_0123456789"]

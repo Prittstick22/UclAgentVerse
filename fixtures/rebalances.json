@@ -2,68 +2,54 @@
  "items": [
   {
    "date": "2026-07-08",
-   "run_id": "run_985ae4a7fa",
+   "run_id": "run_58c6cd6186",
    "trigger_kind": "construction",
    "trigger_text": "User asked to build a portfolio",
    "changes": [
     {
-     "ticker": "VFEG.LSE",
+     "ticker": "IGLS.LSE",
      "action": "buy",
-     "amount_gbp": 474.0,
+     "amount_gbp": 806.0,
      "from_weight": 0.0,
-     "to_weight": 0.04744493034904054
+     "to_weight": 0.08067640055132211
     },
     {
      "ticker": "VWRP.LSE",
      "action": "buy",
-     "amount_gbp": 511.0,
+     "amount_gbp": 1093.0,
      "from_weight": 0.0,
-     "to_weight": 0.05114843757037915
-    },
-    {
-     "ticker": "VUKG.LSE",
-     "action": "buy",
-     "amount_gbp": 898.0,
-     "from_weight": 0.0,
-     "to_weight": 0.08988512120978566
-    },
-    {
-     "ticker": "IGLS.LSE",
-     "action": "buy",
-     "amount_gbp": 1199.0,
-     "from_weight": 0.0,
-     "to_weight": 0.12001365292932406
+     "to_weight": 0.1094036052141378
     },
     {
      "ticker": "VAGS.LSE",
      "action": "buy",
-     "amount_gbp": 1417.0,
+     "amount_gbp": 1446.0,
      "from_weight": 0.0,
-     "to_weight": 0.14183431709829208
+     "to_weight": 0.14473706600150343
     },
     {
-     "ticker": "VERG.LSE",
+     "ticker": "VUKG.LSE",
      "action": "buy",
-     "amount_gbp": 1451.0,
+     "amount_gbp": 1506.0,
      "from_weight": 0.0,
-     "to_weight": 0.14523753995033295
-    },
-    {
-     "ticker": "VUAG.LSE",
-     "action": "buy",
-     "amount_gbp": 1643.0,
-     "from_weight": 0.0,
-     "to_weight": 0.16445573958538734
+     "to_weight": 0.15074275338745796
     },
     {
      "ticker": "VGOV.LSE",
      "action": "buy",
-     "amount_gbp": 1877.0,
+     "amount_gbp": 2242.0,
      "from_weight": 0.0,
-     "to_weight": 0.18787792039060988
+     "to_weight": 0.22441251865516648
+    },
+    {
+     "ticker": "VUAG.LSE",
+     "action": "buy",
+     "amount_gbp": 2377.0,
+     "from_weight": 0.0,
+     "to_weight": 0.2379253152735641
     }
    ],
-   "cost_gbp": 9.47
+   "cost_gbp": 9.48
   }
  ]
 }
