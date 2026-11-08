@@ -8,6 +8,14 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 **Model note:** the session switched Opus 5.5 → Sonnet 5.5 at ~05:00 and **back to Opus 5.5** at ~05:10. Use whatever attribution line your own harness gives you. When you post live-run results, say which model produced them.
 
+### Active local smoke test (Codex, 8 Nov ~05:42)
+
+- Latest main was fast-forwarded to 5bd64b2 (incoming changes were README-only); no application code changed.
+- Isolated attempt: `backend/runs/smoke/20261108T054104Z/`. Its snapshot contains verified EODHD prices (17,501 rows, 18 instruments) and FX (1,005 rows), through 6 Nov 2026. Existing evidence files were copied with their real/synthetic source labels preserved. Original `backend/data/snapshot/` was not overwritten. Validation and hashes: `data_validation.json`.
+- Local backend is running on `http://127.0.0.1:8000`; frontend on `http://127.0.0.1:5173`, VITE_MOCK=0. APP_MODE=historical, LLM_MODE=live, Argon deep / Flash fast; isolated state.sqlite and mode-specific DBs. Logs and launcher PIDs are in the attempt directory. Effective uvicorn server PID was 19544 (verify listener ownership before stopping).
+- User is driving onboarding. They reported an issue; details are pending. The observed browser remains on the start screen; backend health/profile endpoints return 200. Only observed browser errors so far: favicon.ico 404. No portfolio construction or paid Gemini smoke call has started.
+- Next: resolve the user's reported issue, let them complete Live onboarding only to the plan review (do not click Build), then switch back to historical Priya and start exactly ONE July 7 construction using existing batch_policy. Do not start the four-month run, deploy, or overwrite any recording. UI changes are owned by Mo; log gaps rather than editing his active files.
+
 ### Done (all merged on main)
 - **Keys and providers:** #3 EODHD (paid), #27, #54, #55. Alpha Vantage not used; Alpaca deferred (#80).
 - **Agents:**
