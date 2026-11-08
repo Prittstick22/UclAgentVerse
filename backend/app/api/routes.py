@@ -8,11 +8,14 @@ from __future__ import annotations
 import asyncio
 import json
 
+from datetime import date
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.events import sse_frame
+from app.data.gateway import AsOfViolation
 from app.engine import risk
 from app.profile.quiz import mandate_for, questions_payload, score
 from app.schemas import Goal, Mandate, Portfolio
@@ -127,11 +130,24 @@ def benchmarks(request: Request):
 
 
 @router.get("/risk/correlation")
-def correlation(request: Request, lookback: int = 252, tickers: str | None = None):
+def correlation(request: Request, lookback: int | None = None, tickers: str | None = None,
+                as_of: str | None = None):
+    """Correlation lattice as of `as_of` (any past date up to the clock; default = now)."""
     s = S(request)
     names = {i.ticker: i.name for i in s.gw.catalogue()}
     tick = tickers.split(",") if tickers else list(s.ledger.weights()) or [i.ticker for i in s.gw.catalogue()][:8]
-    rep = risk.correlation_report(s.gw.prices(tick, caller="api.correlation"), s.clock.as_of_str(), lookback, names)
+    try:
+        # strict YYYY-MM-DD: pd.Timestamp would also accept "now"/"today" (the wall clock) and "NaT"
+        day = date.fromisoformat(as_of).isoformat() if as_of else s.clock.as_of_str()
+    except ValueError:
+        err(422, "validation_error", f"as_of must be a date like 2026-09-01, got {as_of!r}")
+    try:
+        prices = s.gw.prices(tick, end=day, caller="api.correlation")
+        rep = risk.correlation_report(prices, day, lookback, names)
+    except AsOfViolation as e:
+        err(400, "asof_violation", str(e))
+    except (KeyError, ValueError) as e:
+        err(422, "validation_error", str(e))
     return rep.model_dump()
 
 
