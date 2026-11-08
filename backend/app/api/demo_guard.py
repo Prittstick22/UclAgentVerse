@@ -43,6 +43,8 @@ def require_passcode(request: Request) -> None:
 def guard_agent_run(request: Request) -> None:
     """Checks before starting an agent run: passcode + budget when Gemini is live in the public demo."""
     state = request.app.state.app
+    if state.recording is not None:
+        return  # historical actions select an existing recording, never spend tokens
     s = state.settings
     if not s.public_demo or s.llm_mode != "live":
         return   # fake / replay cost nothing

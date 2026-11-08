@@ -176,6 +176,21 @@ notifications. No GET request calls a provider. See [live mode](live-mode.md).
 
 Portfolio dates are inclusive and capped at the active `as_of`. History points from older `clock.tick` recordings use `null` when contributions were never recorded. Portfolio detail or period P&L returns `409 validation_error` when the available recording lacks the ledger data needed for the response. Rebalances list filled approvals newest first and use the recorded execution date and costs.
 
+Recorded demo (#78): when `RECORDED_RUN` is configured, startup loads a read-only copy of the
+finished SQLite run into an isolated in-memory historical state. No response/event fields change.
+Startup displays the last recorded day. `sim/start` restarts playback within the saved window;
+`speed` is recorded trading days per second, `pause` and `step` move only the replay cursor.
+`run_agents` and `approvals` do not execute agents, optimisers or new trades in this mode.
+`portfolio/build` selects the visible recorded construction run (202 with its existing `run_id`).
+Recorded proposal approve/decline return 409 `validation_error`; visitors make decisions in live mode.
+Runs/events and proposals later than the cursor are hidden, and final benchmark results are withheld
+until the last recorded day. Saved event IDs, sequences and timestamps are preserved on SSE; a recorded
+run stream ends after `run.completed` and same-day trailing approval/gate events. Recorded SSE
+frames include `id: <seq>`; a reconnect uses `Last-Event-ID` to recover trailing frames. When the
+visible run is fully consumed, a reconnect returns HTTP 204 so native EventSource stops retrying.
+Live streams retain their existing retry behavior, including after a completion frame.
+Live-mode data and investigations stay isolated from the recording, with the existing async build response.
+
 ## 3. Events (SSE)
 
 The SSE frame is `event: <type>\ndata: <Event JSON>\n\n`. A heartbeat comment `: ping` is sent every 15 s.
