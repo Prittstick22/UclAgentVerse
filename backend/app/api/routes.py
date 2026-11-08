@@ -26,7 +26,7 @@ from app.data.gateway import AsOfViolation
 from app.data.live import updates
 from app.engine import risk
 from app.engine.portfolio import PortfolioDataUnavailable
-from app.profile.demo import demo_profile
+from app.profile.demo import demo_profile, persona_name
 from app.profile.mandates import save as save_mandate
 from app.profile.mandates import validate as validate_mandate
 from app.profile.quiz import mandate_for, questions_payload, score
@@ -98,13 +98,13 @@ def set_mode(body: ModeBody, request: Request):
 
 # ------------------------------------------------------------------ profile + mandate
 @router.get("/profile/demo")
-def get_demo_profile() -> DemoProfile:
-    return demo_profile()
+def get_demo_profile(request: Request) -> DemoProfile:
+    return demo_profile(S(request).settings.demo_persona)
 
 
 def require_live_profile(request: Request) -> None:
     if S(request).clock.mode == "historical":
-        err(409, "validation_error", "This demo follows Priya. Switch to live mode to create your own profile.")
+        err(409, "validation_error", f"This demo follows {persona_name(S(request).settings.demo_persona)}. Switch to live mode to create your own profile.")
 
 
 @router.get("/profile/questions")

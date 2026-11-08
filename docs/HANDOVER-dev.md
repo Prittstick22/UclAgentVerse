@@ -8,7 +8,11 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 **Model note:** the session switched Opus 5.5 → Sonnet 5.5 at ~05:00 and **back to Opus 5.5** at ~05:10. Use whatever attribution line your own harness gives you. When you post live-run results, say which model produced them.
 
-### Latest: Caroline higher-risk scenario profile (Claude Opus 5.5, 8 Nov)
+### Latest: Caroline recording support (Claude Sonnet 5.5, 8 Nov)
+
+Branch `dev/caroline-recording-support` (after merged PR #140). A second persona's recording can now be captured, packaged into the repo and replayed: `DEMO_PERSONA`, `capture_demo.py --persona`, `scripts/demo.py --persona caroline`, `scripts/make_demo_bundle.py`; docs in `demo/README.md` and `docs/demo-capture.md`. Priya untouched. **Next (needs Dev):** the paid live Caroline capture (2-week slice first), then package + commit her bundle with a distribution-clearance statement; deploy only on Dev's go-ahead.
+
+### Earlier: Caroline higher-risk scenario profile (Claude Opus 5.5, 8 Nov)
 
 Branch `dev/caroline-aggressive-profile`. Added the `aggressive` profile (policy.yaml, new entry only), `Caps.stocks_min` (optional, default 0, enforced by the optimiser + checker), persona `caroline` (`demo_persona("caroline")`, `demo_mandate("caroline")`) and `runner --persona caroline`. Priya's persona, mandate and prompts are byte-identical. 457 backend tests pass. Engine-only real-snapshot construction: 57.0% stocks / 39.1% ETFs / 0% bonds. **Next (needs Dev):** decide on the Caroline capture (paid) and how the demo offers a second recording; see handoff/STATE.md.
 

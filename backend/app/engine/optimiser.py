@@ -22,6 +22,8 @@ Variant = Literal["recommended", "lower_cost", "lower_risk"]
 VARIANTS: tuple[Variant, ...] = ("recommended", "lower_cost", "lower_risk")
 
 MIN_WEIGHT = 1e-4   # holdings below this are dust: removed, then the problem is re-solved without them
+STOCK_CAP_HEADROOM = 0.9   # solve single stocks at 90% of their cap (10% cap -> 9%)
+STOCKS_MIN_MARGIN = 0.001  # solve 0.1 pp above a stocks floor
 MARGIN = 1e-5       # solve slightly inside every limit so rounding 20 weights to 6 dp can never break one
 SOLVERS = ("CLARABEL", "OSQP", "SCS")
 INTERNAL = {"sum_to_one", "min_holding"}   # always/self-imposed: not a mandate limit worth reporting
@@ -124,7 +126,11 @@ def _solve(req: OptimiseRequest, insts: list[Instrument], margin: float, floor: 
     is_eq = np.array([i.asset_class == "equity" for i in insts], dtype=float)
     is_bd = np.array([i.asset_class == "bond" for i in insts], dtype=float)
     is_stock = np.array([i.kind == "stock" for i in insts], dtype=float)
-    caps = np.array([m.caps.per_stock if i.kind == "stock" else m.caps.per_fund for i in insts])
+    from app.sim import compat
+    # Solve single stocks inside their cap (headroom) so an ordinary price rise doesn't breach it the next day and
+    # trigger an investigation; the checker and monitors keep the real cap. Funds are unchanged.
+    stock_cap = m.caps.per_stock * (1.0 if compat.legacy else STOCK_CAP_HEADROOM)
+    caps = np.array([stock_cap if i.kind == "stock" else m.caps.per_fund for i in insts])
 
     eq_lo, eq_hi = m.ranges.equity
     bd_lo, bd_hi = m.ranges.bond
@@ -159,7 +165,8 @@ def _solve(req: OptimiseRequest, insts: list[Instrument], margin: float, floor: 
         "stocks_total": is_stock @ w <= max(m.caps.stocks_total - e, 0.0),
     }
     if m.caps.stocks_min > 0:
-        named["stocks_min"] = is_stock @ w >= m.caps.stocks_min + e
+        # rounding 8+ stock weights to 6 dp can land just under an exactly-met floor: solve a little above it
+        named["stocks_min"] = is_stock @ w >= m.caps.stocks_min + (e if compat.legacy else max(e, STOCKS_MIN_MARGIN))
     if floor:
         named["min_holding"] = w >= floor
     if anchor is not None:

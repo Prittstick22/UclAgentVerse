@@ -1,0 +1,51 @@
+{
+  "format_version": 1,
+  "bundle_id": "caroline-2026-07-07--2026-11-06-v1",
+  "persona": "caroline",
+  "archive": "assets/caroline-2026-07-07--2026-11-06-v1.zip",
+  "archive_sha256": "ad30d2f224082e1ac021e226997646e78ee58376c01de56413c61a58dc21d81f",
+  "files": {
+    "recording.sqlite": "29f9bcc68ef4dea8c1cab9635d768db3df5e2838c4e33c8eb7fefc78fa58b678",
+    "snapshot/earnings.jsonl": "2dbeb92bf2836b0a7771f938ccb4175f51449d37d908595a9688a3ff2c4e689a",
+    "snapshot/etf_holdings.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "snapshot/filings.jsonl": "c856e485750ca24f235010cb9fc2488c4dfc064f9192398ab5aad7fc58709f90",
+    "snapshot/fx_daily.parquet": "096d2d9c088efdcb0332ad96843528eed2aa4a855f75fd9e53c265c95cf042e4",
+    "snapshot/manifest.json": "33f854440fce46e7b04b386fa4e95ce4d02a4d67ec6b1594f25d45f5e7aadd8f",
+    "snapshot/news.jsonl": "2928f0eb4c6054ee08fd6ed6d411083304a20bfa80a87954a3cbf150754a2de3",
+    "snapshot/prices_daily.parquet": "77c2a65a585901b24cf8df2edeab412181e892df0b7d62ce5707a76e01d08ed1"
+  },
+  "start": "2026-07-07",
+  "end": "2026-11-06",
+  "days": 89,
+  "agent_runs": 23,
+  "model_calls": 137,
+  "models": [
+    "gemini-3.8-flash",
+    "gemini-4-argon"
+  ],
+  "estimated_capture_usd": 3.3320147500000012,
+  "capture_seconds": 1783.69,
+  "recording_sha256": "29f9bcc68ef4dea8c1cab9635d768db3df5e2838c4e33c8eb7fefc78fa58b678",
+  "snapshot_label": "eodhd",
+  "fictional_profile": "Caroline, aggressive",
+  "simulation": "paper trading; historical simulated results, not a forecast",
+  "distribution_clearance": {
+    "confirmed_by": "Dev (provider account owner)",
+    "date": "2026-11-08",
+    "scope": "Public distribution of the included EODHD/Finnhub data and article text (the same files Dev cleared for Priya's bundle on 8 Nov 2026)",
+    "confirmation": "Public distribution: I confirm permission to redistribute the included EODHD/Finnhub data and article text."
+  },
+  "source_capture_commit": "9d3b125",
+  "market_sources": [
+    "eodhd",
+    "finnhub",
+    "sec_edgar"
+  ],
+  "inputs_note": "Snapshot files are byte-identical to Priya's bundle (same hashes): no new data was acquired.",
+  "capture_notes": [
+    "7 Jul construction was replayed from attempt 3's saved Gemini answers (identical prompts, $0); from 8 Jul all calls were live.",
+    "8 Nov fixes active from 8 Jul: case evidence alias, stocks-floor margin, per-stock cap headroom (solve at 90% of cap).",
+    "Capture had no wall-time limit and stopped only on provider failures; token-budget hits would be recorded, none occurred.",
+    "estimated_capture_usd is the whole Caroline campaign (attempts 1-5, including stopped attempts)."
+  ]
+}

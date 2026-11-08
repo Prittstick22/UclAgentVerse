@@ -15,6 +15,8 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_UNPACKED_BYTES = 64 * 1024 * 1024
+# One immutable bundle per persona. Priya's manifest stays where it was; each server replays exactly one persona.
+MANIFESTS = {"priya": "demo/manifest.json", "caroline": "demo/caroline.manifest.json"}
 
 
 def sha256(path: Path) -> str:
@@ -28,8 +30,8 @@ def verify_files(directory: Path, files: dict[str, str]) -> None:
             raise ValueError(f"Demo file missing or changed: {name}. Preserve/rename this cache and retry.")
 
 
-def prepare_bundle(root: Path = ROOT, destination: Path | None = None) -> tuple[dict, Path]:
-    manifest = json.loads((root / "demo/manifest.json").read_text(encoding="utf-8"))
+def prepare_bundle(root: Path = ROOT, destination: Path | None = None, persona: str = "priya") -> tuple[dict, Path]:
+    manifest = json.loads((root / MANIFESTS[persona]).read_text(encoding="utf-8"))
     for value in (manifest["archive"], manifest["bundle_id"]):
         if PurePosixPath(value).is_absolute() or ".." in PurePosixPath(value).parts or "\\" in value or ":" in value:
             raise ValueError("Unsafe path in demo manifest")
@@ -66,9 +68,9 @@ def prepare_bundle(root: Path = ROOT, destination: Path | None = None) -> tuple[
     return manifest, destination
 
 
-def replay_environment(root: Path, data: Path, *, api_only: bool = False) -> dict[str, str]:
+def replay_environment(root: Path, data: Path, *, api_only: bool = False, persona: str = "priya") -> dict[str, str]:
     env = dict(os.environ)
-    env.update(APP_MODE="historical", LLM_MODE="replay", REPLAY_ONLY="1", PUBLIC_DEMO="1",
+    env.update(APP_MODE="historical", LLM_MODE="replay", REPLAY_ONLY="1", PUBLIC_DEMO="1", DEMO_PERSONA=persona,
                RECORDED_RUN=str(data / "recording.sqlite"), SNAPSHOT_DIR=str(data / "snapshot"),
                STATE_DB=str(root / ".demo-runtime/state.sqlite"), RUNS_DIR=str(root / ".demo-runtime/runs"),
                STATIC_DIR=str(root / ".demo-runtime/no-static" if api_only else root / "frontend/dist"),
@@ -102,13 +104,15 @@ def main() -> int:
     parser.add_argument("--setup", action="store_true", help="Install dependencies and build the UI first")
     parser.add_argument("--check", action="store_true", help="Verify/extract bundle without dependencies, API keys or server")
     parser.add_argument("--api-only", action="store_true", help="Serve API for frontend development with VITE_MOCK=0")
+    parser.add_argument("--persona", choices=sorted(MANIFESTS), default="priya",
+                        help="Which recorded demo to replay (default: priya, the balanced demo)")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1")
     args = parser.parse_args()
     if sys.version_info < (3, 11):  # noqa: UP036 - launcher must explain prerequisites before creating a venv
         parser.error("Python 3.11+ is required")
     try:
-        manifest, data = prepare_bundle()
+        manifest, data = prepare_bundle(persona=args.persona)
         with sqlite3.connect(f"{(data / 'recording.sqlite').resolve().as_uri()}?mode=ro", uri=True) as conn:
             if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                 raise ValueError("Recorded SQLite integrity check failed")
@@ -124,7 +128,7 @@ def main() -> int:
         print(f"Recorded demo: http://{args.host}:{args.port}/ — choose Demo. Ctrl+C stops this server.", flush=True)
         print("No API keys/provider calls. Live questionnaire works; new Live investigations are disabled.", flush=True)
         return subprocess.run([str(python), "-m", "uvicorn", "app.main:app", "--host", args.host, "--port", str(args.port)],
-                              cwd=ROOT / "backend", env=replay_environment(ROOT, data, api_only=args.api_only), check=False).returncode
+                              cwd=ROOT / "backend", env=replay_environment(ROOT, data, api_only=args.api_only, persona=args.persona), check=False).returncode
     except (OSError, ValueError, sqlite3.Error, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
         print(f"Demo startup: {error}", file=sys.stderr)
         return 1

@@ -1,6 +1,6 @@
 # Local demo capture
 
-Capture runs use a fresh Priya simulation, real cached input evidence and the frozen configuration. They do not deploy.
+Capture runs use a fresh simulation of the chosen persona (`--persona priya`, the default and the finished demo, or `--persona caroline`), real cached input evidence and the frozen configuration. They do not deploy.
 
 Prepare a new campaign directory outside tracked files with validated EODHD prices/FX and real text evidence in an inputs subdirectory. Remove synthetic records only from that copy, including the planted injection item and synthetic ETF constituent list. Preserve original source timestamps and a separate exclusion/hash audit.
 
@@ -10,6 +10,8 @@ From backend, use the existing virtual-environment Python:
 python scripts/capture_demo.py --snapshot <campaign>/inputs --out <campaign>/preflight --budget-file <campaign>/budget.json --budget-usd 5 --engine-only
 python scripts/capture_demo.py --snapshot <campaign>/inputs --out <campaign>/attempts/001 --budget-file <campaign>/budget.json --budget-usd 5 --env-file <original-repo>/.env
 ```
+
+For Caroline add `--persona caroline` to both commands; capture validates her aggressive mandate instead of Priya's. After READY.json, package it with `scripts/make_demo_bundle.py` (see `demo/README.md`) so teammates get it by pulling the repo. To serve it on the droplet, set `DEMO_PERSONA=caroline` and `RECORDED_RUN=<path to its recording.sqlite>` in that server's environment (one persona per server); deploys remain Dev's explicit step.
 
 Use backend/.venv/Scripts/python on Windows. The optional env-file supplies local credentials without copying or printing them. Every output directory must be new; no existing recording is replaced. Agent mode selects Argon for deep roles and Flash for fast roles, July 7 through November 6, with the existing batch approval policy. Engine preflight uses no models.
 

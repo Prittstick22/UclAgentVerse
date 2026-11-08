@@ -29,6 +29,27 @@ python scripts/demo.py --check
 
 The archive is checked against `manifest.json`, extracted into ignored `.demo-data/`, and each extracted file is checked again. Existing changed files are refused rather than silently overwritten. The original recording is loaded read-only into memory. Per-machine questionnaire state goes under ignored `.demo-runtime/`; it is never shared.
 
+## Caroline (higher-risk scenario)
+
+A second, separate recording follows **Caroline** (aggressive profile: about 60% single stocks, 40% equity ETFs, no bonds) over the same window. It is a different run, with its own captured requests and responses, and it never replaces Priya's. Its bundle is `demo/caroline.manifest.json` plus `demo/assets/caroline-*.zip`, added when the capture has been validated and packaged (see below). Until then `--persona caroline` stops with a "No such file" error.
+
+```bash
+python scripts/demo.py --persona caroline     # same setup, same port options; Priya remains the default
+python scripts/demo.py --persona caroline --check
+```
+
+One server replays one persona (`DEMO_PERSONA`, set by the launcher). Nothing in the frontend or API shapes changes: `/api/profile/demo` returns whoever the server is replaying.
+
+**Adding Caroline's recording** (Dev, after the paid capture; see [capture workflow](../docs/demo-capture.md)):
+
+```bash
+python scripts/make_demo_bundle.py --persona caroline --attempt <attempt dir with READY.json>     --snapshot <the capture's inputs dir> --clearance "<your exact distribution-permission wording>"
+python scripts/demo.py --persona caroline --check
+git add demo && git commit && git push
+```
+
+The builder refuses an attempt without `READY.json`, files that look like they contain a credential or request URL, a missing clearance statement, and overwriting an existing bundle. Priya's clearance does not automatically cover any newly fetched data, so state the permission for what Caroline's bundle contains.
+
 ## Frontend development against the recording
 
 Keep the backend on port 8000 for Vite's existing proxy:

@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 import math
+import os
 import threading
 import time
 from pathlib import Path
@@ -12,7 +13,7 @@ from pathlib import Path
 from app.agents.llm import LLMError
 from app.api.run_views import find_evidence
 from app.container import build_state
-from app.profile.demo import demo_mandate
+from app.profile.demo import demo_mandate, persona_name
 from app.schemas import Mandate
 from app.settings import Settings
 from app.sim.evaluate import BENCHMARKS
@@ -21,6 +22,21 @@ from app.sim.runner import Simulation
 
 class CaptureError(LLMError):
     pass
+
+
+PROVIDER_FAILURE = ("LLMError", "LLMCacheMiss")   # agent.status reasons that mean Gemini/keys failed (or a dry-run miss)
+
+
+def is_fatal(event: dict, *, agents: bool) -> bool:
+    """Stop a recording only for real API/key failures, a crashed run, or the construction engine fallback.
+    A run that uses up its token budget ends safely ('investigate further') and a reply that fails the schema twice
+    ends that agent: both are recorded outcomes, not technical failures (Dev, 8 Nov)."""
+    kind, status = event.get("type"), event.get("status")
+    if kind == "agent.status" and status == "failed":
+        return str((event.get("payload") or {}).get("reason", "")).startswith(PROVIDER_FAILURE)
+    if kind == "run.completed" and status == "failed":
+        return not (event.get("payload") or {}).get("budget_exceeded")
+    return bool(agents and event.get("title") == "Initial portfolio built by the engine")
 
 
 def write_json(path: Path, value: dict) -> None:
@@ -97,11 +113,11 @@ def validate_state(state, start: str, end: str, *, agents: bool) -> dict:
     if not state.ledger.fills or not state.ledger.positions:
         raise CaptureError("Recording has no invested portfolio")
     raw = state.db.get("sim_mandate", "initial")
-    if not raw or Mandate.model_validate_json(raw) != demo_mandate():
-        raise CaptureError("Initial mandate does not match Priya")
-    if any(event["type"] in ("agent.status", "run.completed") and event.get("status") == "failed"
-           or event["type"] == "budget.exceeded" for event in events):
-        raise CaptureError("Recording contains a technical agent failure or exhausted run limit")
+    persona = state.settings.demo_persona
+    if not raw or Mandate.model_validate_json(raw) != demo_mandate(persona):
+        raise CaptureError(f"Initial mandate does not match {persona_name(persona)}")
+    if any(is_fatal(event, agents=False) for event in events):
+        raise CaptureError("Recording contains a provider failure or a crashed run")
     if agents and any(event["title"] == "Initial portfolio built by the engine" for event in events):
         raise CaptureError("Agent construction used the engine fallback")
     refs = {ref for event in events for ref in event.get("evidence_ids", [])}
@@ -133,8 +149,17 @@ def validate_state(state, start: str, end: str, *, agents: bool) -> dict:
 
 
 async def capture(settings: Settings, out: Path, budget_file: Path, limit: float,
-                  start: str, end: str, *, agents: bool = True) -> dict:
-    """A failed attempt remains inspectable and never receives READY.json."""
+                  start: str, end: str, *, agents: bool = True, replay_cache_from: Path | None = None,
+                  fixes_from: str | None = None, dry_run_replay: bool = False,
+                  review_every_from: tuple[str, int] | None = None) -> dict:
+    """A failed attempt remains inspectable and never receives READY.json.
+
+    Continue an earlier attempt without paying again (`replay_cache_from` = its attempt dir): its saved Gemini answers
+    are copied in and the days before `fixes_from` run with the old behaviour (`compat.legacy`), so prompts match and
+    the agents' calls are cache hits. The fixes take over at `fixes_from`, or earlier at the first call the cache
+    can't answer (reported as `fixes_from_actual`). `dry_run_replay` = replay mode only, stop at `fixes_from`, $0.
+    `review_every_from` = (date, n): review every n trading days from that date (fallback; recorded in the report)."""
+    from app.sim import compat
     out = Path(out).resolve()
     out.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
@@ -142,6 +167,8 @@ async def capture(settings: Settings, out: Path, budget_file: Path, limit: float
     lock_path = Path(budget_file).with_suffix(".lock")
     lock_file = None
     report = {"status": "incomplete", "start": start, "end": end, "agents": agents}
+    # Set orders (e.g. tied trades) follow the hash seed; a fixed seed makes a later continue replay exactly.
+    report["python_hash_seed"] = os.environ.get("PYTHONHASHSEED", "random")
     try:
         budget = CaptureBudget(budget_file, limit)
         # A second capture cannot race the shared ledger; an interrupted process leaves this lock for diagnosis.
@@ -155,28 +182,55 @@ async def capture(settings: Settings, out: Path, budget_file: Path, limit: float
         settings = settings.model_copy(update={"app_mode": "historical", "recorded_run": None,
                                                "public_demo": False, "state_db": out / "recording.sqlite"})
         state = build_state(settings, db_path=str(out / "recording.sqlite"))
-        state.mandate = demo_mandate()
+        state.mandate = demo_mandate(settings.demo_persona)
+        # A recording has no visitor waiting, so slow provider latency must not cut a run short: capture only, no
+        # wall-time limit (copy, so the cached frozen config and Live mode keep run_wall_time_s). Step/token limits stay.
+        state.supervisor.cfg = {**state.supervisor.cfg, "run_wall_time_s": None}
+        report["run_wall_time_s"] = "off (capture only)"
         state.db.put("sim_mandate", "initial", state.mandate.model_dump_json())
+        if replay_cache_from is not None:
+            source = (Path(replay_cache_from) / "recording.sqlite").resolve()
+            state.db.execute("ATTACH DATABASE ? AS prior", (str(source),))
+            state.db.execute("INSERT OR IGNORE INTO llm_cache SELECT * FROM prior.llm_cache")
+            report["replayed_answers"] = state.db.execute("SELECT count(*) FROM llm_cache")[0][0]
+            state.db.execute("DETACH DATABASE prior")
+            report["resumed_from_attempt"] = str(replay_cache_from)
+            compat.legacy = fixes_from is not None
+        if dry_run_replay:
+            state.llm.mode = "replay"
         check_real_inputs(state)
         before = input_hashes(settings.snapshot_dir)
         fatal = []
         def on_event(event):
-            if (event.type in ("agent.status", "run.completed") and event.status == "failed"
-                    or event.type == "budget.exceeded"
-                    or agents and event.title == "Initial portfolio built by the engine"):
-                fatal.append(event.type)
+            if is_fatal(event.model_dump(), agents=agents):
+                fatal.append(f"{event.as_of} {event.type}: {(event.payload or {}).get('reason', event.title)}"[:300])
         def before_call():
             if fatal:
-                raise CaptureError("Capture stopped after a technical agent failure")
+                raise CaptureError("Capture stopped after a provider failure")
+            if compat.legacy:   # the saved answers ran out before fixes_from: fixes on from today, live from here
+                compat.legacy = False
+                report["fixes_from_actual"] = state.clock.as_of_str()
             budget.check()
         state.events.listen(on_event)
         state.llm.before_live_call = before_call
         state.llm.on_spend = budget.record
         sim = Simulation(state, start, end, agents=agents, approvals="batch_policy")
+        if review_every_from is not None:
+            sim.set_review_every_from(*review_every_from)
+            report["review_every_from"] = list(review_every_from)
         while not sim.done:
+            today = str(sim.days[sim.i].date())
+            if fixes_from is not None and today >= fixes_from:
+                if dry_run_replay:
+                    report.update(status="dry_run_reached", replayed_until=today, live_calls=state.llm.live_calls)
+                    return report
+                if compat.legacy:
+                    compat.legacy = False
+                    report.setdefault("fixes_from_actual", today)
             await sim.step()
             if fatal:
-                raise CaptureError("Capture stopped after a technical agent failure or run limit")
+                report["fatal"] = fatal[:3]
+                raise CaptureError("Capture stopped after a provider failure or a crashed run")
             if agents and sim.i == 1 and not sim.targets:
                 raise CaptureError("Agent construction did not produce an approved starting portfolio")
             print(json.dumps({"date": state.clock.as_of_str(), "progress": sim.progress,
@@ -203,6 +257,7 @@ async def capture(settings: Settings, out: Path, budget_file: Path, limit: float
         report["reason"] = str(error) if isinstance(error, CaptureError) else "Attempt failed; inspect saved events."
         raise
     finally:
+        compat.legacy = False
         if state is not None:
             state.db.conn.close()
         report["duration_s"] = round(time.monotonic() - started, 2)

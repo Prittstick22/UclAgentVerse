@@ -289,8 +289,21 @@ class Supervisor:
         return text if len(text) <= RESULT_CHARS else text[:RESULT_CHARS] + " ...(truncated)"
 
     def _real_ids(self, run: RunState, ids: list[str]) -> list[str]:
-        """Aliases back to real ids, also inside composite ids such as `proposal:ref:lead.3:1`."""
-        return [_ALIAS.sub(lambda m: run.evidence_map.get(m.group(0), m.group(0)), i) for i in ids]
+        """Aliases back to real ids, also inside composite ids such as `proposal:ref:lead.3:1`.
+        Agents also cite a case by its case_id (`case_AAPL.US`); map it to the evidence id `case:AAPL.US:v<latest>`."""
+        out = [_ALIAS.sub(lambda m: run.evidence_map.get(m.group(0), m.group(0)), i) for i in ids]
+        from app.sim import compat
+        if compat.legacy:
+            return out
+        return [self._case_evidence_id(i) if i.startswith("case_") else i for i in out]
+
+    def _case_evidence_id(self, case_id: str) -> str:
+        state = getattr(self.tools.ctx, "state", None)
+        raw = state.db.get("cases", case_id.removeprefix("case_")) if state is not None else None
+        if not raw:
+            return case_id
+        case = json.loads(raw)
+        return f"case:{case['ticker']}:v{case['version']}"
 
     # ------------------------------------------------------------------ one LLM step (schema retry)
     async def _step(self, run: RunState, model: str, system: str, prompt: str, fake_ctx: dict) -> AgentStep:
