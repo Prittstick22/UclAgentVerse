@@ -213,7 +213,7 @@ class PortfolioPnl(BaseModel):
 
 class Evidence(BaseModel):
     id: str
-    kind: Literal["price", "news", "filing", "calc", "catalogue", "web"]
+    kind: Literal["price", "news", "filing", "calc", "catalogue", "web", "case", "proposal", "earnings"]
     title: str
     source: str
     url: str | None = None

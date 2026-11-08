@@ -77,7 +77,7 @@ interface Portfolio {
 }
 
 interface Evidence {
-  id: string; kind: "price" | "news" | "filing" | "calc" | "catalogue" | "web";
+  id: string; kind: "price" | "news" | "filing" | "calc" | "catalogue" | "web" | "case" | "proposal" | "earnings";
   title: string; source: string; url: string | null;
   published_at: string | null; available_at: string; excerpt: string | null;
   data: Record<string, unknown> | null;  // e.g. calc inputs/outputs
@@ -196,6 +196,8 @@ Sim notes: `start` replays from a fresh ledger as a background task at `speed` t
 | `GET /api/sim/status` | — | `{sim, as_of, progress: number}` | Cem |
 | `POST /api/chat` | `{message, conversation_id?}` | `{conversation_id, run_id, answer, citations: string[], proposal_id: string\|null}` | Dev |
 | `POST /api/tasks/live-eod` · `POST /api/tasks/live-news` | header `X-Task-Secret` | `{ok, fetched, stale: string[]}` | Jin |
+
+Evidence notes: resolves `calc:<event id>`, news/filing/passage IDs, `catalogue`, `case:<ticker>:v<version>`, `proposal:<id>`, `earnings:<ticker>` and `web:<hash>`. Saved artefacts require a successful tool/source event in the active mode available at or before its clock. The catalogue is the gateway's current as-of eligible reference list. Cases resolve the exact saved version (new saves preserve version history); an older recording missing that version returns 404 rather than substituting a later case. Case/proposal sources are labelled as agent artefacts, not external market evidence. Proposal evidence excludes mutable approval/selection/gate state. Web evidence exposes recorded source links; it does not invent missing article text. Unknown, missing and future evidence remains 404.
 
 Live refresh tasks (#11) run in the background. Their immediate response keeps
 the existing `{ok, fetched, stale}` shape: `ok` means accepted, `fetched` is

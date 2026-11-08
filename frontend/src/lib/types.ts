@@ -20,6 +20,13 @@ export interface NewsItem {
 }
 export interface NewsFeed { as_of: string; items: NewsItem[] }
 
+export interface Evidence {
+  id: string; kind: "price" | "news" | "filing" | "calc" | "catalogue" | "web" | "case" | "proposal" | "earnings";
+  title: string; source: string; url: string | null;
+  published_at: string | null; available_at: string; excerpt: string | null;
+  data: Record<string, unknown> | null; quarantined: boolean;
+}
+
 export interface QuestionOption { id: string; label: string }
 export interface Question { id: string; text: string; help: string; measures: "tolerance" | "capacity" | "context"; options: QuestionOption[] }
 
