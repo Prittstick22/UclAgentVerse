@@ -82,6 +82,12 @@ class PortfolioView:
 
     def history(self, start: str | None, end: str | None) -> PortfolioHistory:
         points = self._points()
+        led = self.state.ledger
+        if not points and self.state.clock.mode == "live" and led.contributions_gbp > 0:
+            # Approved but not filled yet (orders wait for the next close): show today's starting point.
+            today = self.state.clock.as_of_str()
+            points[today] = PortfolioPoint(date=today, nav_gbp=round(led.nav(), 2), weights={},
+                                           contributions_gbp=led.contributions_gbp)
         return PortfolioHistory(points=[points[day] for day in sorted(points)
                                         if (start is None or day >= start) and (end is None or day <= end)])
 

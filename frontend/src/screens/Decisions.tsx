@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import AgentAvatar from "../components/AgentAvatar";
 import HoldingIssuer from "../components/HoldingIssuer";
 import FinanceTerm from "../components/FinanceTerm";
@@ -45,6 +45,7 @@ export function ProposalDialog({ id, mode, close, changed }: {
   id: string; mode?: Mode; close: () => void; changed?: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const navigate = useNavigate();
   const response = useResource(id, async signal => MOCK ? recordedFixture(id) : get<Proposal>(pathFor(id), "", signal));
   const proposal = response.value;
   const catalogue = useResource("catalogue", signal => get<{ instruments: { ticker: string; name: string }[] }>("/catalogue", "catalogue", signal));
@@ -96,6 +97,8 @@ export function ProposalDialog({ id, mode, close, changed }: {
         decision === "approve" ? { option: option?.label } : {}, "");
       setOutcome(decision === "approve" ? (result.fill_date ? "Approved · Scheduled for " + result.fill_date : "Approved · Queued for the next available close") : "Portfolio kept as is");
       changed?.();
+      // Live: after approving, show the confirmation briefly, then go back to the dashboard.
+      if (decision === "approve" && mode === "live") window.setTimeout(() => { close(); navigate("/"); }, 1200);
     } catch (e) { setError((e as Error).message); }
     finally { setPendingDecision(undefined); }
   }

@@ -286,7 +286,10 @@ def correlation(request: Request, lookback: int | None = None, tickers: str | No
     """Correlation lattice as of `as_of` (any past date up to the clock; default = now)."""
     s = S(request, mode)
     names = {i.ticker: i.name for i in s.gw.catalogue()}
-    tick = tickers.split(",") if tickers else list(s.ledger.weights()) or [i.ticker for i in s.gw.catalogue()][:8]
+    pending = sorted(s.ledger.pending[0].get("target_weights", {})) if s.ledger.pending else []
+    # holdings, else the approved order still waiting for the next close, else a sample of the catalogue
+    tick = (tickers.split(",") if tickers else list(s.ledger.weights()) or pending
+            or [i.ticker for i in s.gw.catalogue()][:8])
     try:
         # strict YYYY-MM-DD: pd.Timestamp would also accept "now"/"today" (the wall clock) and "NaT"
         day = date.fromisoformat(as_of).isoformat() if as_of else s.clock.as_of_str()
