@@ -1,0 +1,30 @@
+.proposal-evidence-drawer, .proposal-backtest {
+  background: var(--terminal-inset);
+  border: 1px solid var(--terminal-edge);
+  border-radius: 8px;
+  padding: 12px;
+}
+.proposal-evidence-drawer > header, .proposal-backtest figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.proposal-evidence-drawer > header { margin-bottom: 8px; }
+.proposal-evidence-drawer h2 { margin: 0; font-size: 14px; }
+.proposal-evidence-drawer .evidence-box { padding: 0; border: 0; background: transparent; }
+.evidence-source, .proposal-backtest figcaption span { color: var(--terminal-muted); font-size: 11px; }
+.evidence-calculation dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
+.evidence-calculation dl > div { padding: 8px; background: var(--terminal-raised); border-radius: 6px; }
+.evidence-calculation dt { color: var(--terminal-muted); font-size: 11px; }
+.evidence-calculation dd { margin: 2px 0 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.evidence-calculation summary { cursor: pointer; margin: 6px 0; color: var(--terminal-accent); }
+.evidence-gates details summary { cursor: pointer; }
+.evidence-gates details p { margin: 6px 0 2px; color: var(--terminal-muted); max-width: 48ch; text-transform: none; }
+.finding-badges { display: flex; flex-wrap: wrap; gap: 5px; list-style: none; margin: 6px 0; padding: 0; }
+.finding-badges li { padding: 3px 6px; border-radius: 5px; color: var(--terminal-muted); background: var(--terminal-raised); font-size: 11px; }
+.finding-badges [data-badge="judgement_uncertain"] { color: #e1c08c; }
+.proposal-backtest { margin: 0; }
+.proposal-backtest figcaption { flex-wrap: wrap; margin-bottom: 8px; }
+.proposal-backtest .recharts-cartesian-axis-tick-value { fill: var(--terminal-muted); }
+.proposal-backtest .recharts-default-tooltip { background: var(--terminal-surface) !important; border-color: var(--terminal-edge) !important; }

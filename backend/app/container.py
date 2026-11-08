@@ -75,6 +75,7 @@ def build_state(settings: Settings | None = None, db_path: str | None = None) ->
     state.supervisor = Supervisor(llm, tools, events)
     state.modes[s.app_mode] = state
     if s.app_mode == "live":
+        approvals.restore_live_orders(state)
         state.live_updates = LiveUpdates(state)
     state.activity = PortfolioActivity(state)
     if recording_path is not None:

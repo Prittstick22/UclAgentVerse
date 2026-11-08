@@ -78,6 +78,30 @@ def test_failed_build_reaches_terminal_state(client, state, monkeypatch):
     assert body["finished_at"]
 
 
+def test_completed_direct_build_asks_for_manual_approval(client, state, monkeypatch):
+    release = asyncio.Event()
+    original_start = state.supervisor.start
+
+    async def delayed_start(*args, **kwargs):
+        await release.wait()
+        return await original_start(*args, **kwargs)
+
+    monkeypatch.setattr(state.supervisor, "start", delayed_start)
+    run_id = client.post("/api/portfolio/build").json()["run_id"]
+
+    async def finish():
+        task = state.runs[run_id]
+        release.set()
+        await task
+
+    client.portal.call(finish)
+    requested, = [event for event in state.events.history(run_id) if event.type == "approval.requested"]
+    proposal_id = requested.payload["proposal_id"]
+    assert client.get(f"/api/proposals/{proposal_id}").json()["status"] == "awaiting_approval"
+    assert any(item["proposal_id"] == proposal_id for item in client.get("/api/notifications").json()["items"])
+    assert not state.ledger.pending and not state.ledger.fills
+
+
 def test_run_detail_maps_agent_failure_and_badges(client, state):
     def emit(event_type, **fields):
         return state.events.emit(event_type, title=event_type, run_id="run_recorded", **fields)

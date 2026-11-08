@@ -5,6 +5,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.data.models import NewsItem
+
+
+class NewsFeed(BaseModel):
+    as_of: str
+    items: list[NewsItem]
+
 Mode = Literal["historical", "live"]
 AssetClass = Literal["equity", "bond", "cash", "commodity"]
 ProfileName = Literal["cautious", "balanced", "growth", "adventurous"]
@@ -171,6 +178,17 @@ class PortfolioPoint(BaseModel):
     nav_gbp: float
     weights: dict[str, float]
     contributions_gbp: float | None
+
+
+class HoldingPricePoint(BaseModel):
+    date: str
+    close_gbp: float
+
+
+class HoldingPrices(BaseModel):
+    ticker: str
+    as_of: str
+    points: list[HoldingPricePoint]
 
 
 class PortfolioHistory(BaseModel):

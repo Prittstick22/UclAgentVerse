@@ -33,7 +33,7 @@ def live_api(snapshot_dir, tmp_path, monkeypatch):
     ("caps", "per_stock", -0.1),
     ("caps", "stocks_total", 0.5),
     ("goal", "starting_amount_gbp", -1),
-    ("approval", "require_user_approval", False),
+    ("approval", "batch_auto_approve_turnover_max", 1.1),
 ])
 def test_invalid_edit_does_not_mutate_or_persist(live_api, section, field, value):
     client, state = live_api

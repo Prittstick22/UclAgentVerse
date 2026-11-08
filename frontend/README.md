@@ -26,11 +26,13 @@ Change between historical demo and current paper markets on the Investor profile
 
 ## First visit and investigations
 
-First visit opens setup. Demo shows the locked fictional Priya profile and routes to the recorded timeline. Real mode runs the risk questionnaire and saves a paper-portfolio mandate before requesting construction. Return to Profile to edit the mandate or revisit setup.
+First visit opens setup. Demo shows the locked fictional Priya profile and opens Timeline. Real mode runs the risk questionnaire and saves a paper-portfolio mandate before requesting construction. Return to Profile to edit the mandate or revisit setup.
 
-Home review links and Timeline markers open the Agent Room. The room replays saved event sequences, and active live runs stream events as they arrive. The shared player supports event deep links with /runs/:id?seq=n. Calculations and source links come from event payloads and the evidence endpoint.
+Home review links and portfolio history markers open the Agent Room. Active runs follow incoming events. Saved runs expose the shared replay player and support event deep links with `/runs/:id?seq=n`. Each agent pane has its own step arrows. In a development build, append `debug=1` to a room URL to inspect raw events and calculation payloads.
 
 The Agent Room and Home can open the same proposal dialog. Current-market decisions use the manual approve or decline endpoint. The historical recording is read-only.
+
+Selecting a holding opens its adjusted GBP close chart in Home's Performance panel. The Portfolio button returns to the portfolio series and review markers. Home's Latest news tab reads the active mode's existing news cache and can filter it to current holdings. Timeline groups investigations, cached news and filled trades by date. Play all advances through the recorded investigations in order, and a specialist can be opened beside the Lead. Portfolio history adds allocation and benchmark charts. Recorded investigations include shared playback controls. During a live investigation each agent follows incoming events and has its own step arrows. A pane shows the selected step’s chart, finding or source. Filed reports and cached news open in place, and article links open the original source.
 
 ## Holding logos
 

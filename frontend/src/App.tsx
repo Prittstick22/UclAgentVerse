@@ -6,16 +6,15 @@ import type { ApiError } from "./lib/api";
 import type { Health, Mode } from "./lib/types";
 import Quiz, { ProfileScreen } from "./screens/Quiz";
 import Workspace from "./screens/Workspace";
-import Timeline, { BenchmarkScreen } from "./screens/Timeline";
+import TimelineScreen, { BenchmarkScreen } from "./screens/Timeline";
 import { DecisionList } from "./screens/Decisions";
 import Home from "./screens/Home";
 import Placeholder from "./screens/Placeholder";
 import dataSourcesUrl from "../../docs/DATA_SOURCES.md?url";
 
 const NAV = [
-  [["/", "Home", "home"], ["/profile", "Profile", "quiz"], ["/timeline", "Timeline", "timeline"],
-    ["/benchmarks", "Benchmarks", "chart"]],
-  [["/workspace", "Agents", "agents"], ["/decisions", "Decisions", "decisions"], ["/chat", "Chat", "chat"]],
+  ["/", "Home", "home"], ["/workspace", "Agents", "agents"], ["/timeline", "Timeline", "timeline"],
+  ["/benchmarks", "Benchmarks", "chart"], ["/profile", "Profile", "quiz"],
 ] as const;
 
 const statusDate = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeZone: "UTC" });
@@ -44,6 +43,9 @@ export default function App() {
     localStorage.setItem("ucl-paper-setup", "1");
     setSetupComplete(true);
   }
+  const marketMode = <span className="terminal-mode-badge" aria-live="polite">
+    <ShellIcon name="clock" />{modeLabel(health, healthPending)}
+  </span>;
   const [error, setError] = useState<ApiError | null>(null);
   const [prompt, setPrompt] = useState<PendingPasscode | null>(null);
   const pendingPasscode = useRef<PendingPasscode | null>(null);
@@ -107,24 +109,20 @@ export default function App() {
 
   return (
     <div className={`terminal-shell${setup ? " terminal-setup" : ""}`}>
-      {!setup && <aside className="terminal-sidebar terminal-glass">
+      {!setup && <header className="terminal-topbar terminal-glass">
         <Link to="/" className="terminal-brand" aria-label="UclAgentVerse Home" title="UclAgentVerse">
           <TerminalBrand />
         </Link>
         <nav aria-label="Main navigation">
-          {NAV.map((group, index) => (
-            <div className="terminal-nav-group" key={group[0][0]}>
-              {index > 0 && <div className="terminal-nav-divider" />}
-              {group.map(([to, title, icon]) => (
-                <NavLink key={to} to={to} end className="terminal-nav-item" title={title}>
-                  <ShellIcon name={icon} />
-                  <span>{title}</span>
-                </NavLink>
-              ))}
-            </div>
+          {NAV.map(([to, title, icon]) => (
+            <NavLink key={to} to={to} end className="terminal-nav-item" title={title} aria-current={to === "/workspace" && location.pathname.startsWith("/runs/") ? "page" : undefined}>
+              <ShellIcon name={icon} /><span>{title}</span>
+            </NavLink>
           ))}
         </nav>
-      </aside>}
+        {marketMode}
+        <NavLink to="/decisions" end className="terminal-nav-item terminal-bell" title="Decisions and notifications" aria-label="Decisions and notifications"><ShellIcon name="bell" /></NavLink>
+      </header>}
 
       <main className="terminal-main">
         <Routes>
@@ -135,10 +133,9 @@ export default function App() {
             <Route path="/quiz" element={<Navigate replace to="/onboarding" />} />
             <Route path="/profile" element={<ProfileScreen mode={health?.mode} />} />
             <Route path="/workspace" element={<Workspace mode={health?.mode} />} />
-            <Route path="/timeline" element={<Timeline />} />
+            <Route path="/timeline" element={<TimelineScreen />} />
             <Route path="/decisions" element={<DecisionList mode={health?.mode} />} />
             <Route path="/benchmarks" element={<BenchmarkScreen />} />
-            <Route path="/chat" element={<Placeholder title="Chat" issue="fe-chat" />} />
             <Route path="*" element={<><h1>Page not found</h1><Link to="/">Return home</Link></>} />
           </Route>
         </Routes>
@@ -148,9 +145,7 @@ export default function App() {
         <span className="terminal-status-chip"><ShellIcon name="wallet" />Paper portfolio</span>
         <span>Not financial advice</span>
         <a href={dataSourcesUrl} download="DATA_SOURCES.md">Data sources</a>
-        <span className="terminal-mode-badge" aria-live="polite">
-          <ShellIcon name="clock" />{modeLabel(health, healthPending)}
-        </span>
+        {setup && marketMode}
         {health?.data_source && (
           <span className="terminal-source">{health.data_source === "synthetic" ? "SYNTHETIC data" : health.data_source}</span>
         )}

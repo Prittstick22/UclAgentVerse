@@ -24,6 +24,7 @@ def test_get_prices_summary(state):
     assert out["ok"] and {r["ticker"] for r in out["rows"]} == {"VWRP.LSE", "AAPL.US"}
     assert all(r["last_date"] <= state.clock.as_of_str() for r in out["rows"])
     assert CALC.match(out["evidence_ids"][0]) and calc_events(state)
+    assert calc_events(state)[-1].agent_id == "lead_t"
 
 
 @pytest.mark.parametrize("tool,args", [
@@ -51,6 +52,7 @@ def test_build_options_then_check_cost_risk_backtest(state):
     assert cost["cost_gbp"] > 0 and cost["trades"]
     bt, _ = call(state, "backtest", {"option": "lower_risk"}, run=run)
     assert bt["end"] <= state.clock.as_of_str() and "not a forecast" in bt["label"]
+    assert calc_events(state)[-1].payload["outputs"]["nav"][-1][0] == bt["end"]
 
 
 def test_check_proposal_flags_concentration(state):
@@ -67,7 +69,13 @@ def test_propose_adjustment_creates_proposal(state):
     assert prop.kind == "construction" and prop.decision_card.changes and len(prop.options) == 3
     assert "not a forecast" in prop.decision_card.body
     assert state.db.get("proposals", prop.id)
-    assert any(e.type == "proposal.created" for e in state.events.history("run_tools"))
+    created = next(e for e in state.events.history("run_tools") if e.type == "proposal.created")
+    calculation = next(e for e in calc_events(state) if e.payload["name"] == "proposal_numbers")
+    assert created.evidence_ids == [f"calc:{calculation.id}"]
+    assert calculation.payload["inputs"]["proposal_id"] == prop.id
+    assert calculation.payload["outputs"]["trades"] == [change.model_dump() for change in prop.decision_card.changes]
+    assert calculation.payload["outputs"]["cash_weight"] == prop.options[0].cash_weight
+    assert all(e.payload["outputs"]["backtest_nav"] for e in calc_events(state) if e.payload["name"] == "optimise")
 
 
 def test_propose_adjustment_refuses_mandate_breach(state):
@@ -94,7 +102,8 @@ def test_investment_case_roundtrip_bumps_version(state):
 def test_search_filings_returns_passages_with_source_events(state):
     out, _ = call(state, "search_filings", {"ticker": "NVDA.US", "query": "suppliers"})
     assert out["ok"] and out["passages"] and out["evidence_ids"][0].startswith("filing_syn_001")
-    assert any(e.type == "source.inspect" for e in state.events.history("run_tools"))
+    source = next(e for e in state.events.history("run_tools") if e.type == "source.inspect")
+    assert source.agent_id == "lead_t"
 
 
 def test_earnings_calendar_past_dates_only(state):

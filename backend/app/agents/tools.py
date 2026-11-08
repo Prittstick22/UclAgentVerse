@@ -13,7 +13,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -41,6 +41,7 @@ class ToolContext:
     gw: DataGateway
     events: EventBus
     state: Any            # app.container.AppState (mandate, ledger, db…); typed loosely to avoid import cycles
+    agent: dict | None = None
 
 
 class ToolRegistry:
@@ -60,7 +61,7 @@ class ToolRegistry:
         ev.emit("tool.call", title=f"{name}", status="running", payload={"tool": name, "args": args}, **agent)
         fn = self._tools.get(name, _not_implemented(name))
         try:
-            out = await fn(self.ctx, args, run)
+            out = await fn(replace(self.ctx, agent=agent), args, run)
         except AsOfViolation as e:
             out = {"ok": False, "error": "asof_violation", "summary": str(e)}
         except Exception as e:  # noqa: BLE001 - tools must never crash a run
@@ -83,8 +84,8 @@ def _run_id(run: Any) -> str | None:
 
 
 def _calc(ctx: ToolContext, run: Any, name: str, inputs: dict, outputs: dict, title: str) -> str:
-    ev = ctx.events.emit("calc.result", run_id=_run_id(run), title=title,
-                         payload={"name": name, "inputs": inputs, "outputs": outputs})
+    actor = {**(ctx.agent or {}), "run_id": _run_id(run)}
+    ev = ctx.events.emit("calc.result", title=title, payload={"name": name, "inputs": inputs, "outputs": outputs}, **actor)
     return f"calc:{ev.id}"
 
 
@@ -222,8 +223,7 @@ async def correlation_lattice(ctx: ToolContext, args: dict, run: Any) -> dict:
     prices = ctx.gw.prices(tickers, caller="tool.correlation_lattice")
     rep = risk.correlation_report(prices, ctx.gw.clock.as_of_str(), args.get("lookback"))
     eid = _calc(ctx, run, "correlation_lattice", {"tickers": tickers, "lookback": rep.lookback},
-                {"avg_pairwise": rep.avg_pairwise, "history_days": rep.history_days,
-                 "short_history": rep.short_history}, "Correlation lattice computed")
+                rep.model_dump(), "Compared how the holdings move together")
     return {"ok": True, "summary": f"avg pairwise correlation {rep.avg_pairwise:.2f}",
             "callouts": [c.text for c in rep.callouts[:4]], "evidence_ids": [eid]}
 
@@ -257,7 +257,7 @@ async def search_filings(ctx: ToolContext, args: dict, run: Any) -> dict:
                 ctx.events.emit("content.quarantined", run_id=_run_id(run), title=f"Quarantined {p.id}",
                                 evidence_ids=[p.id], payload={"evidence_id": p.id, "reason": reason})
                 continue
-            ctx.events.emit("source.inspect", run_id=_run_id(run), title=f"{f.company} {f.form}", evidence_ids=[p.id],
+            ctx.events.emit("source.inspect", **{**(ctx.agent or {}), "run_id": _run_id(run)}, title=f"{f.company} {f.form}", evidence_ids=[p.id],
                             payload={"evidence_id": p.id, "kind": "filing", "title": f"{f.company} {f.form}",
                                      "source": "synthetic" if f.synthetic else "sec_edgar",
                                      "published_at": f.accepted_at})
@@ -304,7 +304,8 @@ async def backtest(ctx: ToolContext, args: dict, run: Any) -> dict:
     out = {"start": res.start, "end": res.end, "rebalance": res.rebalance, "total_return": _r(m.total_return),
            "vol_annual": _r(m.vol_annual), "max_drawdown": _r(m.max_drawdown), "sharpe": _r(m.sharpe, 2),
            "label": res.label}
-    eid = _calc(ctx, run, "backtest", {"weights": _round_w(w), "start": start, "end": args.get("end")}, out,
+    eid = _calc(ctx, run, "backtest", {"weights": _round_w(w), "start": start, "end": args.get("end")},
+                {**out, "nav": res.nav},
                 f"Backtest of {label} {res.start}→{res.end}")
     return {"ok": True, "summary": f"{label} {res.start}→{res.end}: return {m.total_return:.1%}, "
                                    f"max drawdown {m.max_drawdown:.1%} (simulated, not a forecast)",
@@ -330,7 +331,8 @@ async def build_options(ctx: ToolContext, args: dict, run: Any) -> dict:
             failed.append({"variant": variant, "status": res.status, "why": res.binding_constraints})
             continue
         _, cost, turnover = _trades(ctx, res.weights)
-        mdd = bt.run(ctx.gw, res.weights, start=lookback_start, rebalance="quarterly").metrics.max_drawdown
+        backtest_result = bt.run(ctx.gw, res.weights, start=lookback_start, rebalance="quarterly")
+        mdd = backtest_result.metrics.max_drawdown
         stats = OptionStats(vol_annual=round(res.vol_annual or 0, 4), ocf_weighted=round(res.ocf_weighted or 0, 5),
                             turnover=turnover, cost_gbp=cost, max_drawdown_backtest=_r(mdd))
         rounded = _round_w(res.weights)   # 4 dp for display; cash absorbs the rounding so weights + cash == 1
@@ -338,8 +340,9 @@ async def build_options(ctx: ToolContext, args: dict, run: Any) -> dict:
             label=variant, cash_weight=round(1.0 - sum(rounded.values()), 6), stats=stats,
             holdings=[ProposedHolding(ticker=t, weight=x) for t, x in rounded.items()])
         eid = _calc(ctx, run, "optimise", {"variant": variant, "candidates": [i.ticker for i in insts]},
-                    {"weights": _round_w(res.weights), "cash_weight": res.cash_weight, **stats.model_dump(),
-                     "binding_constraints": res.binding_constraints}, f"Optimised {variant} option")
+                    {"weights": rounded, "cash_weight": options[variant].cash_weight, **stats.model_dump(),
+                     "binding_constraints": res.binding_constraints, "backtest_nav": backtest_result.nav},
+                    f"Optimised {variant} option")
         eids.append(eid)
         summary_rows.append({"option": variant, "weights": _round_w(res.weights), "cash": _r(res.cash_weight),
                              "vol_annual": stats.vol_annual, "fees_per_year_gbp": round(stats.ocf_weighted * _capital(ctx), 2),
@@ -455,7 +458,8 @@ async def propose_adjustment(ctx: ToolContext, args: dict, run: Any) -> dict:
     capital = _capital(ctx)
     kind = "construction" if led.nav() <= 0 else "adjustment"
     # #34: the explainer writes the card from code numbers only, with a £ beside every %
-    card = explainer.decision_card(kind, opt, changes, capital, cost, int(params()["optimiser"]["lookback"]))
+    lookback_days = int(params()["optimiser"]["lookback"])
+    card = explainer.decision_card(kind, opt, changes, capital, cost, lookback_days)
     uncertainties = sorted({u for f in getattr(run, "findings", []) for u in getattr(f, "uncertainties", [])})[:10]
     prop = Proposal(id=f"prop_{uuid.uuid4().hex[:10]}", run_id=_run_id(run) or "none", kind=kind,
                     as_of=ctx.gw.clock.as_of_str(), created_at=datetime.now(UTC).isoformat(),
@@ -464,11 +468,19 @@ async def propose_adjustment(ctx: ToolContext, args: dict, run: Any) -> dict:
     ctx.state.db.put("proposals", prop.id, prop.model_dump_json())
     if run is not None:
         run.proposal_id = prop.id
+    evidence_id = _calc(
+        ctx, run, "proposal_numbers",
+        {"proposal_id": prop.id, "option": label, "capital_gbp": capital, "lookback_days": lookback_days},
+        {**opt.stats.model_dump(), **explainer.decision_figures(opt, changes, capital),
+         "weights": w, "cash_weight": opt.cash_weight, "decision_cost_gbp": cost, "decision_turnover": turnover,
+         "holdings_count": len(w), "trade_count": len(changes), "trades": [change.model_dump() for change in changes]},
+        "Calculated the proposed portfolio and trades",
+    )
     ctx.events.emit("proposal.created", run_id=_run_id(run), title=card.headline,
-                    payload={"proposal_id": prop.id, "kind": kind})
+                    evidence_ids=[evidence_id], payload={"proposal_id": prop.id, "kind": kind})
     return {"ok": True, "summary": f"proposal {prop.id} created ({label}, {len(changes)} trades, cost £{cost:,.2f}); "
                                    "it needs the user's approval", "proposal_id": prop.id,
-            "turnover": turnover, "holdings_without_purpose": missing, "evidence_ids": [f"proposal:{prop.id}"]}
+            "turnover": turnover, "holdings_without_purpose": missing, "evidence_ids": [f"proposal:{prop.id}", evidence_id]}
 
 
 async def get_investment_case(ctx: ToolContext, args: dict, run: Any) -> dict:
@@ -531,7 +543,7 @@ async def web_search(ctx: ToolContext, args: dict, run: Any) -> dict:
         ctx.events.emit("content.quarantined", run_id=_run_id(run), title=f"Quarantined {eid}", evidence_ids=[eid],
                         payload={"evidence_id": eid, "reason": reason})
         return {"ok": False, "error": "quarantined", "summary": "search result looked like an instruction; quarantined"}
-    ctx.events.emit("source.inspect", run_id=_run_id(run), title=f"Web search: {query[:80]}", evidence_ids=[eid],
+    ctx.events.emit("source.inspect", **{**(ctx.agent or {}), "run_id": _run_id(run)}, title=f"Web search: {query[:80]}", evidence_ids=[eid],
                     payload={"evidence_id": eid, "kind": "web", "title": query[:120], "source": "google_search",
                              "published_at": None, "sources": res["sources"][:5]})
     return {"ok": True, "summary": f"web search: {len(res['sources'])} sources",

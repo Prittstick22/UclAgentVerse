@@ -132,11 +132,27 @@ function MandateReview({ mandate: initial, profile, busy, submit, saveOnly = fal
       {(["per_fund", "per_stock", "stocks_total"] as const).map((cap, i) =>
         <div key={cap}>{percentage(["Fund cap (%)", "Stock cap (%)", "All stocks cap (%)"][i], mandate.caps[cap],
           value => ({ ...mandate, caps: { ...mandate.caps, [cap]: value } }))}</div>)}
-      <label>Review every (days)<input className="terminal-field" type="number" min="1" required value={mandate.review_every_n_days}
-        onChange={e => setMandate({ ...mandate, review_every_n_days: Number(e.target.value) })} /></label>
+      <label>Review every (trading days)<input className="terminal-field" type="number" min="1" required value={mandate.review_every_n_days}
+        onChange={e => setMandate({ ...mandate, review_every_n_days: Number(e.target.value) })} />
+        <small>10 trading days is roughly two weeks. A review checks the portfolio and can propose a change.</small></label>
       <label>Exclusions (comma separated)<input className="terminal-field" defaultValue={mandate.exclusions.join(", ")}
-        onChange={e => setMandate({ ...mandate, exclusions: e.target.value.split(",").map(x => x.trim()).filter(Boolean) })} /></label>
+        onChange={e => setMandate({ ...mandate, exclusions: e.target.value.split(",").map(x => x.trim()).filter(Boolean) })} />
+        <small>Enter exact tickers or catalogue groups, separated by commas. Leave blank for no exclusions.</small></label>
     </div>
+    {saveOnly && !MOCK && <fieldset className="approval-preferences">
+      <legend>Paper trade approval</legend>
+      <label className="approval-toggle">
+        <input type="checkbox" checked={!mandate.approval.require_user_approval}
+          onChange={event => setMandate({ ...mandate, approval: { ...mandate.approval, require_user_approval: !event.target.checked } })} />
+        Automatically approve eligible proposals
+      </label>
+      <p className="mvp-muted">Only applies to new live paper proposals that pass the assurance checks and stay within your turnover limit. Anything larger still asks for your approval.</p>
+      {!mandate.approval.require_user_approval && <div className="approval-limit mvp-enter">
+        {percentage("Maximum turnover per proposal (%)", mandate.approval.batch_auto_approve_turnover_max,
+          value => ({ ...mandate, approval: { ...mandate.approval, batch_auto_approve_turnover_max: value } }))}
+        <p className="mvp-muted">Turnover is the share of the portfolio that would move between investments or cash. Switch off auto-approval and save to require approval for future proposals.</p>
+      </div>}
+    </fieldset>}
     <button className="mvp-action primary" disabled={busy}>{busy ? "Saving…" : saveOnly ? "Save investment plan" : "Build my paper portfolio"}</button>
     {MOCK && <p className="mvp-muted">Fixture preview</p>}
   </form>;

@@ -1,4 +1,4 @@
-"""Background-only refresh of the live cache. No trades and no LLM calls."""
+"""Background-only refresh of the live cache and approved paper orders. No LLM calls."""
 from __future__ import annotations
 
 import hashlib
@@ -160,7 +160,11 @@ class LiveUpdates:
                 failed.append(ticker)
         if failed:
             self._failure(sorted(set(failed)))
-        state.ledger.mark_to_market(state.gw.latest_prices().to_dict())
+        from app.sim.approvals import fill_live_orders
+
+        fill_live_orders(state)
+        with state.mandate_lock:
+            state.ledger.mark_to_market(state.gw.latest_prices().to_dict())
         return {"ok": not failed, "fetched": fetched, "stale": sorted(set(failed))}
 
     def _news(self) -> dict:
