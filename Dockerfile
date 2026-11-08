@@ -5,6 +5,7 @@ COPY frontend/package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 COPY fixtures/ /fixtures/
+COPY docs/DATA_SOURCES.md /docs/DATA_SOURCES.md
 RUN VITE_MOCK=0 npm run build
 
 FROM python:3.12-slim
