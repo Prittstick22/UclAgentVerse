@@ -212,7 +212,7 @@ interface Event {
 # Engine (Cem), called by agents' tools (Dev) and the simulator
 engine.risk.covariance(returns: pd.DataFrame) -> pd.DataFrame          # Ledoit-Wolf, annualised
 engine.risk.correlation_report(gw, tickers, as_of, lookback=252) -> CorrelationReport
-engine.optimiser.optimise(req: OptimiseRequest) -> OptimiseResult        # variant: recommended|lower_cost|lower_risk
+engine.optimiser.optimise(req: OptimiseRequest) -> OptimiseResult        # variant: recommended|lower_cost|lower_risk; optional req.mu (pd.Series, from engine.forecast, #73); status "error" if a candidate has no risk data
 engine.checker.check_proposal(proposal_weights, mandate, catalogue, prices) -> CheckReport   # numbers + mandate
 engine.checker.revalidate(proposal, ledger, gw) -> CheckReport
 engine.backtest.run(gw, weights, start, end, rebalance="quarterly") -> BacktestResult   # end <= as_of enforced
