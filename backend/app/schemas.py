@@ -120,6 +120,36 @@ class Portfolio(BaseModel):
     counters: Counters = Field(default_factory=Counters)
 
 
+PnlPeriod = Literal["since_purchase", "1m", "3m", "ytd", "sim_year"]
+
+
+class PortfolioPoint(BaseModel):
+    date: str
+    nav_gbp: float
+    weights: dict[str, float]
+    contributions_gbp: float | None
+
+
+class PortfolioHistory(BaseModel):
+    points: list[PortfolioPoint]
+
+
+class PnlRow(BaseModel):
+    ticker: str
+    name: str
+    pnl_gbp: float
+    pnl_pct: float
+    realised_gbp: float
+    unrealised_gbp: float
+    contribution_to_return: float
+
+
+class PortfolioPnl(BaseModel):
+    period: PnlPeriod
+    rows: list[PnlRow]
+    total_pnl_gbp: float
+
+
 class Evidence(BaseModel):
     id: str
     kind: Literal["price", "news", "filing", "calc", "catalogue", "web"]
@@ -169,6 +199,19 @@ class OrderChange(BaseModel):
     amount_gbp: float
     from_weight: float
     to_weight: float
+
+
+class Rebalance(BaseModel):
+    date: str
+    run_id: str
+    trigger_kind: TriggerKind
+    trigger_text: str
+    changes: list[OrderChange]
+    cost_gbp: float
+
+
+class PortfolioRebalances(BaseModel):
+    items: list[Rebalance]
 
 
 class DecisionCard(BaseModel):

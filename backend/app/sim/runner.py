@@ -12,6 +12,7 @@ import asyncio
 
 from app.config import params
 from app.container import AppState, build_state
+from app.engine.portfolio import record_checkpoint
 
 
 async def run(state: AppState, start: str, end: str | None, targets: dict[str, float], agents: bool = False) -> None:
@@ -35,6 +36,7 @@ async def run(state: AppState, start: str, end: str | None, targets: dict[str, f
         # TODO(#monitors): hits = monitors.evaluate(...); cooldowns; review schedule
         # TODO(#sim-agents): if review/trigger and agents: await state.supervisor.start(kind, trigger_text)
         # TODO(#benchmarks): step benchmarks
+        record_checkpoint(state.db, clock.mode, led, clock.as_of_str(), targets)
         ev.emit("clock.tick", title=f"{day.date()} NAV £{led.nav():,.0f}",
                 payload={"nav_gbp": round(led.nav(), 2), "weights": led.weights(), "benchmarks": {},
                          "status": "monitoring_normally"})

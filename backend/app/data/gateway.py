@@ -63,6 +63,16 @@ class DataGateway:
     def latest_prices(self, tickers: list[str] | None = None) -> pd.Series:
         return self.prices(tickers, caller="latest_prices").ffill().iloc[-1]
 
+    def last_quote_dates(self, tickers: list[str], end: str | None = None) -> dict[str, str]:
+        """Last observed quote dates, before the adjusted price panel fills missing quotes."""
+        cutoff = self._check_end(end, "last_quote_dates")
+        rows = self.snapshot.prices
+        dates = pd.to_datetime(rows["date"])
+        closes = rows["adj_close"]
+        visible = rows["ticker"].isin(tickers) & dates.le(cutoff) & closes.gt(0) & closes.lt(float("inf"))
+        observed = dates[visible].groupby(rows.loc[visible, "ticker"]).max()
+        return {ticker: day.date().isoformat() for ticker, day in observed.items()}
+
     def fx(self, pair: str = "GBPUSD", start: str | None = None, end: str | None = None) -> pd.Series:
         end_ts = self._check_end(end, "fx")
         fx = self.snapshot.fx[self.snapshot.fx["pair"].eq(pair)].copy()

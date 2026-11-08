@@ -10,15 +10,19 @@ import json
 
 from datetime import date
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.api.portfolio import PortfolioView
 from app.core.events import sse_frame
 from app.data.gateway import AsOfViolation
 from app.engine import risk
+from app.engine.portfolio import PortfolioDataUnavailable
 from app.profile.quiz import mandate_for, questions_payload, score
-from app.schemas import Goal, Mandate, Portfolio
+from app.schemas import (
+    Goal, Mandate, Mode, PnlPeriod, Portfolio, PortfolioHistory, PortfolioPnl, PortfolioRebalances,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -107,29 +111,33 @@ async def build(request: Request, background: BackgroundTasks):
 
 
 @router.get("/portfolio")
-def portfolio(request: Request) -> Portfolio:
-    s = S(request)
-    led = s.ledger  # TODO(#portfolio-api): holdings with P&L, targets, purposes, status, counters
-    return Portfolio(mode=s.clock.mode, as_of=s.clock.as_of_str(), nav_gbp=round(led.nav(), 2),
-                     cash_gbp=round(led.cash_gbp, 2), invested_gbp=round(led.nav() - led.cash_gbp, 2),
-                     contributions_gbp=led.contributions_gbp, total_return=0.0)
+def portfolio(request: Request, mode: Mode | None = None) -> Portfolio:
+    try:
+        return PortfolioView(S(request), mode).summary()
+    except PortfolioDataUnavailable as exc:
+        err(409, "validation_error", str(exc))
 
 
 @router.get("/portfolio/history")
-def history(request: Request):
-    pts = [{"date": e.as_of, "nav_gbp": e.payload.get("nav_gbp"), "weights": e.payload.get("weights", {}),
-            "contributions_gbp": None} for e in S(request).events.history(None) if e.type == "clock.tick"]
-    return {"points": pts}
+def history(
+    request: Request, mode: Mode | None = None, start: date | None = None, end: date | None = None,
+) -> PortfolioHistory:
+    if start and end and start > end:
+        err(422, "validation_error", "Start must be on or before end")
+    return PortfolioView(S(request), mode).history(start.isoformat() if start else None, end.isoformat() if end else None)
 
 
 @router.get("/portfolio/pnl")
-def pnl(request: Request, period: str = "since_purchase"):
-    return {"period": period, "rows": [], "total_pnl_gbp": 0.0}  # TODO(#pnl)
+def pnl(request: Request, mode: Mode | None = None, period: PnlPeriod = "since_purchase") -> PortfolioPnl:
+    try:
+        return PortfolioView(S(request), mode).pnl(period)
+    except PortfolioDataUnavailable as exc:
+        err(409, "validation_error", str(exc))
 
 
 @router.get("/portfolio/rebalances")
-def rebalances(request: Request, limit: int = 20):
-    return {"items": []}  # TODO(#rebalances)
+def rebalances(request: Request, mode: Mode | None = None, limit: int = Query(default=20, ge=1)) -> PortfolioRebalances:
+    return PortfolioView(S(request), mode).rebalances(limit)
 
 
 @router.get("/benchmarks")
