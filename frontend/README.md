@@ -31,3 +31,9 @@ First visit opens setup. Demo shows the locked fictional Priya profile and route
 Home review links and Timeline markers open the Agent Room. The room replays saved event sequences, and active live runs stream events as they arrive. The shared player supports event deep links with /runs/:id?seq=n. Calculations and source links come from event payloads and the evidence endpoint.
 
 The Agent Room and Home can open the same proposal dialog. Current-market decisions use the manual approve or decline endpoint. The historical recording is read-only.
+
+## Holding logos
+
+Home and proposal holdings use the same cache of issuer images, bundled by Vite and served from the app. A missing or broken image falls back to the existing bundled ETF issuer mark or the holding’s ticker initials. Visitors can load either screen without reaching a logo provider.
+
+From the frontend directory, run `python scripts/refresh_holding_logos.py` to update the cache from the issuer and Wikimedia Commons URLs in `scripts/holding-logo-sources.json`. A failed download keeps the previous image in place. The marks identify their respective issuers.

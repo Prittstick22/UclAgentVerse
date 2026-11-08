@@ -117,7 +117,7 @@ export function ProposalDialog({ id, mode, close, changed }: {
             const fullName = catalogue.value?.instruments.find(instrument => instrument.ticker === item.ticker)?.name ?? ticker;
             const name = fullName.replace(/^(Vanguard|iShares) /, "").replace(/ UCITS ETF\b.*$/, "");
             return <article className="proposal-holding" key={item.ticker}>
-              <span className="proposal-issuer"><HoldingIssuer name={fullName} ticker={ticker} /></span>
+              <span className="proposal-issuer"><HoldingIssuer name={fullName} ticker={item.ticker} /></span>
               <div><strong title={fullName}>{name}</strong><small>{item.ticker}{item.purpose && " · " + item.purpose}</small>
                 {item.why_not_alternatives && <details><summary>Why this holding?</summary>{item.why_not_alternatives}</details>}
                 {item.evidence_ids.map(id => <button key={id} className="mvp-link" onClick={() => setSource(id)}>Evidence</button>)}</div>
