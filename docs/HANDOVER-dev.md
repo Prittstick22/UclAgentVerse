@@ -4,32 +4,66 @@ Any agent can pick this up (Claude Code, Codex/GPT, Gemini CLI, Cursor), for exa
 
 ## Resume here: current state (keep this section updated)
 
-**Resume at #30.** #7 is complete and merged in [PR #93](https://github.com/Prittstick22/UclAgentVerse/pull/93), merge `db8c36a`; issue #7 is closed and both backend/frontend CI jobs passed. Dev confirmed the SEC EDGAR integration is okay after discussing its purpose. A rollback was briefly requested but stopped before any revert command ran; nothing was reverted.
+**Handed over Sun 8 Nov ~05:15** (Dev's Claude credits ran low; Dev will be back). `main` is clean; **no Dev branches or PRs open**, and nothing is half-done. The one open PR is Mo's #132 (holding logos), not Dev's.
 
-**Current implementation state:** no #30 code or prompt changes have been made, no live #30 construction check has run, no #30 fixtures have been regenerated, and no #30 PR is open. `dev/30-construction-prompts` exists remotely with documentation-only checkpoint work. This handover is being published to `main` at Dev's explicit request so the next agent can resume. Pull `main`, read the board, then reuse that branch and merge `origin/main` before starting #30. No work is half-implemented.
+**Model note:** the session switched Opus 5.5 → Sonnet 5.5 at ~05:00 and **back to Opus 5.5** at ~05:10. Use whatever attribution line your own harness gives you. When you post live-run results, say which model produced them.
 
-**Local data:** #7 fetched real news, 29 SEC filings and 3 earnings rows into ignored `backend/data/snapshot/`; see `docs/fetch-text.md` for ticker counts and coverage limits. Those files are not pushed to GitHub. Price/FX files were untouched by #7; do not assume this local directory is a complete real-data snapshot or relabel its manifest. Coordinate the combined real snapshot with Jin. The EDGAR contact is configured in ignored `.env`; no SEC account, API key or payment is needed. Never print or commit the contact setting or other credentials.
+### Done (all merged on main)
+- **Keys and providers:** #3 EODHD (paid), #27, #54, #55. Alpha Vantage not used; Alpaca deferred (#80).
+- **Agents:**
+  - #28 loop on real Argon: retries, backup keys, budgets, cache-stable prompts, cost in `run.completed`.
+  - #29 tools on the engine and gateway.
+  - #30 construction prompts (PR #120): 163 s / 14 calls / $0.18; every holding has a purpose, why-not and evidence.
+  - Consistency fix (PR #117).
+- **#31 code (PR #121):**
+  - Review and trigger plans; escalation rule: adjust only if the mandate is breached, or the news is material and meets `reconsider_if`.
+  - **Deterministic news trigger** (`monitors/rules.news_hits`): held tickers, ≥ 2 strong-event headlines in a day.
+  - `PORTFOLIO:` line in the context; `get_investment_case {}` returns all cases; trigger kinds get the trigger budget.
+- **#74 code (PR #131), agents predict, code sizes:**
+  - stock_analyst / news_analyst may add `views`: direction + confidence + evidence, no numbers.
+  - Views are validated against tool evidence and sized by `engine.forecast.apply_views` with the **frozen** `max_view_tilt`, under the optimiser's caps. They live 10 trading days. Measured effect ≤ ~1 pp.
+  - `runner --no-agent-views` ablation; `--no-forecast` is now honoured by the agents' `build_options` (bug fix).
+- **#61 (PR #124):** organisers' finance-kit challenge.
+  - markets 24/11/25, real-markets 14/14/32 vs buy-and-hold: "not distinguishable"; 0 provenance flags.
+  - Evidence in `eval/finance-kit/`; docs in `docs/finance-kit.md`. Jin asked (#70) to add the "run markets/real-markets" README note.
+- **Demo persona:** Priya, balanced (PR #114); historical mode locked by Jin (#119). The recorded run uses the default `--profile balanced`.
+- **Deploy:**
+  - #56 + #4 dry run: **https://165-22-115-152.sslip.io** (droplet `uclagentverse`, 165.22.115.152, lon1, 2 GB). Currently synthetic + `LLM_MODE=fake`.
+  - Cron and `TASK_SECRET` live in the droplet `.env`. Auto-deploy on push is OFF.
+- **Config:** `forecast.lambda_return` 0.1 calibrated on real data (PR #103); `max_parallel` 5; **`eval-freeze` tagged by Cem: do not change `backend/app/config/*`.**
+- **Closed / descoped:** #20 (Cem built `/api/benchmarks`), #33 (descoped; the code guard remains), #60, #61, #4, #56.
 
-### Done
-- **#7 complete (PR #93 merged):** dated news/filings/earnings fetch, three-line snapshot hook preserving Jin's #6, 58 offline backend tests passing and frontend build/CI passing. Live-fetched news, 29 filings and 3 earnings rows; sparse evidence and provider limits documented in `docs/fetch-text.md`. AAPL/NVDA hero candidates posted to the board for Cem/Jin. Local text files remain ignored and need separate snapshot sharing.
-- #3 EODHD bought + verified (every ticker from 2023-01, LSE units OK, delayed quotes OK) · #27 Gemini ping · #54 keys · #55 provider check (PR #81)
-- **#28 agent loop on real Argon (PR #88):** schema retry, Gemini retries + backup keys (`GEMINI_API_KEY_BACKUPS`), per-step token budget, cache-stable prompts, `cost_estimate_usd`/`duration_s` in `run.completed`, `RunSummary` in kv `runs`. About 1,850 tokens and $0.007 per call, about 10 s per call; reruns cost 0 tokens.
-- **#29 core tools (PR #90):** tools wired to engine + gateway; construction runs end `built` with a `Proposal` (live Argon: 6 calls, $0.044). `gw.earnings()` added (past dates only). The `forecast` tool returns `not_available` until Cem's #73 lands (`app.engine.forecast.forecast(gw, tickers, as_of, horizon=10)`).
-- #7 reassigned from Jin to Dev (board handoff posted to Jin).
-- **#60 finance kit reviewed:** see `docs/finance-kit.md`. The organisers' kit is at `../agentverse/` (outside the repo, never commit it). Their hidden **challenge** mode is how unseen-data testing is likely judged; the packs that fit us are `markets` and `real-markets`.
+### Next, in order: everything left needs the REAL snapshot first
+1. **Dev fetches the real snapshot** (Dev's own step; can be redone safely, since it's git-ignored):
+   - `cd backend; $env:PYTHONIOENCODING='utf-8'; .venv/Scripts/python scripts/fetch_snapshot.py`
+   - Check that `data/snapshot/manifest.json` says `"label": "eodhd"`.
+   - To get back to synthetic: `scripts/make_synthetic_snapshot.py`.
+2. **Engine-only check:** `.venv/Scripts/python -m app.sim.runner --start 2026-07-07 --end 2026-11-06 --no-agents --record runs/no_agents.sqlite`. It takes ~1 min; read the `Triggers:` line, especially `news N`. If `news` is huge, tighten `NEWS_STRONG` / `NEWS_MIN_STRONG` in `monitors/rules.py` (code, not frozen config) and tell Cem.
+3. **#31 live hero checks (≤ 6 Argon runs), then close #31.** A small scratch script:
+   - Load the real snapshot, set the clock to the hero date, seed the ledger with the persona portfolio **plus a small position in the hero stock**.
+   - Run `supervisor.start("news", "<headline> (<news id>)")`. The events come from the board post `…hero-event-candidates…`.
+   - Runs:
+     - 1 review run (mid-window): expect **maintain** with a reason.
+     - **AAPL 31 Jul** (guidance / supply) and **NVDA 27 Aug** (growth): expect a **material** triage; adjust only if it meets the case.
+     - **NVDA 31 Jul** (Burry/Cuban warning) and **AAPL 27 Oct** (Cuban comment): expect **maintain with an explanation**.
+     - 1 retry.
+   - Post the results on the board; report honestly (they're agent judgements, not forced outcomes).
+4. **#74 live check, then close #74:**
+   - ≤ 2 live runs: a view gets validated and applied (`calc.result agent_view_tilt`).
+   - **2-week slice ablation:**
+     - `runner --start 2026-07-07 --end 2026-07-20 --agents --approvals batch_policy --record runs/slice_views.sqlite`
+     - the same with `--no-agent-views --record runs/slice_noviews.sqlite`
+     - Compare NAV, turnover and decisions; post as a small-sample check.
+5. **#38 retrospective lessons** (Dev decided: after the snapshot): 0–3 advice lessons after every agent run; spec in docs/05 §9 and the #38 issue. **Only appears in the recording if built before step 6.**
+6. **#37 the 4-month agent run (Dev runs it, laptop awake ~1 h):** the 2-week slice timing first, then `--agents --approvals batch_policy --record runs/year.sqlite`. Then post the sha256 of `runs/*.sqlite` on the board.
+7. **#13 final deploy, only after it all works locally (Dev's rule):**
+   - Copy `backend/data/snapshot/*` + `runs/*.sqlite` to `/opt/uclagentverse/var/` (`scp` / `tar | ssh root@165.22.115.152`).
+   - Set `LLM_MODE=replay` in the droplet `.env`.
+   - `ssh root@165.22.115.152 'cd /opt/uclagentverse && git pull && docker compose up -d --build'`.
+   - Smoke test `https://165-22-115-152.sslip.io/api/health`. Check that `data_source` is no longer synthetic.
+8. **Later:** #39 pitch content, #69 rehearsal; before the 07:00 freeze, the secret scan `python .agents/skills/review-and-push/scripts/preflight.py` (needs Gitleaks); after judging, #57 cancel EODHD and revoke keys, #14 destroy the droplet.
 
-### Next, in order (mvp before feature)
-**State at ~03:50 Sun:** main is clean; no open Dev branches or PRs. Done since the last hand-off: #30 construction prompts (PR #120: 163 s / 14 calls / $0.18 on Argon, every holding has purpose + why-not + evidence; fixtures regenerated from that real run with `make_fixtures.py --from-db`), the consistency fix (PR #117: `build_options` uses the engine forecast tilt, `risk_stats` tool = `engine.risk.risk_stats`), the demo persona Priya/balanced (PR #114; Jin locked historical mode in #119), #56 + #4 dry run (**https://165-22-115-152.sslip.io**, droplet 165.22.115.152, synthetic + fake), #20 closed (Cem built it in #109), `forecast.lambda_return` 0.1 calibrated on real data (PR #103), `max_parallel` 5.
-1. **#37 the 4-month run, run by Dev himself, locally first:** fetch the real snapshot (`scripts/fetch_snapshot.py`), wait for Cem's `eval-freeze` tag, then the timed 2-week slice → full `--agents --approvals batch_policy --record runs/year.sqlite` → `--no-agents --record runs/no_agents.sqlite` (default `--profile balanced`). **Deploy to the droplet only after it works locally (Dev's rule).**
-2. **#31: code done (PR #121 merged; #31 still open).** Remaining: live hero-event checks on the real snapshot (≤ 6 Argon runs): 1 review run + AAPL 31 Jul, NVDA 27 Aug (material candidates), NVDA 31 Jul, AAPL 27 Oct (alarming-but-immaterial candidates), each with a small seeded position in the hero stock; post results; close #31. Engine-only run first to see `Triggers: news N`.
-3. **#61 done** (PR #124): challenge results in docs/finance-kit.md + `eval/finance-kit/`; Jin to add the 'run markets/real-markets' note to the README (#70).
-3c. **#74 code done (PR #131; #74 still open):** after the real snapshot: ≤ 2 live runs (a stock_analyst/news_analyst view gets validated and applied: `calc.result agent_view_tilt`) + 2-week slice `--agents --approvals batch_policy` with vs `--no-agent-views`; report honestly, then close #74. #33 was descoped (closed). #38 waits until after the snapshot (Dev's call).
-4. **#13 final deploy** once the runs exist: copy `backend/data/snapshot/*` + `runs/*.sqlite` to `/opt/uclagentverse/var/`, set `LLM_MODE=replay` in the droplet .env, `docker compose up -d --build`, smoke test. Auto-deploy on push stays OFF.
-5. Features only if ahead: #32 minimal assurance gate (critic + code checks) is the most valuable; #38 lessons (0–3 per run, advice only).
-Known: construction takes ~163 s on Argon (floor = the lead's 4 sequential steps + the slowest specialist); the demo replays the recording, and live builds stream.
-
-### Model change (Sun 8 Nov ~05:00)
-Dev's Claude Code session switched from **Opus 5.5** to **Sonnet 5.5** (`claude-sonnet-5-5`). Work from this point may be authored by Sonnet, so new commits and PR descriptions carry `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` instead of Opus 5.5. Earlier commits stay as they are. Nothing else changes: same rules, same plan, and the in-progress tickets (#31, #74, #37) continue as written. If a result looks different after this point, that may be why; record the model in the notes when you report live-run results.
+**Known:** construction takes ~163 s on Argon; the demo replays the recording; live builds stream. Each Argon call takes ~15–25 s.
 
 ### Environment (Dev's PC: Windows, Git Bash + PowerShell)
 - `.env` in the repo root has every key (git-ignored; **never print, log or commit keys**). `LLM_MODE=live`; `GEMINI_MODEL_DEEP=gemini-4-argon` and `GEMINI_MODEL_FAST=gemini-3.8-flash` (Dev authorised mixed-model routing, #127). Existing deep roles stay on Argon; fast roles use Flash. Existing all-Argon cache replays need their original `GEMINI_MODEL_FAST=gemini-4-argon` setting; do not replace canonical recordings or compare runs without disclosing their models. Credits are free but finite: don't waste them, and use `LLM_MODE=fake` for anything that isn't a deliberate live check.
