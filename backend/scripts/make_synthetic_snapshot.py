@@ -74,7 +74,7 @@ def main() -> None:
         {"name": "Apple Inc.", "ticker": "AAPL.US", "weight": 0.04}]}) + "\n")
     (out / "manifest.json").write_text(json.dumps({"label": "synthetic", "created_at": pd.Timestamp.now().isoformat(),
                                                    "sources": {"synthetic": {"coverage": "all", "gaps": []}}}, indent=2))
-    print(f"Synthetic snapshot written to {out} ({n} days × {len(catalogue_raw())} instruments)")
+    print(f"Synthetic snapshot written to {out} ({n} days x {len(catalogue_raw())} instruments)")
 
 
 if __name__ == "__main__":

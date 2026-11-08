@@ -126,8 +126,8 @@ def evaluate(records: dict[str, Path], out: Path) -> dict:
               "metrics": {k: m.model_dump() for k, m in metrics.items()}, "final_nav_gbp": finals,
               "ours_only": counts, "caveats": CAVEATS, "ablation_runs": {k: v["run"] for k, v in rows.items()
                                                                           if k not in BENCHMARKS}}
-    (out / "metrics.json").write_text(json.dumps(result, indent=2))
-    (out / "table.md").write_text(_table(result, metrics, finals))
+    (out / "metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    (out / "table.md").write_text(_table(result, metrics, finals), encoding="utf-8")
     result["chart"] = str(_chart({k: v["strategy"]["series"] for k, v in rows.items()}, out, meta))
     return result
 
@@ -139,11 +139,11 @@ def _pct(x: float) -> str:
 def _table(result: dict, metrics: dict[str, Metrics], finals: dict[str, float]) -> str:
     run, c = result["run"], result["ours_only"]
     lines = [
-        f"### Simulated results, {run['start']} → {run['end']} (held out, after the model's knowledge cutoff)",
+        f"### Simulated results, {run['start']} to {run['end']} (held out, after the model's knowledge cutoff)",
         "",
         (f"Profile: {run['profile']} · £{params()['sim']['capital_gbp']:,} start + "
         f"£{params()['sim']['monthly_contribution_gbp']}/month · data: {run['data_source']} · "
-        f"approvals: {run['approvals']} · forecast weight λ = {run['lambda_return']}. **Simulated, not a forecast.**"),
+        f"approvals: {run['approvals']} · forecast weight lambda = {run['lambda_return']}. **Simulated, not a forecast.**"),
         "",
         "| Strategy | Return (TWR) | Volatility (ann.) | Max drawdown | Sharpe (rf = 0) | Turnover | Costs | Trades | Final value |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
@@ -185,7 +185,7 @@ def _chart(series: dict[str, list[dict]], out: Path, meta: dict) -> Path:
         x = pd.to_datetime([p["date"] for p in pts])
         ax.plot(x, [p["nav_gbp"] for p in pts], label=LABELS.get(name, name),
                 linewidth=2.6 if name == "ours" else 1.4, alpha=1.0 if name.startswith("ours") else 0.8)
-    ax.set_title(f"Portfolio value (£), {meta['start']} → {meta['end']}. Simulated, not a forecast")
+    ax.set_title(f"Portfolio value (£), {meta['start']} to {meta['end']}. Simulated, not a forecast")
     ax.set_ylabel("£")
     ax.grid(alpha=0.3)
     ax.legend(fontsize=8, loc="upper left")
@@ -201,7 +201,7 @@ def _svg(series: dict[str, list[dict]], path: Path, meta: dict) -> Path:
     w, h, pad = 900, 460, 50
     pts_all = [p for pts in series.values() for p in pts]
     if not pts_all:
-        path.write_text("<svg xmlns='http://www.w3.org/2000/svg'/>")
+        path.write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", encoding="utf-8")
         return path
     dates = sorted({p["date"] for p in pts_all})
     lo, hi = min(p["nav_gbp"] for p in pts_all), max(p["nav_gbp"] for p in pts_all)
@@ -210,7 +210,7 @@ def _svg(series: dict[str, list[dict]], path: Path, meta: dict) -> Path:
     colours = ["#1b6ef3", "#7b3fe4", "#0f9d58", "#f4b400", "#db4437", "#00acc1", "#795548"]
     parts = [(f"<svg xmlns='http://www.w3.org/2000/svg' width='{w}' height='{h}' font-family='sans-serif' "
              f"font-size='12'><rect width='100%' height='100%' fill='white'/>"),
-             (f"<text x='{pad}' y='24' font-size='14'>Portfolio value (£), {meta['start']} → {meta['end']}. "
+             (f"<text x='{pad}' y='24' font-size='14'>Portfolio value (£), {meta['start']} to {meta['end']}. "
              "Simulated, not a forecast</text>")]
     for i, (name, pts) in enumerate(series.items()):
         if not pts:
@@ -221,7 +221,7 @@ def _svg(series: dict[str, list[dict]], path: Path, meta: dict) -> Path:
                      f"points='{poly}'/>")
         parts.append(f"<text x='{w - 260}' y='{50 + 16 * i}' fill='{col}'>{LABELS.get(name, name)}</text>")
     parts.append(f"<text x='{pad}' y='{h - 15}'>£{lo:,.0f}–£{hi:,.0f}</text></svg>")
-    path.write_text("".join(parts))
+    path.write_text("".join(parts), encoding="utf-8")
     return path
 
 
@@ -236,7 +236,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover
         label, _, path = r.partition("=") if "=" in r else ("ours" if i == 0 else Path(r).stem, "", r)
         records[label if i else "ours"] = Path(path)
     res = evaluate(records, Path(a.out))
-    print((Path(a.out) / "table.md").read_text())
+    print((Path(a.out) / "table.md").read_text(encoding="utf-8"))
     print(f"Wrote {a.out}/metrics.json, {a.out}/table.md and {res['chart']}")
 
 
