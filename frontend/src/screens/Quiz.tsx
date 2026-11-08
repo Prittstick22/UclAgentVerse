@@ -168,7 +168,7 @@ export default function Quiz({ mode, changing, onMode, complete }: {
             aria-disabled={answerLocked && selected || undefined}
             onClick={() => choose(question, option.id)}>{option.label}</button>;
         })}</div>
-      </> : result ? <MandateReview mandate={result.mandate} profile={result.profile} busy={busy} submit={build} /> : <p role="status">Loading questions…</p>}
+      </> : result ? <MandateReview key={`${result.mandate.version}:${result.profile.name}`} mandate={result.mandate} profile={result.profile} busy={busy} submit={build} /> : <p role="status">Loading questions…</p>}
       {error && <p className="mvp-error" role="alert">{error}</p>}
       {step > 0 && <button className="mvp-action" disabled={busy} onClick={() => {
         window.clearTimeout(timer.current); timer.current = undefined;
@@ -181,6 +181,7 @@ export default function Quiz({ mode, changing, onMode, complete }: {
 function MandateReview({ mandate: initial, profile, busy, submit, saveOnly = false }: {
   mandate: Mandate; profile?: ProfileResult; busy: boolean; submit: (mandate: Mandate) => void; saveOnly?: boolean;
 }) {
+  // Seeded once per mandate: the parent passes key={version} so a new quiz result rebuilds the form with its values.
   const [mandate, setMandate] = useState(initial);
   const percentage = (label: string, value: number, change: (value: number) => Mandate) =>
     <label>{label}<input className="terminal-field" type="number" min="0" max="100" step="0.1"
@@ -245,7 +246,7 @@ export function ProfileScreen({ mode, restartTour }: { mode?: Mode; restartTour:
     <AgentAvatar role="lead" />
     <h1>Your profile</h1>
     <p>{mode === "historical" ? "Demo · Priya’s recorded paper portfolio" : "Real · Paper portfolio using current markets"}</p>
-    {mode === "live" && resource.value && <MandateReview mandate={resource.value} busy={busy} submit={save} saveOnly />}
+    {mode === "live" && resource.value && <MandateReview key={resource.value.version} mandate={resource.value} busy={busy} submit={save} saveOnly />}
     {mode === "live" && !resource.value && !resource.error && <p role="status">Loading your investment plan…</p>}
     {message && <p role="status">{message}</p>}
     {(error || resource.error) && <p role="alert" className="mvp-error">{error || resource.error}</p>}
