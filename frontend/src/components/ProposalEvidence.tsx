@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef } from "react";
+import { useId, useLayoutEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { chartDateTick, chartValueTick, moneyAxisWidth } from "../lib/chartLabels";
 import { get, mockEvents, MOCK } from "../lib/api";
 import type { AgentEvent, Badge, GateName, GateResult, GateStatus } from "../lib/types";
 import { useResource } from "../lib/useResource";
@@ -82,7 +83,7 @@ export function EvidenceView({ id, debug = false }: { id: string; debug?: boolea
       {item.excerpt && <blockquote>{item.excerpt}</blockquote>}
       {id.startsWith("calc:") && <CalculationDetails data={item.data} />}
       {item.data != null && debug && import.meta.env.DEV && <pre>{JSON.stringify(item.data, null, 2)}</pre>}
-      {url && <a href={url} target="_blank" rel="noreferrer">Open source ↗</a>}
+      {url && <a className="mvp-action accent compact" href={url} target="_blank" rel="noreferrer">Open source ↗</a>}
     </>}
   </div>;
 }
@@ -157,21 +158,35 @@ export function proposalCalculations(
   return { selection, allocation };
 }
 
-export function ProposalEvidenceDrawer({ id, seq, runId, close }: {
-  id: string; seq?: number; runId: string; close: () => void;
+export function focusInProposal(target: HTMLElement, alignTop = false) {
+  const dialog = target.closest("dialog");
+  const holdings = target.closest<HTMLElement>(".proposal-holdings");
+  for (const container of [holdings, dialog]) {
+    if (!container) continue;
+    const viewportTop = container.getBoundingClientRect().top + container.clientTop;
+    const footer = container === dialog ? dialog.querySelector("footer") : null;
+    const viewportBottom = Math.min(viewportTop + container.clientHeight, footer?.getBoundingClientRect().top ?? Infinity);
+    const { top, bottom } = target.getBoundingClientRect();
+    const offset = alignTop || top < viewportTop + 8 ? top - viewportTop - 8 : Math.max(0, bottom - viewportBottom + 8);
+    if (offset) container.scrollBy({ top: offset, behavior: "instant" });
+  }
+  target.focus({ preventScroll: true });
+}
+
+export function ProposalEvidenceDrawer({ source, runId, close }: {
+  source: { id: string; seq?: number }; runId: string; close: () => void;
 }) {
-  const panel = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    panel.current?.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "instant" : "smooth" });
-    panel.current?.focus({ preventScroll: true });
-  }, [id]);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useLayoutEffect(() => {
+    if (heading.current) focusInProposal(heading.current, true);
+  }, [source]);
+  const { id, seq } = source;
   const calculation = id.startsWith("calc:");
-  return <section className="proposal-evidence-drawer" aria-label="Proposal evidence" tabIndex={-1} ref={panel}>
-    <header><h2>{calculation ? "Calculation evidence" : "Supporting source"}</h2>
+  return <section className="proposal-evidence-drawer" aria-label="Proposal evidence">
+    <header><h2 ref={heading} tabIndex={-1}>{calculation ? "Calculation evidence" : "Supporting source"}</h2>
       <button className="mvp-action" type="button" onClick={close}>Close evidence</button></header>
     <EvidenceView id={id} key={id} />
-    {seq && <Link to={"/runs/" + encodeURIComponent(runId) + "?seq=" + seq} className="mvp-link" onClick={close}>
+    {seq && <Link to={"/runs/" + encodeURIComponent(runId) + "?seq=" + seq} className="mvp-action accent compact" onClick={close}>
       Open calculation in replay ↗
     </Link>}
   </section>;
@@ -190,9 +205,9 @@ export function ProposalBacktest({ event, asOf }: { event?: AgentEvent; asOf: st
       <ResponsiveContainer width="100%" height={145}>
         <AreaChart data={points} margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
           <CartesianGrid vertical={false} stroke="var(--terminal-edge)" />
-          <XAxis dataKey="date" tickFormatter={short} minTickGap={52} tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-          <YAxis width={58} domain={["auto", "auto"]} tickFormatter={(value: number) => "£" + Math.round(value).toLocaleString("en-GB")}
-            tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
+          <XAxis dataKey="date" tickFormatter={short} interval="preserveStartEnd" minTickGap={24} tickLine={false} axisLine={false} tick={chartDateTick} />
+          <YAxis width={moneyAxisWidth} tickCount={4} domain={["auto", "auto"]} tickFormatter={(value: number) => "£" + Math.round(value).toLocaleString("en-GB")}
+            tickLine={false} axisLine={false} tick={chartValueTick} />
           <Tooltip formatter={(value: number) => [money.format(value), "Simulated value"]} />
           <Area dataKey="value" stroke="var(--terminal-accent)" fill="var(--terminal-accent)" fillOpacity={0.14} isAnimationActive={false} />
         </AreaChart>

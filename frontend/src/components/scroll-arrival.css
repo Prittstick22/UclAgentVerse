@@ -1,0 +1,7 @@
+@media (prefers-reduced-motion: no-preference) {
+  [data-scroll-arrived] { animation: scroll-arrival 220ms var(--mvp-ease-out); }
+}
+@keyframes scroll-arrival {
+  from { opacity: .8; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}

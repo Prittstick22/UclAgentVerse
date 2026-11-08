@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AgentAvatar from "../components/AgentAvatar";
 import HoldingIssuer from "../components/HoldingIssuer";
-import { AssuranceStrip, ProposalBacktest, ProposalEvidenceDrawer, proposalCalculations } from "../components/ProposalEvidence";
+import FinanceTerm from "../components/FinanceTerm";
+import { finance } from "../lib/financeTerms";
+import { AssuranceStrip, focusInProposal, ProposalBacktest, ProposalEvidenceDrawer, proposalCalculations } from "../components/ProposalEvidence";
 export { EvidenceView } from "../components/ProposalEvidence";
 import { api, get, mockEvents, MOCK, post } from "../lib/api";
 import type { AgentEvent, AgentNode, DecisionCard, GateResult, Mode, Notification } from "../lib/types";
@@ -22,7 +24,7 @@ export const pct = new Intl.NumberFormat("en-GB", { style: "percent", maximumFra
 export const words = (value: string) => value.replaceAll("_", " ");
 const pathFor = (id: string) => "/proposals/" + encodeURIComponent(id);
 
-function recordedFixture(id: string): Proposal {
+export function recordedFixture(id: string): Proposal {
   const events = mockEvents();
   const created = events.find(event => event.type === "proposal.created" && event.payload.proposal_id === id);
   if (!created?.run_id) throw new Error("This proposal is unavailable in the fixtures.");
@@ -53,10 +55,12 @@ export function ProposalDialog({ id, mode, close, changed }: {
   const events = useResource(runId ?? "", signal => !runId ? Promise.resolve({ items: [] as AgentEvent[] }) :
     MOCK ? Promise.resolve({ items: mockEvents() }) :
       get<{ items: AgentEvent[] }>("/runs/" + encodeURIComponent(runId) + "/events?format=json", "", signal));
-  const [source, setSource] = useState<{ id: string; seq?: number }>();
+  const [source, setSource] = useState<{ id: string; seq?: number; trigger: HTMLButtonElement }>();
+  const evidenceReturnFocus = useRef<HTMLButtonElement>();
   const [outcome, setOutcome] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [pendingDecision, setPendingDecision] = useState<"approve" | "decline">();
+  const busy = pendingDecision !== undefined;
   const option = proposal?.options.find(item => item.label === (selection || proposal.selected)) ?? proposal?.options[0];
   const changes = option?.label === proposal?.selected ? proposal?.decision_card.changes ?? [] : [];
   const changesByTicker = new Map(changes.map(change => [change.ticker, change]));
@@ -65,9 +69,17 @@ export function ProposalDialog({ id, mode, close, changed }: {
     proposalCalculations(events.value.items, id, option.label, option.holdings) : {};
   const calculation = selectedFigures ?? allocation;
 
-  function showCalculation() {
-    if (calculation) setSource({ id: "calc:" + calculation.id, seq: calculation.seq });
+  function closeEvidence() {
+    evidenceReturnFocus.current = source?.trigger;
+    setSource(undefined);
   }
+
+  useLayoutEffect(() => {
+    const trigger = evidenceReturnFocus.current;
+    if (source || !trigger) return;
+    evidenceReturnFocus.current = undefined;
+    if (trigger.isConnected) focusInProposal(trigger);
+  }, [source]);
 
   useEffect(() => {
     const element = dialog.current;
@@ -76,7 +88,8 @@ export function ProposalDialog({ id, mode, close, changed }: {
   }, []);
 
   async function decide(decision: "approve" | "decline") {
-    setBusy(true);
+    if (busy || outcome) return;
+    setPendingDecision(decision);
     setError("");
     try {
       const result = await post<{ fill_date?: string }>(pathFor(id) + "/" + decision,
@@ -84,7 +97,7 @@ export function ProposalDialog({ id, mode, close, changed }: {
       setOutcome(decision === "approve" ? (result.fill_date ? "Approved · Scheduled for " + result.fill_date : "Approved · Queued for the next available close") : "Portfolio kept as is");
       changed?.();
     } catch (e) { setError((e as Error).message); }
-    finally { setBusy(false); }
+    finally { setPendingDecision(undefined); }
   }
 
   return <dialog className="proposal-modal terminal-glass" ref={dialog} aria-labelledby="proposal-title"
@@ -100,12 +113,13 @@ export function ProposalDialog({ id, mode, close, changed }: {
       <div className="mvp-toolbar proposal-options" aria-label="Portfolio options">{proposal.options.map(item =>
         <button className="mvp-action" key={item.label} aria-pressed={item === option} disabled={busy || !!outcome}
           onClick={() => { setSelection(item.label); setSource(undefined); }}>{words(item.label)}</button>)}
-        {calculation && <button className="mvp-link" type="button" onClick={showCalculation}>Show calculations</button>}
+        {calculation && <button className="mvp-action accent compact" type="button"
+          onClick={event => setSource({ id: "calc:" + calculation.id, seq: calculation.seq, trigger: event.currentTarget })}>Show calculations</button>}
       </div>
-      {source && <ProposalEvidenceDrawer id={source.id} seq={source.seq} runId={proposal.run_id} close={() => setSource(undefined)} />}
+      {source && <ProposalEvidenceDrawer source={source} runId={proposal.run_id} close={closeEvidence} />}
       {option && <>
         <div className="proposal-holdings">
-          <header><h2>{option.holdings.length} proposed holdings</h2><span>Cash {pct.format(option.cash_weight)} · Est. cost {gbp.format(option.stats.cost_gbp)}</span></header>
+          <header><h2>{option.holdings.length} proposed holdings</h2><span>Cash {pct.format(option.cash_weight)} · <FinanceTerm name="Est. trading cost" help={finance.tradingCost} /> {gbp.format(option.stats.cost_gbp)}</span></header>
           {option.holdings.map(item => {
             const ticker = item.ticker.split(".")[0];
             const change = changesByTicker.get(item.ticker);
@@ -115,8 +129,9 @@ export function ProposalDialog({ id, mode, close, changed }: {
               <span className="proposal-issuer"><HoldingIssuer name={fullName} ticker={item.ticker} /></span>
               <div><strong title={fullName}>{name}</strong><small>{item.ticker}{item.purpose && " · " + item.purpose}</small>
                 {item.why_not_alternatives && <details><summary>Why this holding?</summary>{item.why_not_alternatives}</details>}
-                {item.evidence_ids.map((id, index) => <button key={id} className="mvp-link" type="button"
-                  aria-label={"Supporting evidence " + (index + 1) + " for " + ticker} onClick={() => setSource({ id })}>
+                {item.evidence_ids.map((id, index) => <button key={id} className="mvp-action accent compact" type="button"
+                  aria-label={"Supporting evidence " + (index + 1) + " for " + ticker}
+                  onClick={event => setSource({ id, trigger: event.currentTarget })}>
                   Evidence{item.evidence_ids.length > 1 ? " " + (index + 1) : ""}
                 </button>)}</div>
               <div className="proposal-weight"><strong>{pct.format(item.weight)}</strong>
@@ -130,14 +145,16 @@ export function ProposalDialog({ id, mode, close, changed }: {
           </section>}
         </div>
         <ProposalBacktest event={allocation} asOf={proposal.as_of} />
-        {option.stats.max_drawdown_backtest != null && <p className="mvp-muted">Historical worst drawdown {pct.format(option.stats.max_drawdown_backtest)} · Simulated, not a forecast</p>}
+        {option.stats.max_drawdown_backtest != null && <p className="mvp-muted"><FinanceTerm name="Biggest historical drop" help={finance.drawdown} /> {pct.format(option.stats.max_drawdown_backtest)} · Simulated</p>}
       </>}
       {option && events.value && !calculation && <p className="mvp-muted">This recording has no calculation for this option.</p>}
       {proposal.uncertainties.length > 0 && <ul className="proposal-uncertainties">{proposal.uncertainties.map((item, i) => <li key={i}>{item}</li>)}</ul>}
       <p className="mvp-muted">{proposal.decision_card.risk_warning}</p>
-      {outcome && <p role="status">{outcome}</p>}
-      {error && <p role="alert" className="mvp-error">{error}</p>}
       <footer className="mvp-toolbar">
+        <p className="proposal-decision-status" role="status" data-complete={!!outcome}>
+          {pendingDecision ? (pendingDecision === "approve" ? "Saving approval…" : "Saving decline…") : outcome}
+        </p>
+        {error && <p role="alert" className="proposal-decision-status mvp-error">{error}</p>}
         <Link to={"/runs/" + encodeURIComponent(proposal.run_id) + "?replay=1"} className="mvp-action" onClick={close}>Why this proposal?</Link>
         {mode === "live" && <Link to="/profile" className="mvp-action" onClick={close}>Change preferences</Link>}
         {!MOCK && mode === "live" && proposal.status === "awaiting_approval" && !outcome && <>
@@ -165,16 +182,16 @@ export function DecisionList({ mode }: { mode?: Mode }) {
   }
 
   return <div className="mvp-page mvp-enter">
-    <h1>Decisions and activity</h1>
+    <h1><span data-tour-target="decisions-intro">Decisions and activity</span></h1>
     {resource.error && <p role="alert">{resource.error}</p>}
     {error && <p role="alert">{error}</p>}
     {resource.value && (["decision", "digest", "coverage"] as const).map((kind, index) =>
-      <section className="terminal-glass mvp-panel" key={kind}>
+      <section className="terminal-glass glass-feedback mvp-panel" key={kind}>
         <h2>{["Decisions", "Review digest", "Data coverage"][index]}</h2>
         {resource.value?.items.filter(item => item.kind === kind).map(item => <article className="notice-row" key={item.id}>
           <div><strong>{item.title}</strong><p>{item.body}</p><small>{item.created_at.slice(0, 10)}</small></div>
           <div className="mvp-toolbar">
-            {item.proposal_id && <button className="mvp-action primary" onClick={() => select(item.proposal_id ?? "")}>Review proposal</button>}
+            {item.proposal_id && <button className="mvp-action primary" data-tour-target="proposal" onClick={() => select(item.proposal_id ?? "")}>Review proposal</button>}
             {item.run_id && <Link className="mvp-action" to={"/runs/" + encodeURIComponent(item.run_id) + "?replay=1"}>
               {item.kind === "decision" ? "Why?" : "Open investigation"}
             </Link>}

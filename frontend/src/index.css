@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 @font-face {
-  font-family: "Space Grotesk";
-  src: url("./assets/space-grotesk.woff2") format("woff2");
+  font-family: "Geist";
+  src: url("./assets/geist-variable.woff2") format("woff2");
   font-style: normal;
-  font-weight: 300 700;
+  font-weight: 100 900;
   font-display: swap;
 }
 
@@ -22,8 +22,8 @@
   --terminal-positive: #8dbfa7;
   --terminal-chart: #93b9ef;
   --terminal-negative: #f49792;
-  --terminal-font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --terminal-display: "Space Grotesk", var(--terminal-font);
+  --terminal-font: "Geist", "Segoe UI Variable Text", system-ui, sans-serif;
+  --terminal-display: var(--terminal-font);
   --terminal-numbers: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
   color-scheme: dark;
 }
@@ -37,7 +37,44 @@
   backdrop-filter: blur(14px);
 }
 
+.glass-feedback {
+  --glass-rest: color-mix(in srgb, var(--terminal-surface) 72%, transparent);
+  --glass-lit: color-mix(in srgb, var(--glass-rest), #a5bce1 4%);
+  --glass-fill: var(--glass-rest);
+  --glass-rim: none;
+  position: relative;
+  background-color: var(--glass-fill);
+  transition: background-color 230ms cubic-bezier(.23, 1, .32, 1), border-color 230ms ease-out;
+}
+.glass-feedback:is(:focus-visible, :has(> .news-card-open:focus-visible)) {
+  --glass-fill: var(--glass-lit);
+  --glass-rim: "";
+}
+@media (hover: hover) {
+  .glass-feedback:hover:not(:disabled, :has(.glass-feedback:hover)) {
+    --glass-fill: var(--glass-lit);
+    --glass-rim: "";
+  }
+}
+@property --glass-sweep-angle { syntax: "<angle>"; inherits: false; initial-value: 15deg; }
+@media (prefers-reduced-motion: no-preference) {
+  .glass-feedback::after {
+    content: var(--glass-rim);
+    position: absolute; inset: 0; z-index: 3; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: conic-gradient(from var(--glass-sweep-angle), transparent 0deg 248deg, #7c9cc026 280deg, #c7dbff8c 323deg, transparent 358deg);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    animation: glass-edge-sweep 820ms linear both;
+  }
+}
+@keyframes glass-edge-sweep {
+  from { --glass-sweep-angle: 15deg; opacity: 0; }
+  24% { opacity: .52; }
+  to { --glass-sweep-angle: 375deg; opacity: 0; }
+}
+
 .terminal-shell {
+  position: relative; isolation: isolate;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 36px minmax(0, 1fr) 21px;
@@ -51,6 +88,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+.terminal-shell::before, .terminal-shell::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+}
+.terminal-shell::before {
+  background: radial-gradient(ellipse at 49% 0%, #739ccb24, transparent 65%),
+    radial-gradient(ellipse at 96% 95%, #667c9d12, transparent 45%);
+}
+.terminal-shell::after {
+  opacity: 0; transition: opacity 520ms ease-out;
+  background: radial-gradient(ellipse at 57% 10%, #587fc452, transparent 62%),
+    radial-gradient(ellipse at 78% 65%, #a28bcc23, transparent 49%);
+}
+.terminal-shell:has(.agent-card-rim)::after { opacity: .7; }
+@media (prefers-reduced-motion: reduce) {
+  .glass-feedback, .terminal-shell::after { transition: none; }
+}
+@media print {
+  .terminal-shell::before, .terminal-shell::after { display: none; }
+}
+
 .terminal-shell :is(a, button, input, select):focus-visible {
   outline: 2px solid var(--terminal-accent);
   outline-offset: 2px;
@@ -62,6 +119,7 @@
 .terminal-shell input[type="range"]:not(:disabled) { cursor: ew-resize; }
 .terminal-shell :is(h1, h2) { font-family: var(--terminal-display); }
 .terminal-shell :is(.recharts-surface, .correlation-network-plot) { cursor: crosshair; }
+.terminal-shell .recharts-default-tooltip { font-size: 14px; }
 
 .terminal-topbar {
   display: flex;
@@ -130,6 +188,7 @@
 .terminal-shell ::-webkit-scrollbar-thumb:hover { background-color: #747474; }
 .terminal-shell.terminal-setup { grid-template-rows: minmax(0, 1fr) 21px; }
 .terminal-page { min-height: 100%; padding: 20px; }
+.terminal-page:has(.glass-feedback) { background: color-mix(in srgb, var(--terminal-surface) 52%, transparent); }
 .terminal-page h1 { margin: 0 0 12px; font-size: 22px; font-weight: 650; }
 
 .terminal-mode-choice {

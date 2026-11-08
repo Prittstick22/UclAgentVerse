@@ -1,0 +1,53 @@
+.investigation-report { max-width: 930px; margin-inline: auto; }
+.investigation-report-actions { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.investigation-report-paper { padding: 28px clamp(18px, 4vw, 50px); border-radius: 8px; background: var(--terminal-inset); line-height: 1.55; }
+.investigation-report-paper header { padding-bottom: 15px; border-bottom: 1px solid var(--terminal-edge); }
+.investigation-report-paper header p, .investigation-report-byline { color: var(--terminal-muted); }
+.investigation-report-paper section { margin-top: 23px; }
+.investigation-report-paper h2 { font-size: 17px; margin-bottom: 6px; }
+.investigation-report-paper h3 { font-size: 13px; font-weight: 650; }
+.investigation-report-paper p, .investigation-report-paper blockquote { margin: 3px 0; overflow-wrap: anywhere; }
+.investigation-report-paper blockquote { margin-inline-start: 12px; }
+.investigation-report-method { margin: 7px 0; padding: 6px 9px; background: color-mix(in srgb, var(--terminal-edge) 32%, transparent); border-radius: 4px; }
+.investigation-report-paper td { overflow-wrap: anywhere; }
+.investigation-report-paper dl { margin: 6px 0; }
+.investigation-report-paper dl div { display: flex; gap: 7px; }
+.investigation-report-paper dt { font-weight: 600; }
+.investigation-report-paper dd { margin: 0; overflow-wrap: anywhere; }
+.investigation-report-paper table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; text-align: left; }
+.investigation-report-paper caption { text-align: left; font-weight: 650; }
+.investigation-report-paper :is(td, th) { padding: 4px 7px; border-bottom: 1px solid var(--terminal-edge); }
+.investigation-report-steps, .investigation-report-sources { list-style: decimal; padding-left: 20px; }
+.investigation-report-steps > li, .investigation-report-sources > li { margin: 12px 0; padding-left: 5px; }
+.investigation-report-citations a { margin-inline-start: 5px; }
+.investigation-report-url { overflow-wrap: anywhere; }
+.investigation-report-paper a { color: var(--terminal-accent); text-decoration: underline; text-underline-offset: 2px; }
+.report-figure { margin: 10px 0; padding: 9px 12px; border: 1px solid var(--terminal-edge); border-radius: 6px; }
+.report-figure figcaption { display: grid; gap: 3px; margin-bottom: 6px; }
+.report-figure figcaption span { color: var(--terminal-muted); }
+.report-allocation { display: grid; gap: 5px; padding: 0; margin: 0; list-style: none; }
+.report-allocation li { display: grid; grid-template-columns: 85px minmax(0, 1fr) 118px; align-items: center; gap: 8px; }
+.report-allocation li > span { text-align: end; }
+.report-weight-bars { display: grid; gap: 2px; }
+.report-weight-bars span { height: 4px; border-radius: 3px; background: var(--terminal-muted); }
+.report-weight-bars span:last-child { background: var(--terminal-accent); }
+.report-value-path { display: block; width: 100%; max-height: 178px; }
+.report-value-path line { stroke: var(--terminal-edge); }
+.report-value-path text { fill: currentColor; font-size: 13px; font-weight: 550; }
+.report-value-path polyline { fill: none; stroke: var(--terminal-accent); stroke-width: 2; stroke-linejoin: round; }
+@page investigation { size: A4; margin: 15mm; }
+@media print {
+  body:has(.investigation-report) { color-scheme: light; background: #fff; }
+  body:has(.investigation-report) :is(#root, .terminal-shell, .terminal-main, .terminal-page) {
+    display: block; height: auto; min-height: 0; overflow: visible; padding: 0; background: #fff; color: #17212a;
+    border: 0; backdrop-filter: none;
+  }
+  body:has(.investigation-report) :is(.terminal-topbar, .terminal-status, .terminal-toast, .investigation-report-actions) { display: none; }
+  .investigation-report { page: investigation; }
+  .investigation-report-paper { --terminal-edge: #d0d6dc; --terminal-muted: #46515b; --terminal-accent: #244e74; padding: 0; color: #17212a; background: #fff; font-size: 10pt; }
+  .investigation-report-paper :is(h1, h2, h3, caption) { break-after: avoid; }
+  .investigation-report-paper :is(tr, blockquote), .investigation-report-steps > li:not(:has(table)) { break-inside: avoid; }
+  .investigation-report-paper thead { display: table-header-group; }
+  .report-figure { break-inside: avoid; print-color-adjust: exact; }
+  .report-allocation li { grid-template-columns: 24mm minmax(0, 1fr) 32mm; }
+}

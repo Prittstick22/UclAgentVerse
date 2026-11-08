@@ -134,7 +134,7 @@
 .correlation-matrix thead :is(th, td) { position: sticky; z-index: 2; top: 0; background: #20252a; }
 .correlation-matrix tbody th { position: sticky; z-index: 1; left: 0; background: #20252a; }
 .correlation-matrix thead td:first-child { z-index: 3; left: 0; }
-.correlation-matrix td { color: var(--terminal-muted, #a4afba); font-size: 11px; }
+.correlation-matrix td { color: var(--terminal-text); font-size: 13px; }
 .correlation-cell {
   --cell-tint: var(--correlation-positive);
   display: block;
@@ -144,11 +144,12 @@
   border-radius: 2px;
   background: color-mix(in srgb, var(--cell-tint) var(--correlation-strength), var(--correlation-neutral));
   color: #f0f2f5;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
 .correlation-cell[data-tint="negative"] { --cell-tint: var(--correlation-negative); }
-.correlation-cell[data-tint="neutral"] { --cell-tint: var(--correlation-neutral); color: #b5bfca; }
+.correlation-cell[data-tint="neutral"] { --cell-tint: var(--correlation-neutral); color: #d8e0e9; }
 .correlation-cell:is(:hover, :focus-visible, [data-inspected="true"]) { outline: 0; border-color: #c7d4e1; }
 
 .correlation-legend {

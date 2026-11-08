@@ -3,6 +3,8 @@ import type { CSSProperties, KeyboardEvent } from "react";
 import { get, MOCK } from "../lib/api";
 import type { CorrelationReport, Mode, Portfolio } from "../lib/types";
 import HoldingIssuer from "./HoldingIssuer";
+import FinanceTerm from "./FinanceTerm";
+import { finance } from "../lib/financeTerms";
 import AgentAvatar from "./AgentAvatar";
 import "./correlation-lattice.css";
 
@@ -151,7 +153,7 @@ export default function CorrelationLattice({ report, holdings = EMPTY_HOLDINGS, 
     <header className="correlation-heading">
       <AgentAvatar role="risk_analyst" />
       <div className="correlation-heading-copy">
-        <h2 id={titleId}>{view === "network" ? "Holding connections" : "Correlation matrix"}</h2>
+        <h2 id={titleId}><FinanceTerm name={view === "network" ? "Holding connections" : "Correlation matrix"} help={finance.correlation} /></h2>
         <p>How these investments moved together</p>
       </div>
       <div className="correlation-switch" role="group" aria-label="Correlation view">
@@ -282,7 +284,7 @@ function Matrix({ report, nodes, selected, inspect }: {
   }
 
   return <div className="correlation-matrix-scroll">
-    <table className="correlation-matrix" aria-label="Correlation matrix" style={{ minWidth: `${48 + 32 * n}px` }}>
+    <table className="correlation-matrix" aria-label="Correlation matrix" style={{ minWidth: `${48 + 42 * n}px` }}>
       <thead><tr><td />{nodes.map(({ ticker, symbol }) => <th key={ticker} scope="col" title={ticker}>{symbol}</th>)}</tr></thead>
       <tbody>{nodes.map((a, i) => <tr key={a.ticker}>
         <th scope="row" title={a.ticker}>{a.symbol}</th>
