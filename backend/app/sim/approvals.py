@@ -48,9 +48,10 @@ def handle(state: Any, prop: Proposal, mode: ApprovalMode, construction: bool = 
         return _set(state, prop, "blocked", f"Proposal {prop.id} has no '{prop.selected}' option"), "blocked"
     weights, cash = picked
     rep = checker.check_proposal(weights, cash, state.mandate, state.gw.catalogue())
-    gates_ok = all(g.status in PASSING for g in prop.gates)
+    gates_ok = bool(prop.gates) and all(g.status in PASSING for g in prop.gates)   # unchecked = not ok
     if not rep.passed or not gates_ok:
-        why = "; ".join(v.message for v in rep.violations[:3]) or "a gate failed"
+        why = ("; ".join(v.message for v in rep.violations[:3])
+               or ("a gate failed" if prop.gates else "not checked by the assurance gate"))
         _set(state, prop, "blocked", why)
         ev.emit("gate.verdict", run_id=prop.run_id, title=f"Blocked before approval: {why}"[:120], status="failed",
                 payload={"gate": "mandate", "status": "fail", "issues": [why], "required_changes": [],
@@ -158,6 +159,11 @@ def approve_by_user(state: Any, proposal_id: str, option: str | None = None) -> 
         raise ApprovalError(409, "duplicate_order", "This proposal was already approved")
     if prop.status not in APPROVABLE:
         raise ApprovalError(409, "conflict", f"This proposal is {prop.status} and can't be approved")
+    if not prop.gates:   # never checked (e.g. the run timed out mid-gate): no checks, no approval
+        raise ApprovalError(409, "conflict", "This proposal hasn't been through the assurance checks")
+    if any(g.status == "fail" for g in prop.gates):   # belt and braces: the gate blocks these already
+        raise ApprovalError(409, "conflict", "The assurance checks failed for this proposal; it can't be approved",
+                            {"failed_gates": [g.gate for g in prop.gates if g.status == "fail"]})
     chosen = option or prop.selected
     if not any(o.label == chosen for o in prop.options):
         raise ApprovalError(422, "validation_error", f"No option '{chosen}' in this proposal",

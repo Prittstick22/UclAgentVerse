@@ -147,6 +147,19 @@ Every tool is our code. It goes through `DataGateway` (as_of-enforced), emits `t
 | Rebalance (drift/cap) | numbers + mandate + compliance + explainer; critic only if turnover > 5% |
 | Chat answer | evidence on cited claims; full gate if it produces a proposal |
 
+**Implemented (#32, `agents/gate.py`, run by `Supervisor._assure` on every proposal before `run.completed`):** all seven checks are **code**: deterministic, and they can't be argued round.
+- **`injection_guard`:** guard patterns in the card, purposes and findings, plus findings citing quarantined content.
+- **`evidence`:** every finding must cite an id a tool returned in this run or that `find_evidence` resolves. Fail on an unsupported high-confidence claim or a majority unsupported; otherwise flag.
+- **`numbers`:** each option is recomputed with the independent `engine/checker.py` (sum, fees, turnover against the card).
+- **`mandate`:** the checker on the selected option.
+- **`critic`:** judgement flags only, never a fail: turnover > 20% on an adjustment, a holding at its cap, cost > 0.5% NAV, low-confidence findings.
+- **`compliance`:** banned promises, the risk warning, and the `simulated` label.
+- **`qa`:** the selected option exists, the card has a headline and body; holdings without a purpose are flagged.
+
+Each check emits `gate.started` and `gate.verdict {gate, status, issues, required_changes, proposal_id}`, and the results are stored in `Proposal.gates`. A check that crashes **fails closed**.
+
+**Every proposal gets the full gate**, even if the lead's decision is `maintain`, because a proposal is a change. On any `fail`, the draft is marked `blocked`. Findings a rewording can't fix (no or unknown evidence, injected text, quarantined sources) are **removed** and listed in `revision.requested {by_gate, points, dropped_claims}`, and the lead runs once more with those points. If the revision fails again, that proposal is `blocked` too and the decision becomes `investigate_further`. Approvals (`sim/approvals.py`) never execute a proposal with a failed gate. A Flash wording review and an LLM critic can be layered on later; they're not needed for the controls above.
+
 **Badges** (never one generic "verified"): `source_retrieved` (gateway), `claim_supported` (evidence checker), `relationship_uncertain` (dependency, T3), `calculation_recomputed` (numbers verifier), `judgement_uncertain` (critic/lead).
 
 ## 7. Default plans (`agents/plans.py`): the lead may add or skip within limits
