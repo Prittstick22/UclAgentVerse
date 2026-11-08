@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
-from app.container import build_state
+from app.container import build_state, state_for_mode
 from app.settings import get_settings
 
 
@@ -17,6 +17,7 @@ from app.settings import get_settings
 async def lifespan(app: FastAPI):
     if not hasattr(app.state, "app"):
         app.state.app = build_state()
+    state_for_mode(app.state.app, "live" if app.state.app.clock.mode == "historical" else "historical")
     yield
 
 

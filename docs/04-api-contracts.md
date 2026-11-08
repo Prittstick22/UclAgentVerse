@@ -152,6 +152,12 @@ interface AgentNode {
 | `POST /api/chat` | `{message, conversation_id?}` | `{conversation_id, run_id, answer, citations: string[], proposal_id: string\|null}` | Dev |
 | `POST /api/tasks/live-eod` · `POST /api/tasks/live-news` | header `X-Task-Secret` | `{ok, fetched, stale: string[]}` | Jin |
 
+Live refresh tasks (#11) run in the background. Their immediate response keeps
+the existing `{ok, fetched, stale}` shape: `ok` means accepted, `fetched` is
+zero before the worker finishes, and `stale` describes the cache at acceptance.
+Completion uses existing `tool.result` events; failures create coverage
+notifications. No GET request calls a provider. See [live mode](live-mode.md).
+
 Portfolio dates are inclusive and capped at the active `as_of`. History points from older `clock.tick` recordings use `null` when contributions were never recorded. Portfolio detail or period P&L returns `409 validation_error` when the available recording lacks the ledger data needed for the response. Rebalances list filled approvals newest first and use the recorded execution date and costs.
 
 ## 3. Events (SSE)

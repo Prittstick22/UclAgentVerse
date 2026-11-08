@@ -1,5 +1,5 @@
 // API client. In mock mode (VITE_MOCK=1, default in dev) it serves ../fixtures/*.json, so the UI works without a backend.
-import type { AgentEvent, CorrelationReport, Health, Mandate, Notification, Portfolio, ProfileResult, Question, RunSummary } from "./types";
+import type { AgentEvent, CorrelationReport, Health, Mandate, Mode, Notification, Portfolio, ProfileResult, Question, RunSummary } from "./types";
 
 export const MOCK = import.meta.env.VITE_MOCK === "1";
 
@@ -25,6 +25,7 @@ async function post<T>(path: string, body: unknown, mock: string): Promise<T> {
 
 export const api = {
   health: () => get<Health>("/health", "health"),
+  setMode: (mode: Mode) => post<{ mode: Mode }>("/mode", { mode }, "health"),
   questions: () => get<{ questions: Question[] }>("/profile/questions", "questions"),
   quiz: (answers: Record<string, string>) => post<{ profile: ProfileResult; mandate: Mandate }>("/profile/quiz", { answers }, "quiz_result"),
   mandate: () => get<Mandate>("/mandate", "mandate"),

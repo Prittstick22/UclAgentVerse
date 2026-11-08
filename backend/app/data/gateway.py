@@ -27,6 +27,13 @@ class DataGateway:
         self.snapshot = snapshot
         self.events = events
         self._prices_gbp = snapshot.adj_close_gbp()
+        self.coverage_failures: set[str] = set()
+
+    def replace_snapshot(self, snapshot: Snapshot) -> None:
+        """Publish a fully prepared cache; never expose a half-updated price matrix."""
+        prices = snapshot.adj_close_gbp()
+        self.snapshot = snapshot
+        self._prices_gbp = prices
 
     # ------------------------------------------------------------------ guards
     def _check_end(self, end: str | pd.Timestamp | None, caller: str) -> pd.Timestamp:
@@ -162,7 +169,8 @@ class DataGateway:
             last = last_dates.get(t)
             out[t] = Freshness(
                 ticker=t, last_date=str(last.date()) if last is not None else None,
-                stale=last is None or len(calendar) - calendar.searchsorted(last, side="right") > stale_after,
+                stale=(last is None or len(calendar) - calendar.searchsorted(last, side="right") > stale_after
+                       or t in self.coverage_failures),  # live refresh failed (#11)
                 source=self.snapshot.source_label,
             )
         return out

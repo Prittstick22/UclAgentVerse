@@ -10,14 +10,16 @@ import logging
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.api.portfolio import PortfolioView
 from app.api.run_views import agent_tree, find_evidence, summarize
+from app.container import state_for_mode
 from app.core.events import Event, sse_frame
 from app.data.gateway import AsOfViolation
+from app.data.live import updates
 from app.engine import risk
 from app.engine.portfolio import PortfolioDataUnavailable
 from app.profile.quiz import mandate_for, questions_payload, score
@@ -54,12 +56,17 @@ def get_mode(request: Request):
 
 
 class ModeBody(BaseModel):
-    mode: str
+    mode: Mode
 
 
 @router.post("/mode")
 def set_mode(body: ModeBody, request: Request):
-    err(501, "internal", "TODO(#11): swap SimClock/LiveClock and the portfolio namespace")
+    previous = S(request)
+    active = state_for_mode(previous, body.mode)
+    request.app.state.app = active
+    if previous is not active:
+        active.events.emit("mode.changed", title=f"Changed to {body.mode}", payload={"mode": body.mode})
+    return get_mode(request)
 
 
 # ------------------------------------------------------------------ profile + mandate
@@ -120,6 +127,14 @@ async def build(request: Request):
 @router.get("/portfolio")
 def portfolio(request: Request, mode: Mode | None = None) -> Portfolio:
     s = S(request)
+    if s.clock.mode == "live" and mode in (None, "live"):
+        # Live (#11): cached prices + coverage-based status from the live cache; counters from the activity log.
+        from app.data.live import live_portfolio
+        summary = live_portfolio(s)
+        activity = s.activity.snapshot("live")
+        status = "monitoring_degraded" if summary.status == "monitoring_degraded" else activity.status
+        return summary.model_copy(update={"status": status, "counters": activity.counters,
+                                          "last_review_date": activity.last_review_date})
     try:
         summary = PortfolioView(s, mode).summary()
     except PortfolioDataUnavailable as exc:
@@ -341,16 +356,21 @@ def chat(body: ChatBody, request: Request):
 
 
 @router.post("/tasks/live-eod")
-def live_eod(request: Request):
+def live_eod(request: Request, background: BackgroundTasks):
     s = S(request)
     if not s.settings.task_secret or request.headers.get("X-Task-Secret") != s.settings.task_secret:
         err(401, "unauthorized", "bad task secret")
-    return {"ok": False, "fetched": 0, "stale": []}  # TODO(#live-mode)
+    live = state_for_mode(s, "live")
+    background.add_task(updates(live).refresh, "eod")
+    return {"ok": True, "fetched": 0, "stale": [t for t, f in live.gw.freshness().items() if f.stale]}
 
 
 @router.post("/tasks/live-news")
-def live_news(request: Request):
+def live_news(request: Request, background: BackgroundTasks):
     s = S(request)
     if not s.settings.task_secret or request.headers.get("X-Task-Secret") != s.settings.task_secret:
         err(401, "unauthorized", "bad task secret")
-    return {"ok": False, "fetched": 0, "stale": []}  # TODO(#11)
+    live = state_for_mode(s, "live")
+    background.add_task(updates(live).refresh, "news")
+    return {"ok": True, "fetched": 0, "stale": [t for t, f in live.gw.freshness().items() if f.stale]}
+
