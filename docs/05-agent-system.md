@@ -87,7 +87,7 @@ schema_retry: 1
 
 | Role | Model | Job |
 |---|---|---|
-| `retrospective` | deep | Monthly: reviews decisions ≥ 20 trading days old using data up to today's sim date; proposes ≤ 1 rule |
+| `retrospective` | deep | **After every agent run** (fortnightly review or ad-hoc trigger): reviews decisions that have matured (≥ 10 trading days old, one review horizon) since the last retrospective, using data up to today's sim date only; proposes ≤ 1 rule |
 | `rule_tester` | fast + code | Tests the rule on earlier episodes (detections, false alarms, cost) |
 | promotion gate | code | Promotes the rule if it clears thresholds; effective from its creation date only; versioned, rollback-able |
 | `explainer` | fast | Memo → plain-English decision card in £ |
@@ -160,7 +160,7 @@ Every tool is our code. It goes through `DataGateway` (as_of-enforced), emits `t
   - lead → news_analyst (→ filing_reader), risk_analyst, exposure tool → full gate if adjusting
 - **rebalance (≤ 4):** optimise → lead explains → numbers + mandate + compliance + explainer
 - **chat (≤ 3):** chat → optional scenario_analyst
-- **retrospective (monthly, ≤ 3):** retrospective → rule_tester → promotion gate
+- **retrospective (after every review/trigger run, ≤ 3):** retrospective → rule_tester → promotion gate. Nothing to review yet → it stops after one step (no rule).
 
 **Expected volume for the sim year:** roughly 210–250 agent invocations, mostly Flash.
 
