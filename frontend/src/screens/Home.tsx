@@ -426,7 +426,9 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
   const holdingPrices = useQuery(loadHoldingPrices, revision);
   const tickers = (summary.value?.holdings ?? []).map(({ ticker }) => ticker).sort().join(",");
   const loadCorrelation = useCallback((signal: AbortSignal) =>
-    tickers ? portfolioQueries.correlations(tickers, signal) : Promise.resolve(null), [tickers]);
+    // No holdings yet (live order waiting for the next close): the API falls back to the approved order's tickers.
+    tickers || summary.value?.mode === "live" ? portfolioQueries.correlations(tickers, signal) : Promise.resolve(null),
+    [tickers, summary.value?.mode]);
   const correlation = useQuery(loadCorrelation, revision);
   const pnl = useQuery(loadPnl, revision);
   const notifications = useQuery(portfolioQueries.notifications, revision);
