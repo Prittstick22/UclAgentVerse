@@ -122,13 +122,35 @@ interface AgentNode {
 Profile notes (#115): historical mode follows the fixed fictional Priya persona. `GET /api/mandate`
 returns her mandate; both profile edit endpoints refuse changes with 409 `validation_error` and
 message `This demo follows Priya. Switch to live mode to create your own profile.` Live quiz and
-mandate editing are unchanged. `GET /api/profile/demo` is read-only in either mode and never
+mandate editing follow the validation/versioning rules below. `GET /api/profile/demo` is read-only in either mode and never
 changes the visitor's live mandate. Its `result` uses the existing quiz scoring and its `mandate`
 uses the persona's configured goal, profile and exclusions. No provider or LLM is called.
 The balanced historical CLI recording uses the same persona mandate; other CLI profiles retain
 their policy defaults. New CLI recordings store the full starting mandate in SQLite `kv`
 (`ns=sim_mandate`, `key=initial`) so it can be compared field-for-field with this endpoint.
 Older recordings without this metadata are not automatically certified or rewritten.
+
+Live mandate notes (#8): equity/bond ranges must be ordered subsets of the
+profile policy ranges; cash minimum cannot fall below policy; caps must be
+non-negative and no larger than policy. Allocation minima cannot total above 1.
+`PUT` must use the current profile and version (use the quiz to change profiles).
+Amounts must be finite/non-negative, cadence positive, trigger/turnover fractions
+within [0,1], and live user approval cannot be disabled. Invalid requests leave
+state/history unchanged and return 422 `validation_error` with `details.fields`
+mapping dotted field paths to messages. Successful quiz submissions and edits
+increment the current live version, atomically store the previous/new versions
+under their decimal version keys plus `latest` in SQLite `kv` namespace `mandate`,
+and emit `mandate.updated`. On restart only live mode loads `latest`.
+
+Quiz conflicts still return a conservative provisional mandate. Resubmit the
+original answers with `follow_up_answer: "yes"` or `"no"`. When tolerance exceeds
+capacity, the horizon is rescored as 7–15 years for yes and under 3 years for no;
+other capacity answers are unchanged. When capacity exceeds tolerance, yes
+selects minimum tolerance and no retains the original lower tolerance. The lower
+score always controls the profile. The answered question becomes null; `conflict`
+still reports any remaining score gap, with explanation of the conservative choice.
+An answer with no initial conflict has no scoring effect. Missing/partial original
+answers retain conservative zero scores for backwards compatibility.
 
 | Method + path | Body / query | Response | Owner |
 |---|---|---|---|
@@ -137,7 +159,7 @@ Older recordings without this metadata are not automatically certified or rewrit
 | `POST /api/mode` | `{mode}` | same as GET | Jin |
 | `GET /api/profile/questions` | — | `{questions: Question[]}`, where `Question = {id, text, help, measures: "tolerance"\|"capacity"\|"context", options: {id, label}[]}` | Jin |
 | `GET /api/profile/demo` | — (available in both modes, read-only) | `DemoProfile = {name: string, age: number, story: string, profile: ProfileName, goal: Goal, answers: Record<string,string>, synthetic: true, result: ProfileResult, mandate: Mandate}` | Jin |
-| `POST /api/profile/quiz` | `{answers: {[qid]: option_id}, goal: Mandate.goal, exclusions: string[]}` | `{profile: {name, tolerance_score, capacity_score, conflict: boolean, follow_up_question: string\|null, explanation: string}, mandate: Mandate}`; historical mode: 409 `validation_error` | Jin |
+| `POST /api/profile/quiz` | `QuizRequest = {answers: {[qid]: option_id}, goal?: Mandate.goal\|null, exclusions?: string[], follow_up_answer?: "yes"\|"no"\|null}` | `{profile: {name, tolerance_score, capacity_score, conflict: boolean, follow_up_question: string\|null, explanation: string}, mandate: Mandate}`; historical mode: 409 `validation_error`; invalid request: 422 `validation_error` with `details.fields` | Jin |
 | `GET /api/mandate` | — | `Mandate` | Jin |
 | `PUT /api/mandate` | `Mandate` | `Mandate` (version+1), or 422 `validation_error`; historical mode: 409 `validation_error` | Jin |
 | `GET /api/catalogue` | — | `{instruments: Instrument[]}` | Jin |
@@ -243,6 +265,7 @@ interface Event {
 | `rule.proposed` / `rule.tested` / `rule.promoted` / `rule.applied` | learning | `{rule_id, text, results?}` |
 | `clock.tick` | simulator | `{nav_gbp, weights, benchmarks: {[name]: nav_gbp}, status}` |
 | `mode.changed` | api | `{mode}` |
+| `mandate.updated` | profile API | `{version, profile}`; emitted after a successful live quiz submission or mandate edit |
 | `notification.created` | api | `{notification_id, kind}` |
 
 ## 4. Python ↔ Python interfaces (between owners)

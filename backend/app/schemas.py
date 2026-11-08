@@ -87,6 +87,13 @@ class ProfileResult(BaseModel):
     explanation: str
 
 
+class QuizRequest(BaseModel):
+    answers: dict[str, str]
+    goal: Goal | None = None
+    exclusions: list[str] = Field(default_factory=list)
+    follow_up_answer: Literal["yes", "no"] | None = None
+
+
 class DemoProfile(BaseModel):
     name: str
     age: int

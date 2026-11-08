@@ -27,6 +27,10 @@ export interface Mandate {
   approval: { require_user_approval: boolean; batch_auto_approve_turnover_max: number };
 }
 export interface ProfileResult { name: ProfileName; tolerance_score: number; capacity_score: number; conflict: boolean; follow_up_question: string | null; explanation: string }
+export interface QuizRequest {
+  answers: Record<string, string>; goal?: Goal | null; exclusions?: string[];
+  follow_up_answer?: "yes" | "no" | null;
+}
 export interface DemoProfile {
   name: string; age: number; story: string; profile: ProfileName; goal: Goal;
   answers: Record<string, string>; synthetic: true; result: ProfileResult; mandate: Mandate;
@@ -85,7 +89,7 @@ export type EventType =
   | "gate.verdict" | "revision.requested" | "content.quarantined" | "budget.exceeded" | "asof.violation" | "decision.made"
   | "proposal.created" | "approval.requested" | "approval.decided" | "order.filled" | "monitor.fired" | "monitor.created"
   | "monitor.shadow_result" | "monitor.activated" | "monitor.disabled" | "rule.proposed" | "rule.tested" | "rule.promoted"
-  | "rule.applied" | "clock.tick" | "mode.changed" | "notification.created";
+  | "rule.applied" | "clock.tick" | "mode.changed" | "notification.created" | "mandate.updated";
 
 export interface AgentEvent {
   id: string; run_id: string | null; seq: number; ts_wall: string; as_of: string; mode: Mode; type: EventType;

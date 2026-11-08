@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING
 
 from app.agents.fakes import FakeBrain
@@ -39,6 +40,7 @@ class AppState:
     mandate: Mandate
     llm: LLM
     supervisor: Supervisor
+    mandate_lock: Lock = field(default_factory=Lock, repr=False)
     proposals: dict = field(default_factory=dict)
     runs: dict = field(default_factory=dict)
     modes: dict[str, AppState] = field(default_factory=dict, repr=False)
@@ -65,6 +67,8 @@ def build_state(settings: Settings | None = None, db_path: str | None = None) ->
     llm_settings = s.model_copy(update={"llm_mode": "replay"}) if recording_path is not None else s
     llm = LLM(db, llm_settings, fake=FakeBrain())
     mandate = demo_mandate() if s.app_mode == "historical" else mandate_for("balanced")
+    if s.app_mode == "live" and (stored_mandate := db.get("mandate", "latest")) is not None:
+        mandate = Mandate.model_validate_json(stored_mandate)
     state = AppState(settings=s, clock=clock, db=db, events=events, gw=gw, ledger=ledger,
                      mandate=mandate, llm=llm, supervisor=None)  # type: ignore[arg-type]
     tools = default_registry(ToolContext(gw=gw, events=events, state=state))

@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Invalid mandate.",
+    "details": {
+      "fields": {
+        "ranges.equity": "Choose an ordered range within [0.4, 0.6]."
+      }
+    }
+  }
+}

@@ -26,11 +26,12 @@ from app.data.live import updates
 from app.engine import risk
 from app.engine.portfolio import PortfolioDataUnavailable
 from app.profile.demo import demo_profile
+from app.profile.mandates import save as save_mandate
+from app.profile.mandates import validate as validate_mandate
 from app.profile.quiz import mandate_for, questions_payload, score
 from app.schemas import (
     DemoProfile,
     Evidence,
-    Goal,
     Mandate,
     Mode,
     Notifications,
@@ -39,6 +40,7 @@ from app.schemas import (
     PortfolioHistory,
     PortfolioPnl,
     PortfolioRebalances,
+    QuizRequest,
     RunSummary,
     TriggerKind,
 )
@@ -106,17 +108,16 @@ def profile_questions():
     return {"questions": questions_payload()}
 
 
-class QuizBody(BaseModel):
-    answers: dict[str, str]
-    goal: Goal | None = None
-    exclusions: list[str] = []
-
-
 @router.post("/profile/quiz", dependencies=[Depends(require_live_profile)])
-def profile_quiz(body: QuizBody, request: Request):
-    result = score(body.answers)
+def profile_quiz(body: QuizRequest, request: Request):
+    result = score(body.answers, body.follow_up_answer)
     mandate = mandate_for(result.name, body.goal, body.exclusions)
-    S(request).mandate = mandate
+    if fields := validate_mandate(mandate):
+        raise HTTPException(422, detail={"error": {"code": "validation_error", "message": "Invalid mandate.",
+                                                  "details": {"fields": fields}}})
+    s = S(request)
+    with s.mandate_lock:
+        mandate = save_mandate(s, mandate)
     return {"profile": result.model_dump(), "mandate": mandate.model_dump()}
 
 
@@ -128,9 +129,11 @@ def get_mandate(request: Request) -> Mandate:
 @router.put("/mandate", dependencies=[Depends(require_live_profile)])
 def put_mandate(body: Mandate, request: Request) -> Mandate:
     s = S(request)
-    body.version = s.mandate.version + 1  # TODO(#mandate): validate ranges vs policy limits
-    s.mandate = body
-    return body
+    with s.mandate_lock:
+        if fields := validate_mandate(body, s.mandate):
+            raise HTTPException(422, detail={"error": {"code": "validation_error", "message": "Invalid mandate.",
+                                                      "details": {"fields": fields}}})
+        return save_mandate(s, body)
 
 
 @router.get("/catalogue")

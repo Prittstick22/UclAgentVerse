@@ -1,0 +1,12 @@
+{
+  "answers": {
+    "horizon": "lt3",
+    "emergency": "no",
+    "loss_goal": "yes",
+    "income": "unsteady",
+    "reaction": "buy",
+    "swings": "widest",
+    "worry": "rarely"
+  },
+  "follow_up_answer": "yes"
+}

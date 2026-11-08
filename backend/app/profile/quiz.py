@@ -4,6 +4,8 @@ Prototype policy, NOT a suitability assessment. Questions phrased in £ where po
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from app.config import params, policy
 from app.schemas import Approval, Caps, Goal, Mandate, ProfileName, ProfileResult, Ranges, Triggers
 
@@ -56,17 +58,28 @@ def _band(score: float) -> ProfileName:
     return "adventurous"
 
 
-def score(answers: dict[str, str]) -> ProfileResult:
+def score(answers: dict[str, str], follow_up_answer: Literal["yes", "no"] | None = None) -> ProfileResult:
     tol, cap = _score(answers, "tolerance"), _score(answers, "capacity")
+    answered = follow_up_answer is not None and abs(tol - cap) >= 0.35
+    if answered:
+        revised = dict(answers)
+        if tol > cap:
+            # Only the horizon answer changes; emergency funds/income/loss capacity still constrain risk.
+            revised["horizon"] = "7to15" if follow_up_answer == "yes" else "lt3"
+            cap = _score(revised, "capacity")
+        elif follow_up_answer == "yes":
+            tol = 0.0
     name = _band(min(tol, cap))
     conflict = abs(tol - cap) >= 0.35
     follow_up = None
-    if conflict and tol > cap:
+    if conflict and not answered and tol > cap:
         follow_up = "You're comfortable with swings, but your situation suggests a fall could hurt your goal. Could you leave this money untouched for at least 7 years?"
-    elif conflict:
+    elif conflict and not answered:
         follow_up = "Your situation could absorb a fall, but you said falls would worry you. Would a smaller, steadier portfolio feel better even if it may grow more slowly?"
     explanation = (f"We used the lower of your comfort with risk ({tol:.0%}) and your ability to absorb a loss ({cap:.0%}), "
                    f"so your profile is {name}. This is a prototype policy, not a suitability assessment.")
+    if answered:
+        explanation += " Your follow-up was applied; any remaining difference uses the lower score."
     return ProfileResult(name=name, tolerance_score=round(tol, 3), capacity_score=round(cap, 3), conflict=conflict,
                          follow_up_question=follow_up, explanation=explanation)
 

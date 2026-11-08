@@ -25,7 +25,7 @@ EventType = Literal[
     "asof.violation", "decision.made", "proposal.created", "approval.requested", "approval.decided",
     "order.filled", "monitor.fired", "monitor.created", "monitor.shadow_result", "monitor.activated",
     "monitor.disabled", "rule.proposed", "rule.tested", "rule.promoted", "rule.applied",
-    "clock.tick", "mode.changed", "notification.created",
+    "clock.tick", "mode.changed", "notification.created", "mandate.updated",
 ]
 
 

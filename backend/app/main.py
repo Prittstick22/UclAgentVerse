@@ -4,6 +4,8 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -31,6 +33,16 @@ app = FastAPI(title="UclAgentVerse", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(RateLimitMiddleware)   # per-IP POST limit, public demo only (#12)
 app.include_router(router)
+
+
+@app.exception_handler(RequestValidationError)
+async def profile_validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path in {"/api/mandate", "/api/profile/quiz"}:
+        fields = {".".join(str(part) for part in error["loc"][1:]): error["msg"] for error in exc.errors()}
+        return JSONResponse(status_code=422, content={"error": {
+            "code": "validation_error", "message": "Invalid request.", "details": {"fields": fields},
+        }})
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.exception_handler(HTTPException)
