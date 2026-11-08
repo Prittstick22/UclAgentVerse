@@ -157,6 +157,10 @@ async def capture(settings: Settings, out: Path, budget_file: Path, limit: float
                                                "public_demo": False, "state_db": out / "recording.sqlite"})
         state = build_state(settings, db_path=str(out / "recording.sqlite"))
         state.mandate = demo_mandate(settings.demo_persona)
+        # A recording has no visitor waiting, so slow provider latency must not cut a run short: capture only, no
+        # wall-time limit (copy, so the cached frozen config and Live mode keep run_wall_time_s). Step/token limits stay.
+        state.supervisor.cfg = {**state.supervisor.cfg, "run_wall_time_s": None}
+        report["run_wall_time_s"] = "off (capture only)"
         state.db.put("sim_mandate", "initial", state.mandate.model_dump_json())
         check_real_inputs(state)
         before = input_hashes(settings.snapshot_dir)
