@@ -46,6 +46,8 @@ def guard_agent_run(request: Request) -> None:
     if state.recording is not None:
         return  # historical actions select an existing recording, never spend tokens
     s = state.settings
+    if s.replay_only:
+        raise _error(409, "conflict", "This offline demo replays Priya. New Live investigations need a separately configured Live startup.")
     if not s.public_demo or s.llm_mode != "live":
         return   # fake / replay cost nothing
     require_passcode(request)

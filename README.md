@@ -35,14 +35,27 @@ All docs: [`docs/README.md`](docs/README.md). Agent-to-agent questions and hando
 | Jin | [@JCYuhei](https://github.com/JCYuhei) | Data snapshot, API, event stream, live mode, DigitalOcean deploy |
 | Mo | [@MLouchini](https://github.com/MLouchini) | Backend and Frontend: every screen, charts, engine integration |
 
-## Quickstart (works offline, no keys)
+## Recorded demo ? no API keys
+
+The complete Priya recording and real-data snapshot are included as a verified compressed bundle. From a clone, with Python 3.11+ and Node.js 20+ installed:
+
+```bash
+git pull
+python scripts/demo.py --setup
+```
+
+Open **http://127.0.0.1:8000/** and choose **Demo**. Use `python3` where required. First setup installs dependencies; replay then works offline. Later starts: `python scripts/demo.py`. Bundle verification only: `python scripts/demo.py --check`. If the port is occupied, add `--port 8002`.
+
+[Full demo instructions](demo/README.md) ? [Agent handoff folder and prompt](handoff/README.md). The portable launcher is replay-only; configured Live startup remains separate.
+
+## Development quickstart (synthetic fixtures, no keys)
 
 ```bash
 # Backend (Python 3.11+)
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-python scripts/make_synthetic_snapshot.py   # SYNTHETIC dev data until the real snapshot lands
+python scripts/make_synthetic_snapshot.py   # SYNTHETIC development data; recorded real-data demo uses scripts/demo.py
 pytest -q
 uvicorn app.main:app --reload --port 8000    # http://localhost:8000/api/health
 

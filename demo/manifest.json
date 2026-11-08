@@ -1,0 +1,49 @@
+{
+  "format_version": 1,
+  "bundle_id": "priya-2026-07-07--2026-11-06-v1",
+  "archive": "assets/priya-2026-07-07--2026-11-06.zip",
+  "archive_sha256": "b0ce2c390a4403a190062f027fa1127d8e48b5a6bf61bd4abfe39a7a5137fa01",
+  "files": {
+    "recording.sqlite": "53ff18a27d31fb24344855e25936d99e3973d79f55705d16c21064bd654086d0",
+    "snapshot/earnings.jsonl": "2dbeb92bf2836b0a7771f938ccb4175f51449d37d908595a9688a3ff2c4e689a",
+    "snapshot/etf_holdings.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "snapshot/filings.jsonl": "c856e485750ca24f235010cb9fc2488c4dfc064f9192398ab5aad7fc58709f90",
+    "snapshot/fx_daily.parquet": "096d2d9c088efdcb0332ad96843528eed2aa4a855f75fd9e53c265c95cf042e4",
+    "snapshot/manifest.json": "33f854440fce46e7b04b386fa4e95ce4d02a4d67ec6b1594f25d45f5e7aadd8f",
+    "snapshot/news.jsonl": "2928f0eb4c6054ee08fd6ed6d411083304a20bfa80a87954a3cbf150754a2de3",
+    "snapshot/prices_daily.parquet": "77c2a65a585901b24cf8df2edeab412181e892df0b7d62ce5707a76e01d08ed1"
+  },
+  "start": "2026-07-07",
+  "end": "2026-11-06",
+  "days": 89,
+  "agent_runs": 9,
+  "model_calls": 48,
+  "models": [
+    "gemini-4-argon",
+    "gemini-3.8-flash"
+  ],
+  "estimated_capture_usd": 0.4335445,
+  "capture_seconds": 510.17,
+  "source_capture_commit": "58ceccce875936985384e03ccdfa5f35627af683",
+  "recording_sha256": "53ff18a27d31fb24344855e25936d99e3973d79f55705d16c21064bd654086d0",
+  "market_sources": [
+    "eodhd",
+    "finnhub",
+    "sec_edgar"
+  ],
+  "fictional_profile": "Priya, balanced",
+  "simulation": "paper trading; historical simulated results, not a forecast",
+  "synthetic_market_records": 0,
+  "etf_constituents": "unavailable; synthetic constituent fixture excluded",
+  "provenance_note": "The snapshot acquisition manifest is preserved unchanged, including its historical synthetic-seed entry. The actual bundle contains no synthetic market records.",
+  "excluded_records": [
+    "news_syn_inject",
+    "synthetic VWRP constituent fixture"
+  ],
+  "distribution_clearance": {
+    "confirmed_by": "Dev (provider account owner)",
+    "date": "2026-11-08",
+    "scope": "Public distribution of the included EODHD/Finnhub data and article text",
+    "confirmation": "Public distribution: I confirm permission to redistribute the included EODHD/Finnhub data and article text."
+  }
+}

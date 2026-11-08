@@ -66,6 +66,8 @@ No account-specific public-display permission has been verified by this audit.
 
 ## Publication and account-owner handoff
 
+**Frozen demo bundle clearance (8 November 2026):** Dev, the provider-account owner, explicitly confirmed: "Public distribution: I confirm permission to redistribute the included EODHD/Finnhub data and article text." This records the account-owner confirmation for the completed July 7-November 6 demo bundle in `demo/manifest.json`. The bundled source files retain their actual timestamps and attribution; paper results and model-generated findings remain labelled. This confirmation applies to this frozen bundle, not automatically to future data acquisitions or other uses. No provider contract or secret is included.
+
 Dev owns provider accounts, written permissions, deployment and teardown.
 Before external display or dataset distribution, record permission covering
 the intended audience, data fields, derived results, retention and screenshots.
@@ -73,7 +75,7 @@ This audit has **not** established a hackathon exception for EODHD/Finnhub or
 Alpaca. If permissions are unavailable, use labelled synthetic data for the
 public demo. This document does not change running feeds or deploy settings.
 
-Keep restricted raw snapshots, article text and credentials out of public Git
+Keep uncleared raw snapshots, article text and all credentials out of public Git
 history and public image layers until their use is cleared. Follow provider
 retention/deletion terms when subscriptions end. Preserve factual source links
 and the exact release/as-of dates with every displayed statistic. Attribution
