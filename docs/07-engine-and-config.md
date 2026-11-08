@@ -69,6 +69,13 @@ Rules:
 - **`metrics.py`:** total return (money-weighted handling of contributions: report TWR), annualised vol, max drawdown, Sharpe (rf = 0, labelled), turnover, costs, trades.
 - **`backtest.py`:** `run(gw, weights, start, end, rebalance)`. Asserts `end ≤ clock.now()`.
 - **`exposure.py`:** look-through `Σ_fund w_fund × w_entity_in_fund + w_direct`. Labelled "ownership exposure, not predicted loss".
+- **Overlap (#25):**
+  - `overlap(a, b, etf_holdings, stocks)` = Σ over shared companies of `min(w_a, w_b)`: the share of the two that is the same companies, by weight. A single stock "holds" itself at 100%, so `overlap(VWRP, NVDA.US)` = NVIDIA's weight in VWRP.
+  - Companies match by ticker. A line without a ticker matches by normalised name, including a name another line gave a ticker for. Duplicate lines (share classes) add up, here and in `look_through`.
+  - Weights are fractions. A holdings list that adds up to more than 100% is read as percent. Missing, non-numeric, NaN and non-positive weights are skipped.
+  - If either side has **no** look-through data, `overlap` is `None` ("unknown, not zero").
+  - `coverage_a/b` shows how much of each fund we can see. Holdings lists can be top positions only, so the result is a lower bound.
+  - `overlap_pairs(tickers, ...)` returns every pair, biggest first, and backs the agents' `overlap` tool (`calc.result` named `overlap`).
 
 ## 6. Simulator (`sim/`)
 
