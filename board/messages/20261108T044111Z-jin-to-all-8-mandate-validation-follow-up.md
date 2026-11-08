@@ -25,6 +25,9 @@ and restore the latest live mandate after restart. Invalid edits return
 422 `validation_error` with `details.fields` mapping dotted field paths to
 messages. Invalid request shapes use that same envelope for these two routes.
 
+Additive typed event `mandate.updated` has payload `{version, profile}` and no
+run ID, emitted after a successful live quiz submission or mandate edit.
+
 Docs, request models, TS types and small request/response fixtures will be
 updated together. No frontend-screen changes are planned in this issue.
 
