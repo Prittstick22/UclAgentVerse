@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Area, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import CorrelationLattice from "../components/CorrelationLattice";
 import AgentAvatar from "../components/AgentAvatar";
+import { Link } from "react-router-dom";
+import { ProposalDialog } from "./Decisions";
 import HoldingIssuer from "../components/HoldingIssuer";
 import { TerminalBrand } from "../components/TerminalShellUi";
 import { api, MOCK } from "../lib/api";
@@ -255,18 +257,22 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
   const [view, setView] = useState<ActivityView>("Reviews");
   const [selected, setSelected] = useState<string | null>(null);
   const review = reviews.find((item) => item.run_id === selected) ?? reviews[0];
+  const [proposal, setProposal] = useState("");
   const reviewId = view === "Reviews" ? review?.run_id : undefined;
   const loadReview = useCallback((signal: AbortSignal) =>
     reviewId ? portfolioQueries.reviewDetail(reviewId, signal) : Promise.resolve(null), [reviewId]);
   const detail = useQuery(loadReview, revision);
   const agents = detail.value?.run_id === reviewId ? detail.value?.agents ?? [] : [];
   const activity = notifications.filter((item) => view === "Decisions" ? item.kind === "decision" : item.kind !== "decision");
+  const pending = portfolio?.status === "awaiting_approval" ? notifications.find(item => item.kind === "decision" && item.proposal_id) : undefined;
   return <aside className="portfolio-panel terminal-glass portfolio-review" aria-labelledby="portfolio-review-heading">
     <div className="portfolio-panel-heading"><span className="portfolio-review-glyph"><TerminalBrand /></span>
       <h2 id="portfolio-review-heading">Agent review</h2></div>
     <div className="portfolio-review-switch" role="group" aria-label="Review views">
       {activityViews.map((item) => <button type="button" key={item} aria-pressed={view === item} onClick={() => setView(item)}>{item}</button>)}
     </div>
+    {pending?.proposal_id && <div className="proposal-nudge"><span>Decision needed</span><button className="mvp-action primary"
+      onClick={() => setProposal(pending.proposal_id ?? "")}>Review proposal</button></div>}
     <section className="portfolio-overview" aria-label="Portfolio overview">
       {view === "Reviews" && review && <div className="portfolio-review-detail">
         <div><span>{selected === review.run_id ? "Selected review" : "Latest recorded review"}</span>
@@ -299,6 +305,7 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
         </li>)}</ul>
       </>}
       <h3>Review history</h3>
+      {review && <Link className="mvp-link" to={"/runs/" + encodeURIComponent(review.run_id)}>Open investigation ↗</Link>}
       {reviewError && <p className="portfolio-inline-error" role="alert">Couldn’t load review history</p>}
       {reviews.length > 0 ? <ul className="portfolio-review-history">{reviews.map((item) => <li key={item.run_id}>
         <button type="button" aria-pressed={item.run_id === review?.run_id} onClick={() => setSelected(item.run_id)}>
@@ -309,13 +316,16 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
       <h3>{view === "Watch" ? "Activity digest" : "Decisions"}</h3>
       {notificationError && <p className="portfolio-inline-error" role="alert">{notificationError}</p>}
       {activity.length > 0 ? <ul className="portfolio-notification-list">{activity.map((item) => <li key={item.id}>
-        <strong>{item.title}</strong><p>{item.body}</p><div><time dateTime={item.created_at}>{dateLabel(item.created_at)}</time>
+        <strong>{item.title}</strong><p>{item.body}</p>
+        {item.proposal_id && <button className="mvp-link" onClick={() => setProposal(item.proposal_id ?? "")}>Review proposal</button>}
+        <div><time dateTime={item.created_at}>{dateLabel(item.created_at)}</time>
           {!item.read && <button type="button" disabled={marking !== null} onClick={() => markRead(item.id)}>
             {marking === item.id ? "Marking…" : "Mark as read"}
           </button>}</div>
       </li>)}</ul> : !notificationError && <p className="portfolio-empty">{view === "Watch" ? "No activity notices yet" : "No decisions to review"}</p>}
     </section>}
     {portfolio && <footer><span>{portfolio.counters.adjustments} filled {portfolio.counters.adjustments === 1 ? "adjustment" : "adjustments"}</span></footer>}
+    {proposal && <ProposalDialog key={proposal} id={proposal} mode={portfolio?.mode} close={() => setProposal("")} />}
   </aside>;
 }
 

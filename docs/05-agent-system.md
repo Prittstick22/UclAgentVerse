@@ -14,7 +14,8 @@ Owner: **Dev**. Code: `backend/app/agents/`. Config: `backend/app/config/agents.
 ## 2. Models
 
 - **Lead / critic / QA / retrospective / chat:** `GEMINI_MODEL_DEEP` (default `gemini-4-argon`).
-- **Everything else:** `GEMINI_MODEL_FAST`, also set to `gemini-4-argon` (team decision: Argon for every agent, as the organisers asked). If Argon rate limits bite during the long run, set it to `gemini-3.8-flash`; no code change needed.
+- **Fast roles (scouts, analysts, filing reader, evidence checker, compliance, explainer):** `GEMINI_MODEL_FAST` (default `gemini-3.8-flash`). Existing role permissions and `Role.deep` routing are unchanged.
+- **Overrides and replay:** environment settings can override either model. Use the original model settings when replaying an existing LLM cache: model IDs are part of cache keys. Existing all-Argon recordings remain all-Argon evidence; report new mixed-model runs separately.
 - **SDK:** `google-genai`. Structured output uses a JSON schema generated from Pydantic models.
 - **`LLM_MODE`:**
   - `live`: calls Gemini.

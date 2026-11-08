@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, NavLink, Outlet, Route, Routes } from "react-router-dom";
+import { Link, Navigate, NavLink, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { DemoPasscodeDialog, ShellIcon, TerminalBrand } from "./components/TerminalShellUi";
 import { api, attachApiFeedback, MOCK } from "./lib/api";
 import type { ApiError } from "./lib/api";
 import type { Health, Mode } from "./lib/types";
-import Quiz from "./screens/Quiz";
+import Quiz, { ProfileScreen } from "./screens/Quiz";
 import Workspace from "./screens/Workspace";
+import Timeline, { BenchmarkScreen } from "./screens/Timeline";
+import { DecisionList } from "./screens/Decisions";
 import Home from "./screens/Home";
 import Placeholder from "./screens/Placeholder";
 import dataSourcesUrl from "../../docs/DATA_SOURCES.md?url";
 
 const NAV = [
-  [["/", "Home", "home"], ["/quiz", "Quiz", "quiz"], ["/timeline", "Timeline", "timeline"],
+  [["/", "Home", "home"], ["/profile", "Profile", "quiz"], ["/timeline", "Timeline", "timeline"],
     ["/benchmarks", "Benchmarks", "chart"]],
   [["/workspace", "Agents", "agents"], ["/decisions", "Decisions", "decisions"], ["/chat", "Chat", "chat"]],
 ] as const;
@@ -35,6 +37,13 @@ export default function App() {
   const [healthPending, setHealthPending] = useState(true);
   const [changing, setChanging] = useState(false);
   const [modeVersion, setModeVersion] = useState(0);
+  const [setupComplete, setSetupComplete] = useState(() => localStorage.getItem("ucl-paper-setup") === "1");
+  const location = useLocation();
+  const setup = !setupComplete && (location.pathname === "/" || location.pathname === "/onboarding");
+  function finishSetup() {
+    localStorage.setItem("ucl-paper-setup", "1");
+    setSetupComplete(true);
+  }
   const [error, setError] = useState<ApiError | null>(null);
   const [prompt, setPrompt] = useState<PendingPasscode | null>(null);
   const pendingPasscode = useRef<PendingPasscode | null>(null);
@@ -74,23 +83,31 @@ export default function App() {
   }
 
   async function changeMode(mode: Mode) {
+    if (!health) return false;
+    if (mode === health.mode) return true;
+    if (MOCK) {
+      setHealth({ ...health, mode });
+      setModeVersion(version => version + 1);
+      return true;
+    }
     setChanging(true);
     setError(null);
     try {
       const next = await api.setMode(mode);
       setHealth((previous) => previous && { ...previous, mode: next.mode, as_of: next.as_of, data_source: "" });
       setModeVersion((version) => version + 1);
-      setHealth(await api.health());
+      void api.health().then(setHealth).catch(() => {});
+      return true;
     } catch {
-      // The API client has already reported the structured error to the shell.
+      return false;
     } finally {
       setChanging(false);
     }
   }
 
   return (
-    <div className="terminal-shell">
-      <aside className="terminal-sidebar terminal-glass">
+    <div className={`terminal-shell${setup ? " terminal-setup" : ""}`}>
+      {!setup && <aside className="terminal-sidebar terminal-glass">
         <Link to="/" className="terminal-brand" aria-label="UclAgentVerse Home" title="UclAgentVerse">
           <TerminalBrand />
         </Link>
@@ -107,32 +124,20 @@ export default function App() {
             </div>
           ))}
         </nav>
-      </aside>
+      </aside>}
 
-      <main key={modeVersion} className="terminal-main">
+      <main className="terminal-main">
         <Routes>
-          <Route path="/" element={<Home onClockChange={showClock} />} />
+          <Route path="/" element={setupComplete ? <Home key={modeVersion} onClockChange={showClock} /> : <Navigate replace to="/onboarding" />} />
           <Route element={<section className="terminal-page terminal-glass"><Outlet /></section>}>
-            <Route path="/quiz" element={
-              <>
-                <h1>Investor profile</h1>
-                <div className="terminal-mode-choice">
-                  <label htmlFor="market-mode">Market mode</label>
-                  <select id="market-mode" className="terminal-field" value={health?.mode ?? "historical"}
-                    disabled={changing || MOCK || !health}
-                    onChange={(event) => { void changeMode(event.target.value as Mode); }}>
-                    <option value="historical">Historical demo</option>
-                    <option value="live">Current markets</option>
-                  </select>
-                  {MOCK && <span>Fixture preview uses historical mode.</span>}
-                </div>
-                <Quiz />
-              </>
-            } />
-            <Route path="/workspace" element={<><h1>Agents</h1><Workspace /></>} />
-            <Route path="/timeline" element={<Placeholder title="Timeline" issue="fe-timeline" />} />
-            <Route path="/decisions" element={<Placeholder title="Decision cards" issue="fe-decision-card" />} />
-            <Route path="/benchmarks" element={<Placeholder title="Benchmarks" issue="fe-benchmarks" />} />
+            <Route path="/onboarding" element={<Quiz mode={health?.mode} changing={changing} onMode={changeMode} complete={finishSetup} />} />
+            <Route path="/quiz" element={<Navigate replace to="/onboarding" />} />
+            <Route path="/profile" element={<ProfileScreen mode={health?.mode} />} />
+            <Route path="/workspace" element={<Workspace mode={health?.mode} />} />
+            <Route path="/runs/:runId" element={<Workspace mode={health?.mode} />} />
+            <Route path="/timeline" element={<Timeline />} />
+            <Route path="/decisions" element={<DecisionList mode={health?.mode} />} />
+            <Route path="/benchmarks" element={<BenchmarkScreen />} />
             <Route path="/chat" element={<Placeholder title="Chat" issue="fe-chat" />} />
             <Route path="*" element={<><h1>Page not found</h1><Link to="/">Return home</Link></>} />
           </Route>
