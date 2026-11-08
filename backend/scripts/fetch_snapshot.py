@@ -22,6 +22,9 @@ def main() -> None:
     ap.add_argument("--only", default=",".join(STEPS))
     a = ap.parse_args()
     for step in a.only.split(","):
+        if step in {"news", "filings", "earnings"}:
+            from scripts.fetch_text import run_step; run_step(step, a.out)
+            continue
         print(f"[{step}] TODO: implement (see docs/06-data-plan.md §4 and the GitHub issue)")
         # prices:  app.data.adapters.eodhd.EODHD(key).eod(ticker, start) for every catalogue ticker → prices_daily.parquet
         # fx:      EODHD eod("GBPUSD.FOREX") → fx_daily.parquet
