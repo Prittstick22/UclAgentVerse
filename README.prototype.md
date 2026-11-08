@@ -20,8 +20,7 @@ Public historical playback is intended to need no passcode or external API call.
 Protected live agent requests may ask for the demo passcode; the final submission
 must say how judges receive it. Do not put credentials in this README.
 
-Paper trading only. No real money, brokerage connection or real personal
-financial data. Not financial advice; no promise of returns.
+No promise of returns.
 
 ## What it does
 
