@@ -17,7 +17,7 @@ def _norm(path: str) -> str:
 
 def documented() -> set[tuple[str, str]]:
     out = set()
-    for a, b in re.findall(r"^\| `([^`]+)`(?: · `([^`]+)`)? \|", DOC.read_text(), re.M):
+    for a, b in re.findall(r"^\| `([^`]+)`(?: · `([^`]+)`)? \|", DOC.read_text(encoding="utf-8"), re.M):
         for x in (a, b):
             if x and " /api" in x:
                 method, path = x.split(" ", 1)
