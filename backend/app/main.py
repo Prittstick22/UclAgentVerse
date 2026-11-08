@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.demo_guard import RateLimitMiddleware
 from app.api.routes import router
 from app.container import build_state, state_for_mode
 from app.settings import get_settings
@@ -23,6 +24,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="UclAgentVerse", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(RateLimitMiddleware)   # per-IP POST limit, public demo only (#12)
 app.include_router(router)
 
 
