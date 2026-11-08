@@ -38,11 +38,21 @@ class Verdict(BaseModel):
     required_changes: list[str] = Field(default_factory=list)
 
 
+class View(BaseModel):
+    """An agent's directional view on one ticker for the next ~2 weeks (#74). No numbers: code sizes it."""
+    ticker: str
+    direction: Literal["up", "down", "neutral"]
+    confidence: Literal["low", "med", "high"] = "low"
+    horizon_days: int = 10
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
 class AgentFinal(BaseModel):
     findings: list[Finding] = Field(default_factory=list)
     decision: Decision | None = None        # lead
     verdict: Verdict | None = None          # assurance roles
     text: str | None = None                 # explainer / chat / profiler
+    views: list[View] = Field(default_factory=list)   # stock_analyst / news_analyst only (#74)
 
 
 class AgentStep(BaseModel):

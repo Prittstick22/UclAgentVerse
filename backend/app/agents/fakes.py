@@ -22,6 +22,10 @@ class FakeBrain:
         if role == "risk_analyst" and step == 0:
             return {"message": "Checking how the candidates move together.",
                     "tool_calls": [{"tool": "correlation_lattice", "args_json": json.dumps({"lookback": 252})}]}
+        if role == "stock_analyst":   # a view citing only the catalogue: the supervisor must drop it (#74)
+            return {"message": "stock_analyst finished.", "final": {
+                "findings": [{"claim": "[fake] stock_analyst finding", "evidence_ids": ["catalogue"], "confidence": "med"}],
+                "views": [{"ticker": "NVDA.US", "direction": "up", "confidence": "low", "evidence_ids": ["catalogue"]}]}}
         return {"message": f"{role} finished.", "final": {"findings": [
             {"claim": f"[fake] {role} finding", "evidence_ids": ["catalogue"], "confidence": "med"}]}}
 
