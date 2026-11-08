@@ -4,3 +4,10 @@
 		flush_interval -1
 	}
 }
+
+caroline.{$DOMAIN} {
+	encode gzip
+	reverse_proxy caroline:8000 {
+		flush_interval -1
+	}
+}
