@@ -13,7 +13,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -41,6 +41,7 @@ class ToolContext:
     gw: DataGateway
     events: EventBus
     state: Any            # app.container.AppState (mandate, ledger, db…); typed loosely to avoid import cycles
+    agent: dict | None = None
 
 
 class ToolRegistry:
@@ -60,7 +61,7 @@ class ToolRegistry:
         ev.emit("tool.call", title=f"{name}", status="running", payload={"tool": name, "args": args}, **agent)
         fn = self._tools.get(name, _not_implemented(name))
         try:
-            out = await fn(self.ctx, args, run)
+            out = await fn(replace(self.ctx, agent=agent), args, run)
         except AsOfViolation as e:
             out = {"ok": False, "error": "asof_violation", "summary": str(e)}
         except Exception as e:  # noqa: BLE001 - tools must never crash a run
@@ -83,8 +84,8 @@ def _run_id(run: Any) -> str | None:
 
 
 def _calc(ctx: ToolContext, run: Any, name: str, inputs: dict, outputs: dict, title: str) -> str:
-    ev = ctx.events.emit("calc.result", run_id=_run_id(run), title=title,
-                         payload={"name": name, "inputs": inputs, "outputs": outputs})
+    actor = {**(ctx.agent or {}), "run_id": _run_id(run)}
+    ev = ctx.events.emit("calc.result", title=title, payload={"name": name, "inputs": inputs, "outputs": outputs}, **actor)
     return f"calc:{ev.id}"
 
 
@@ -222,8 +223,7 @@ async def correlation_lattice(ctx: ToolContext, args: dict, run: Any) -> dict:
     prices = ctx.gw.prices(tickers, caller="tool.correlation_lattice")
     rep = risk.correlation_report(prices, ctx.gw.clock.as_of_str(), args.get("lookback"))
     eid = _calc(ctx, run, "correlation_lattice", {"tickers": tickers, "lookback": rep.lookback},
-                {"avg_pairwise": rep.avg_pairwise, "history_days": rep.history_days,
-                 "short_history": rep.short_history}, "Correlation lattice computed")
+                rep.model_dump(), "Compared how the holdings move together")
     return {"ok": True, "summary": f"avg pairwise correlation {rep.avg_pairwise:.2f}",
             "callouts": [c.text for c in rep.callouts[:4]], "evidence_ids": [eid]}
 
@@ -304,7 +304,8 @@ async def backtest(ctx: ToolContext, args: dict, run: Any) -> dict:
     out = {"start": res.start, "end": res.end, "rebalance": res.rebalance, "total_return": _r(m.total_return),
            "vol_annual": _r(m.vol_annual), "max_drawdown": _r(m.max_drawdown), "sharpe": _r(m.sharpe, 2),
            "label": res.label}
-    eid = _calc(ctx, run, "backtest", {"weights": _round_w(w), "start": start, "end": args.get("end")}, out,
+    eid = _calc(ctx, run, "backtest", {"weights": _round_w(w), "start": start, "end": args.get("end")},
+                {**out, "nav": res.nav},
                 f"Backtest of {label} {res.start}→{res.end}")
     return {"ok": True, "summary": f"{label} {res.start}→{res.end}: return {m.total_return:.1%}, "
                                    f"max drawdown {m.max_drawdown:.1%} (simulated, not a forecast)",

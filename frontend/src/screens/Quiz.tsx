@@ -93,7 +93,7 @@ export default function Quiz({ mode, changing, onMode, complete }: {
       </> : isDemo ? <>
         <p>{demo.story}</p>
         <p className="mvp-muted">Fictional investor · {demo.profile} plan · Recorded paper portfolio</p>
-        <Link className="mvp-action primary" to="/timeline" onClick={complete}>Open demo timeline</Link>
+        <Link className="mvp-action primary" to="/workspace?view=timeline" onClick={complete}>Open demo in Agents</Link>
       </> : question ? <>
         <p>{question.help}</p>
         <div className="onboard-options" role="group" aria-label="Answer choices">{question.options.map(option =>

@@ -8,13 +8,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
+from app.agents.guard import scan
 from app.api.demo_guard import check_budget, guard_agent_run, require_passcode
 from app.api.portfolio import PortfolioView
 from app.api.recorded_replay import controller as sim_controller
@@ -34,6 +35,7 @@ from app.schemas import (
     Evidence,
     Mandate,
     Mode,
+    NewsFeed,
     Notifications,
     PnlPeriod,
     Portfolio,
@@ -151,7 +153,13 @@ async def build(request: Request):
             err(404, "not_found", "No construction run is visible in this recording")
         return {"run_id": recorded.run_id}
     run_id = f"run_{uuid.uuid4().hex}"
-    task = asyncio.create_task(s.supervisor.start("construction", "User asked to build a portfolio", run_id=run_id))
+    async def build_for_review() -> None:
+        run = await s.supervisor.start("construction", "User asked to build a portfolio", run_id=run_id)
+        proposal = s.proposals.get(run.proposal_id)
+        if proposal is not None and proposal.status == "draft":
+            approvals.handle(s, proposal, "manual", construction=True)
+
+    task = asyncio.create_task(build_for_review())
     s.runs[run_id] = task
 
     def finished(task: asyncio.Task) -> None:
@@ -161,6 +169,20 @@ async def build(request: Request):
 
     task.add_done_callback(finished)
     return {"run_id": run_id}
+
+
+@router.get("/news")
+def latest_news(request: Request, limit: int = Query(default=20, ge=1, le=500)) -> NewsFeed:
+    s = S(request)
+    now = s.clock.now()
+    visible = sorted(
+        (item for item in s.gw.news(caller="api.news")
+         if datetime.fromisoformat(item.published_at) <= now and item.headline
+         and not scan(f"{item.headline} {item.summary}")),
+        key=lambda item: (datetime.fromisoformat(item.published_at), item.id),
+        reverse=True,
+    )
+    return NewsFeed(as_of=s.clock.as_of_str(), items=visible[:limit])
 
 
 @router.get("/portfolio")

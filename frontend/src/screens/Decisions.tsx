@@ -39,7 +39,7 @@ function recordedFixture(id: string): Proposal {
       changes: [], risk_warning: "Recorded paper portfolio · Synthetic fixture", simulated: true } };
 }
 
-export function EvidenceView({ id }: { id: string }) {
+export function EvidenceView({ id, debug = false }: { id: string; debug?: boolean }) {
   const evidence = useResource(id, async signal => {
     if (!MOCK) return get<Evidence>("/evidence/" + encodeURIComponent(id), "", signal);
     const event = mockEvents().find(item => item.type === "calc.result" && "calc:" + item.id === id);
@@ -54,7 +54,8 @@ export function EvidenceView({ id }: { id: string }) {
     <strong>{item.title}</strong><p>{item.source} · Available {item.available_at}</p>
     {item.quarantined ? <p>This source was quarantined by the assurance gate.</p> : <>
       {item.excerpt && <blockquote>{item.excerpt}</blockquote>}
-      {item.data != null && <pre>{JSON.stringify(item.data, null, 2)}</pre>}
+      {item.data != null && (debug ? <pre>{JSON.stringify(item.data, null, 2)}</pre> :
+        <p className="mvp-muted">Calculation recorded by the portfolio engine.</p>)}
       {url && <a href={url} target="_blank" rel="noreferrer">Open source ↗</a>}
     </>}
   </div>;

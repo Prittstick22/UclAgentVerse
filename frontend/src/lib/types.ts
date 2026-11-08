@@ -14,6 +14,12 @@ export type Badge = "source_retrieved" | "claim_supported" | "relationship_uncer
 
 export interface Health { status: string; mode: Mode; as_of: string; version: string; llm_mode: string; data_source: string }
 
+export interface NewsItem {
+  id: string; tickers: string[]; headline: string; summary: string; url: string | null;
+  source: string; published_at: string; available_at: string; synthetic: boolean;
+}
+export interface NewsFeed { as_of: string; items: NewsItem[] }
+
 export interface QuestionOption { id: string; label: string }
 export interface Question { id: string; text: string; help: string; measures: "tolerance" | "capacity" | "context"; options: QuestionOption[] }
 

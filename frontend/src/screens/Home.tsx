@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { Area, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
+import { Area, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import CorrelationLattice from "../components/CorrelationLattice";
 import AgentAvatar from "../components/AgentAvatar";
 import { Link } from "react-router-dom";
 import { ProposalDialog } from "./Decisions";
 import HoldingIssuer from "../components/HoldingIssuer";
 import { TerminalBrand } from "../components/TerminalShellUi";
-import { api, MOCK } from "../lib/api";
+import { api, get, MOCK } from "../lib/api";
 import { portfolioQueries, type ReviewSummary } from "../lib/portfolioQueries";
-import type { Holding, Notification, PnlPeriod, Portfolio, PortfolioHistory, PortfolioPnl } from "../lib/types";
+import type { Holding, NewsFeed, Notification, PnlPeriod, Portfolio, PortfolioHistory, PortfolioPnl } from "../lib/types";
 import "./portfolio-home.css";
 
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
@@ -17,7 +17,7 @@ const percent = new Intl.NumberFormat("en-GB", { style: "percent", maximumFracti
 const signedPercent = new Intl.NumberFormat("en-GB", { style: "percent", maximumFractionDigits: 2, signDisplay: "exceptZero" });
 const units = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 4 });
 const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-const chartMoney = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", notation: "compact", maximumFractionDigits: 1 });
+const chartMoney = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 const periods: Record<PnlPeriod, string> = {
   since_purchase: "Since purchase", "1m": "1 month", "3m": "3 months", ytd: "Year to date", sim_year: "Replay window",
 };
@@ -124,13 +124,13 @@ function Watchlist({ portfolio, holdings, history, selected, select, pending }: 
             <HoldingMark ticker={holding.ticker} name={holding.name} />
             <span><strong title={holding.name}>{shortHoldingName(holding.name)}</strong><small>{assetLabel(holding.ticker)}</small></span>
           </span>
+          <WeightSparkline ticker={holding.ticker} history={history} />
           <span className="portfolio-watch-price">
             <strong>{holding.price_gbp > 0 ? money.format(holding.price_gbp) : "—"}</strong>
             <small className={holding.stale ? "is-stale" : undefined}>
               {holding.stale && "Stale · "}<time dateTime={holding.price_as_of}>{dateLabel(holding.price_as_of)}</time>
             </small>
           </span>
-          <WeightSparkline ticker={holding.ticker} history={history} />
         </button>
       </li>
     ))}</ul> : <p className="portfolio-empty">{portfolio ? "No paper holdings yet" : pending ? "Loading holdings" : "Holding data is unavailable"}</p>}
@@ -156,10 +156,14 @@ function PerformanceChart({ points, reviews }: { points: HistoryPoint[]; reviews
       <div className="portfolio-performance-plot" role="region" aria-label="Portfolio value over the recorded closes">
         <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <ComposedChart data={series} margin={{ left: 0, right: 16, top: 12, bottom: 4 }} accessibilityLayer>
-            <CartesianGrid vertical={false} stroke="var(--terminal-edge)" />
+            <defs><linearGradient id="portfolio-value-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--terminal-chart)" stopOpacity={.14} />
+              <stop offset="100%" stopColor="var(--terminal-chart)" stopOpacity={0} />
+            </linearGradient></defs>
+            <CartesianGrid stroke="var(--terminal-edge)" strokeOpacity={.68} />
             <XAxis dataKey="date" tickFormatter={dateLabel} tickLine={false} minTickGap={28}
               tick={{ fill: "var(--terminal-muted)", fontSize: 11 }} axisLine={{ stroke: "var(--terminal-edge)" }} />
-            <YAxis tickFormatter={(value: number) => chartMoney.format(value)} tickLine={false} width={52}
+            <YAxis orientation="right" tickFormatter={(value: number) => chartMoney.format(value)} tickLine={false} width={66}
               tick={{ fill: "var(--terminal-muted)", fontSize: 11 }} axisLine={false} domain={["auto", "auto"]} />
             <Tooltip content={({ active, label }) => {
               const point = typeof label === "string" ? byDate.get(label) : undefined;
@@ -171,8 +175,9 @@ function PerformanceChart({ points, reviews }: { points: HistoryPoint[]; reviews
                 {review && <span className="portfolio-performance-review">{reviewResult(review)}</span>}
               </div>;
             }} />
-            <Area type="linear" dataKey="nav_gbp" name="Portfolio value" stroke="var(--terminal-accent)" strokeWidth={2}
-              fill="var(--terminal-accent)" fillOpacity={0.13} isAnimationActive={false} dot={points.length === 1} />
+            <ReferenceLine y={last.nav_gbp} stroke="var(--terminal-chart)" strokeOpacity={.38} strokeDasharray="3 4" />
+            <Area type="linear" dataKey="nav_gbp" name="Portfolio value" stroke="var(--terminal-chart)" strokeWidth={1.8}
+              fill="url(#portfolio-value-fill)" fillOpacity={1} isAnimationActive={false} dot={points.length === 1} />
             {paidIn && <Line type="stepAfter" dataKey="contributions_gbp" name="Paid in" stroke="var(--terminal-muted)"
               strokeDasharray="4 4" dot={false} isAnimationActive={false} />}
             {hasMarkers && <Line dataKey="review_nav" name="Recorded review" stroke="none" activeDot={false}
@@ -188,9 +193,45 @@ function PerformanceChart({ points, reviews }: { points: HistoryPoint[]; reviews
   </section>;
 }
 
-function Positions({ portfolio, holdings, pnl, period, selectPeriod, selected, pending, error }: {
+function HoldingsTabs({ news, setNews }: { news: boolean; setNews: (news: boolean) => void }) {
+  return <div className="portfolio-content-tabs" role="group" aria-label="Portfolio details">
+    <button type="button" aria-pressed={!news} onClick={() => setNews(false)}>Positions</button>
+    <button type="button" aria-pressed={news} onClick={() => setNews(true)}>Latest news</button>
+  </div>;
+}
+
+const loadNews = (signal: AbortSignal) => get<NewsFeed>("/news", "news", signal);
+
+function LatestNews({ portfolio, revision, setNews }: { portfolio: Portfolio | null; revision: number; setNews: (news: boolean) => void }) {
+  const feed = useQuery(loadNews, revision);
+  const held = new Set(portfolio?.holdings.map(holding => holding.ticker));
+  const [holdingsOnly, setHoldingsOnly] = useState(false);
+  const items = (feed.value?.items ?? []).filter(item => !holdingsOnly || item.tickers.some(ticker => held.has(ticker)));
+  return <section className="portfolio-panel terminal-glass portfolio-positions" aria-label="Latest news" aria-busy={feed.pending}>
+    <header className="portfolio-panel-heading">
+      <HoldingsTabs news setNews={setNews} />
+      {held.size > 0 && <label><input type="checkbox" checked={holdingsOnly} onChange={event => setHoldingsOnly(event.currentTarget.checked)} /> My holdings</label>}
+    </header>
+    {items.length > 0 ? <ul className="portfolio-news-list">{items.map(item => {
+      const url = item.url && /^https?:\/\//i.test(item.url) ? item.url : null;
+      return <li key={item.id}>
+        <div className="portfolio-news-meta"><time dateTime={item.published_at}>{dateLabel(item.published_at)}</time>
+          <span>{item.source}{item.synthetic && !/synthetic/i.test(item.source) ? " · Synthetic" : ""}</span></div>
+        <h3>{url ? <a href={url} target="_blank" rel="noreferrer">{item.headline} ↗</a> : item.headline}</h3>
+        {item.summary && <p>{item.summary}</p>}
+        {item.tickers.length > 0 && <div className="portfolio-news-tags">{item.tickers.map(ticker =>
+          <span key={ticker} data-held={held.has(ticker)}>{assetLabel(ticker)}</span>)}</div>}
+      </li>;
+    })}</ul> : <p className="portfolio-empty" role={feed.error ? "alert" : "status"}>
+      {feed.error ? "Couldn’t load news" : feed.pending ? "Loading latest news…" : holdingsOnly ? "No cached stories match your holdings" : "No news available for this date"}
+    </p>}
+    {feed.value && <footer>Cached news · As of {dateLabel(feed.value.as_of)}</footer>}
+  </section>;
+}
+
+function Positions({ portfolio, holdings, pnl, period, selectPeriod, selected, pending, error, setNews }: {
   portfolio: Portfolio | null; holdings: Holding[]; pnl: PortfolioPnl | null; period: PnlPeriod;
-  selectPeriod: (period: PnlPeriod) => void; selected: string | null; pending: boolean; error: string;
+  selectPeriod: (period: PnlPeriod) => void; selected: string | null; pending: boolean; error: string; setNews: (news: boolean) => void;
 }) {
   const byTicker = new Map(pnl?.rows.map((row) => [row.ticker, row]));
   const holdingTickers = new Set(holdings.map((holding) => holding.ticker));
@@ -198,9 +239,9 @@ function Positions({ portfolio, holdings, pnl, period, selectPeriod, selected, p
     ...holdings.map((holding) => ({ ticker: holding.ticker, name: holding.name, holding })),
     ...(pnl?.rows.filter((row) => !holdingTickers.has(row.ticker)) ?? []).map(({ ticker, name }) => ({ ticker, name, holding: undefined })),
   ];
-  return <section className="portfolio-panel terminal-glass portfolio-positions" aria-labelledby="positions-heading" aria-busy={pending}>
+  return <section className="portfolio-panel terminal-glass portfolio-positions" aria-label="Positions" aria-busy={pending}>
     <header className="portfolio-panel-heading">
-      <h2 id="positions-heading">Positions</h2>
+      <HoldingsTabs news={false} setNews={setNews} />
       <label><span>P&amp;L period</span><select value={period} onChange={(event) => selectPeriod(event.currentTarget.value as PnlPeriod)}>
         {Object.entries(periods).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
       </select></label>
@@ -332,9 +373,10 @@ function ReviewPanel({ portfolio, reviews, notifications, reviewError, notificat
 export default function Home({ onClockChange }: { onClockChange?: (date: string) => void }) {
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((current) => current + 1), []);
-  const [view, setView] = useState<ChartView>("Connections");
+  const [view, setView] = useState<ChartView>("Performance");
   const [period, setPeriod] = useState<PnlPeriod>("since_purchase");
   const [selected, setSelected] = useState<string | null>(null);
+  const [showNews, setNews] = useState(false);
   const [read, setRead] = useState<string[]>([]);
   const [marking, setMarking] = useState<string | null>(null);
   const [markError, setMarkError] = useState("");
@@ -383,6 +425,11 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
   }
 
   function selectHolding(ticker: string) {
+    if (showNews) {
+      setNews(false);
+      setSelected(ticker);
+      return;
+    }
     setSelected(ticker);
     const row = document.getElementById(positionId(ticker));
     row?.focus({ preventScroll: true });
@@ -414,8 +461,9 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
             : <PerformanceChart points={points} reviews={reviews.value ?? []} />)}
       </div>
     </section>
-    <Positions portfolio={portfolio} holdings={holdings} pnl={pnl.error ? null : pnl.value} period={period} selectPeriod={setPeriod}
-      selected={selected} pending={pnl.pending} error={pnl.error} />
+    {showNews ? <LatestNews portfolio={portfolio} revision={revision} setNews={setNews} /> :
+      <Positions portfolio={portfolio} holdings={holdings} pnl={pnl.error ? null : pnl.value} period={period} selectPeriod={setPeriod}
+        selected={selected} pending={pnl.pending} error={pnl.error} setNews={setNews} />}
     <ReviewPanel portfolio={portfolio} reviews={reviews.value?.slice(0, 8) ?? []} notifications={availableNotifications}
       reviewError={reviews.error} notificationError={markError || (notifications.error && "Couldn’t load portfolio activity")}
       markRead={markRead} marking={marking} revision={revision} />

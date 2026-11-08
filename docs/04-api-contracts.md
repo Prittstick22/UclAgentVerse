@@ -163,6 +163,7 @@ answers retain conservative zero scores for backwards compatibility.
 | `GET /api/mandate` | — | `Mandate` | Jin |
 | `PUT /api/mandate` | `Mandate` | `Mandate` (version+1), or 422 `validation_error`; historical mode: 409 `validation_error` | Jin |
 | `GET /api/catalogue` | — | `{instruments: Instrument[]}` | Jin |
+| `GET /api/news` | `?limit=20` (1–500) | `{as_of: string, items: {id, tickers: string[], headline, summary, url: string\|null, source, published_at, available_at, synthetic: boolean}[]}`. Newest first, from the active mode's cached news, bounded by the clock. | Mo |
 | `POST /api/portfolio/build` | `{mandate_version?: number}` | `{run_id}` (202) | Dev |
 | `GET /api/portfolio` | `?mode` | `Portfolio` | Mo |
 | `GET /api/portfolio/history` | `?mode&start&end` | `{points: {date, nav_gbp, weights: {[ticker]: number}, contributions_gbp: number\|null}[]}` | Mo |
@@ -249,7 +250,7 @@ interface Event {
 | `tool.call` | tool wrapper | `{tool, args}` |
 | `tool.result` | tool wrapper | `{tool, ok, summary, result_ref}` |
 | `source.inspect` | tool wrapper | `{evidence_id, kind, title, source, published_at}` |
-| `calc.result` | engine tool | `{name, inputs, outputs}` |
+| `calc.result` | engine tool | `{name, inputs, outputs}`. Tool calculations carry the calling agent's event metadata. Backtest outputs can include NAV points and correlation outputs can include the computed matrix. |
 | `finding` | agent | `{claim, confidence, uncertainties, recommendation}` |
 | `gate.started` / `gate.verdict` | gate | `{gate, status, issues, required_changes}` |
 | `revision.requested` | gate | `{by_gate, points}` |
