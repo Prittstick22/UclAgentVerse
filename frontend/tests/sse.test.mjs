@@ -47,12 +47,12 @@ test("pre-completion errors retain native retry; caller cleanup still closes", (
 });
 
 test("workspace retains trailing evidence and unsubscribes on unmount", async () => {
-  const source = readFileSync(new URL("../src/screens/Workspace.tsx", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../src/lib/useRunEvents.ts", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   });
   const exports = {};
-  const states = [[], "recorded-run", null, false, null];
+  const states = [[]];
   const effects = [];
   let stateIndex = 0;
   let receive;
@@ -69,18 +69,17 @@ test("workspace retains trailing evidence and unsubscribes on unmount", async ()
         },
         useEffect: effect => effects.push(effect),
       };
-      if (name === "react/jsx-runtime") return { jsx: () => null, jsxs: () => null };
-      if (name === "../lib/api") return { api: { runDetail: () => Promise.resolve({ agents: [] }) } };
-      if (name === "../lib/sse") return {
+      if (name === "./sse") return {
         subscribeRun: (_id, callback) => { receive = callback; return () => { stopped++; }; },
       };
       throw new Error(`Unexpected test import: ${name}`);
     },
   });
-  exports.default();
+  exports.useRunEvents("recorded-run", true);
   const cleanup = effects[0]();
-  receive({ type: "run.completed" });
-  receive({ type: "gate.verdict" });
+  receive({ id: "completed", type: "run.completed" });
+  receive({ id: "gate", type: "gate.verdict" });
+  receive({ id: "gate", type: "gate.verdict" });
   await Promise.resolve();
   assert.equal(stopped, 0);
   assert.deepEqual(Array.from(states[0], event => event.type), ["run.completed", "gate.verdict"]);
