@@ -2,14 +2,17 @@
   --portfolio-inset: color-mix(in srgb, var(--terminal-bg) 62%, var(--terminal-surface));
   --portfolio-hover: color-mix(in srgb, var(--terminal-accent) 10%, transparent);
   --portfolio-stale: #e1c08c;
+  --desk-left-min: 168px;
+  --desk-center-min: 400px;
+  --desk-right-min: 224px;
+  --desk-left-default: 19.6%;
+  --desk-right-default: 20.3%;
+  --desk-gap: 4px;
   display: grid;
-  grid-template-columns: clamp(168px, var(--desk-left, 19.6%), 34%) minmax(0, 1fr) clamp(208px, var(--desk-right, 20.3%), 34%);
-  grid-template-areas: "watch chart review" "watch positions review";
-  grid-template-rows: minmax(180px, var(--desk-top, 3fr)) minmax(211px, 2fr);
-  gap: 4px;
+  grid-template-areas: "watch center review";
+  grid-template-rows: minmax(466px, 1fr);
   height: 100%;
   min-height: 568px;
-  min-width: 820px;
   color: var(--terminal-text);
   font-size: 13px;
   line-height: 1.45;
@@ -17,15 +20,23 @@
 }
 
 .portfolio-home:has(.portfolio-summary-error) {
-  grid-template-areas: "error error error" "watch chart review" "watch positions review";
-  grid-template-rows: auto minmax(180px, var(--desk-top, 3fr)) minmax(211px, 2fr);
+  grid-template-areas: "error error error" "watch center review";
+  grid-template-rows: auto minmax(466px, 1fr);
+}
+.portfolio-center {
+  grid-area: center;
+  display: grid;
+  min-width: 0;
+  grid-template-areas: "chart" "positions";
+  grid-template-rows: minmax(254px, min(var(--desk-top, 60%), 100% - 212px)) minmax(208px, 1fr);
+  gap: var(--desk-gap);
 }
 
 .portfolio-home :is(h1, h2, h3, p, ul, dl, dd) { margin: 0; }
 .portfolio-home :is(h1, h2, h3) { font-weight: 600; }
 .portfolio-home ul { padding: 0; list-style: none; }
 .portfolio-home button:not(:disabled) { cursor: pointer; }
-.portfolio-home :is(button, select, [tabindex]):focus-visible {
+.portfolio-home :is(button, select, [tabindex]):not(.panel-grip):focus-visible {
   outline: 2px solid var(--terminal-accent);
   outline-offset: -2px;
 }
@@ -152,7 +163,7 @@
 .portfolio-allocation li > .finance-term { color: var(--terminal-muted); font-size: 12px; }
 .portfolio-allocation li strong { font-weight: 600; }
 
-.portfolio-chart { grid-area: chart; display: flex; flex-direction: column; }
+.portfolio-chart { grid-area: chart; container-type: inline-size; display: flex; flex-direction: column; }
 .portfolio-chart-switch { display: flex; flex: none; align-items: center; gap: 3px; padding: 6px 8px; overflow: auto; }
 .portfolio-chart-switch button, .portfolio-review-switch button {
   display: inline-flex;
@@ -173,8 +184,15 @@
   border-color: color-mix(in srgb, var(--terminal-accent) 34%, transparent);
 }
 .portfolio-chart-switch svg { width: 16px; height: 16px; }
-.portfolio-chart-content { min-width: 0; min-height: 0; overflow: auto; scrollbar-width: thin; padding: 0 8px 8px; }
-.portfolio-chart-content.is-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.portfolio-chart-content { flex: 1; min-width: 0; min-height: 0; overflow: auto; scrollbar-width: thin; padding: 0 8px 8px; }
+.portfolio-chart-content:not(.is-split) :is(.holding-performance, .portfolio-performance) { display: flex; flex-direction: column; height: 100%; }
+.portfolio-chart-content:not(.is-split) .portfolio-performance-plot { flex: 1; min-height: 132px; height: auto; }
+.portfolio-chart-content.is-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+@container (min-width: 620px) {
+  .portfolio-chart-content.is-split { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
+  .portfolio-chart-content.is-split :is(.holding-performance, .portfolio-performance) { display: flex; flex-direction: column; height: 100%; }
+  .portfolio-chart-content.is-split .portfolio-performance-plot { flex: 1; min-height: 132px; height: auto; }
+}
 .portfolio-performance { min-width: 0; }
 .portfolio-performance > header { display: flex; justify-content: space-between; align-items: end; gap: 8px; padding: 5px 8px 8px; }
 .portfolio-performance > header h2 { font-size: 15px; }
@@ -348,15 +366,14 @@
 .portfolio-notification-list button:disabled { opacity: .7; }
 
 @media (max-width: 1170px) {
-  .portfolio-home { grid-template-columns: clamp(168px, var(--desk-left, 21%), 34%) minmax(0, 1fr) clamp(208px, var(--desk-right, 22%), 34%); }
-  .portfolio-chart-content.is-split { grid-template-columns: minmax(0, 1fr); }
+  .portfolio-home { --desk-left-default: 21%; --desk-right-default: 22%; }
 }
 .portfolio-content-tabs { display: flex; align-items: center; gap: 4px; }
 .portfolio-content-tabs button { padding: 4px 8px; border-radius: 4px; color: var(--terminal-muted); }
 .portfolio-content-tabs button:is(:hover, [aria-pressed="true"]) { color: var(--terminal-text); background: var(--terminal-raised); }
 .portfolio-home > .panel-grip[data-edge="left"] { grid-area: watch; }
 .portfolio-home > .panel-grip[data-edge="right"] { grid-area: review; }
-.portfolio-home > .panel-grip[data-edge="bottom"] { grid-area: chart; }
+.portfolio-center > .panel-grip { grid-area: chart; }
 .portfolio-news-scroll { flex: 1; min-height: 0; overflow: auto; }
 .portfolio-positions[aria-label="Latest news"] footer { justify-content: space-between; }
 .portfolio-news-filter {

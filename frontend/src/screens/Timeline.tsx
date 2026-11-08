@@ -120,7 +120,7 @@ function TimelineView({ portfolioTab, runs, inspect, investigation }: {
   const markers = new Map((runs.value?.items ?? []).filter(run => run.kind === "review" || run.proposal_id).map(run => [run.as_of.slice(0, 10), run]));
   const activityError = runs.error || rebalances.error;
 
-  return <div className="history-desk">
+  return <div className="history-desk resizable-desk">
     <aside className="terminal-glass glass-feedback history-pane history-snapshot" aria-label="Portfolio snapshot">
       <div className="history-heading"><h2>Portfolio snapshot</h2>{selectedDate && <button type="button" className="mvp-action compact" onClick={() => setSelectedDate(undefined)}>Latest close</button>}</div>
       {snapshot ? <>
@@ -136,7 +136,7 @@ function TimelineView({ portfolioTab, runs, inspect, investigation }: {
     </aside>
 
     <div className="history-visuals">
-      <section className="terminal-glass glass-feedback history-pane">
+      <section className="terminal-glass glass-feedback history-pane history-value">
         <div className="history-heading"><h2>Portfolio value</h2>
           {portfolioTab && strategies.length > 1 && <button type="button" className="mvp-action compact" aria-pressed={comparison} onClick={() => setComparison(!comparison)}>Benchmarks</button>}</div>
         {!joined.length ? <p>{history.error ? "Couldn’t load portfolio history." : history.value ? "No recorded closes yet." : "Loading portfolio history…"}</p> :
@@ -160,7 +160,7 @@ function TimelineView({ portfolioTab, runs, inspect, investigation }: {
           {markers.size > 0 && <span><i className="history-marker" />Reviews and proposals</span>}
         </div>
       </section>
-      {portfolioTab && <section className="terminal-glass glass-feedback history-pane">
+      {portfolioTab && <section className="terminal-glass glass-feedback history-pane history-allocation">
         <div className="history-heading"><h2><FinanceTerm name="Allocation over time" help={finance.allocation} /></h2>{portfolioTab && <Link className="mvp-action compact" to="/benchmarks">Benchmark details ›</Link>}</div>
         {weights.length ? <div className="timeline-weights"><ResponsiveContainer width="100%" height="100%">
           <AreaChart data={visibleWeights} margin={{ left: 16, right: 12, top: 12, bottom: 2 }}><CartesianGrid stroke="var(--terminal-edge)" vertical={false} />
@@ -172,12 +172,18 @@ function TimelineView({ portfolioTab, runs, inspect, investigation }: {
           </AreaChart></ResponsiveContainer></div> : <p>{history.value ? "No recorded allocations yet." : "Portfolio allocation will appear here."}</p>}
       </section>}
       {!portfolioTab && investigation}
+      <PanelGrip edge="bottom" panel=".history-value" neighbor={portfolioTab ? ".history-allocation" : ".timeline-investigation"}
+        variable="--timeline-chart-height" min={180} remaining={portfolioTab ? 185 : 300}
+        label={portfolioTab ? "Resize portfolio value and allocation heights" : "Resize portfolio value and investigation heights"} />
     </div>
 
     <div className="timeline-feeds">
     <section className="terminal-glass glass-feedback history-pane history-feed" data-expanded={activityExpanded} aria-label="Timeline activity">
       <div className="history-heading"><h2>Activity over time</h2>
-        <button type="button" className="mvp-action compact" aria-pressed={activityExpanded} onClick={() => setActivityExpanded(!activityExpanded)}>{activityExpanded ? "Collapse" : "Expand"}</button>
+        <button type="button" className="mvp-action compact" aria-pressed={activityExpanded} onClick={event => {
+          event.currentTarget.closest<HTMLElement>(".timeline-feeds")?.style.removeProperty("--timeline-activity-height");
+          setActivityExpanded(!activityExpanded);
+        }}>{activityExpanded ? "Collapse" : "Expand"}</button>
       </div>
       <div className="history-filters" role="group" aria-label="Filter activity">{activityFilters.map(value =>
         <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}</div>
@@ -202,9 +208,11 @@ function TimelineView({ portfolioTab, runs, inspect, investigation }: {
           </details>}
         </div> : <p>{news.error ? "Couldn’t load news." : news.value ? "No cached news for this period." : "Loading news…"}</p>}
       </section>
+      <PanelGrip edge="bottom" panel=".history-feed" neighbor=".history-news" variable="--timeline-activity-height" min={182} remaining={172}
+        label="Resize activity and news heights" onResize={() => setActivityExpanded(false)} />
     </div>
-    <PanelGrip edge="left" panel=".history-snapshot" opposite=".timeline-feeds" variable="--desk-left" min={168} remaining={315} label="Resize portfolio snapshot" />
-    <PanelGrip edge="right" panel=".timeline-feeds" opposite=".history-snapshot" variable="--desk-right" min={218} remaining={315} label="Resize Timeline activity and news" reverse />
+    <PanelGrip edge="left" panel=".history-snapshot" neighbor=".history-visuals" variable="--desk-left" min={172} remaining={420} label="Resize portfolio snapshot width" />
+    <PanelGrip edge="right" panel=".timeline-feeds" neighbor=".history-visuals" variable="--desk-right" min={230} remaining={420} label="Resize Timeline activity and news width" />
   </div>;
 }
 

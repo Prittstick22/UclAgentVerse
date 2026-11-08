@@ -1,4 +1,14 @@
+.resizable-desk {
+  --desk-left-width: clamp(var(--desk-left-min), var(--desk-left, var(--desk-left-default)),
+    100% - var(--desk-center-min) - var(--desk-right-width) - 2 * var(--desk-gap));
+  --desk-right-width: clamp(var(--desk-right-min), var(--desk-right, var(--desk-right-default)),
+    100% - var(--desk-center-min) - var(--desk-left-min) - 2 * var(--desk-gap));
+  grid-template-columns: var(--desk-left-width) minmax(var(--desk-center-min), 1fr) var(--desk-right-width);
+  gap: var(--desk-gap);
+  min-width: calc(var(--desk-left-min) + var(--desk-center-min) + var(--desk-right-min) + 2 * var(--desk-gap));
+}
 .panel-grip {
+  --grip-offset: calc(-8px - var(--grip-gap, var(--desk-gap, 8px)) / 2);
   position: relative;
   z-index: 3;
   align-self: stretch;
@@ -6,19 +16,19 @@
   display: grid;
   place-items: center;
   width: 16px;
-  margin-inline-end: -10px;
+  margin-inline-end: var(--grip-offset);
   color: var(--terminal-muted);
   cursor: col-resize;
   touch-action: none;
   user-select: none;
 }
-.panel-grip[data-edge="right"] { justify-self: start; margin-inline: -10px 0; }
-.panel-grip[data-axis="y"] {
+.panel-grip[data-edge="right"] { justify-self: start; margin-inline: var(--grip-offset) 0; }
+.panel-grip[data-edge="bottom"] {
   align-self: end;
   justify-self: stretch;
   width: auto;
   height: 16px;
-  margin: 0 0 -10px;
+  margin: 0 0 var(--grip-offset);
   cursor: row-resize;
 }
 .panel-grip > span {
@@ -33,10 +43,12 @@
   border-radius: 7px;
   background: var(--terminal-inset);
   opacity: 0;
+  pointer-events: none;
   transition: opacity 130ms ease, color 130ms ease, border-color 130ms ease, background-color 130ms ease;
 }
-.panel-grip[data-axis="y"] > span { flex-direction: row; width: 27px; height: 12px; }
+.panel-grip[data-edge="bottom"] > span { flex-direction: row; width: 27px; height: 12px; }
 .panel-grip i { width: 2px; height: 2px; border-radius: 50%; background: currentColor; }
+:hover > .panel-grip > span { opacity: .5; }
 .panel-grip:is(:hover, :focus-visible, [data-grabbing]) > span {
   opacity: 1;
   color: var(--terminal-text);

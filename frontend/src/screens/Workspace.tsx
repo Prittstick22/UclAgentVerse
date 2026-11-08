@@ -317,7 +317,7 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
   }
 
   return <div className="agent-room" data-live={live} data-embedded={embedded}>
-    <div className="agent-room-body">
+    <div className={embedded ? "agent-room-body" : "agent-room-body resizable-desk"}>
     {!embedded && <aside className="agent-room-side terminal-glass glass-feedback">
       <header><h1>{embedded ? "Investigation" : "Agent workspace"}</h1>{!embedded && <Link className="mvp-action compact" to="/workspace" aria-label="Back to investigations">←</Link>}</header>
       <div className="agent-room-brief"><strong data-tour-target="run-intro">{visible[0]?.trigger_text || "Investigation"}</strong>
@@ -449,6 +449,10 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
           </footer>
         </section>;
       })}
+      {panels.length > 1 && <PanelGrip edge="left" panel=".agent-tile:first-child" neighbor=".agent-tile:nth-child(2)"
+        variable="--agent-lead-width" min={192} remaining={192} label="Resize lead and specialist widths" />}
+      {panels.length === 3 && <PanelGrip edge="bottom" panel=".agent-tile:nth-child(2)" neighbor=".agent-tile:nth-child(3)"
+        variable="--agent-specialist-height" min={200} remaining={200} label="Resize specialist workspace heights" />}
     </div>
     {visible.filter(event => event.type === "agent.spawn_denied").map(event =>
       <p className="agent-refused" key={event.id}>{event.title}{event.purpose && " · " + event.purpose}</p>)}
@@ -461,6 +465,7 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
       {source ? <div className="agent-room-evidence" data-tour-target="evidence-open"><EvidenceView key={source} id={source} debug={debug} />
         {sourceCalculation && <AgentVisual key={sourceCalculation.id} event={sourceCalculation} debug={false} />}
       </div> : <>
+      <div className="agent-activity-split">
       {active && <div className="agent-room-brief agent-current-activity" data-reveal-work={live || (playing && speed <= 1)} key={active.id}><small>{live ? finished ? "Run outcome" : "Now" : "Current step · " + active.seq}</small><strong><StepIcon event={active} /><span className="agent-text-reveal">{eventLabel(active)}</span></strong>
         <SearchScope facts={searchForStep(active, visible)} />
         {activeEvidence && <button type="button" className="mvp-action accent compact" data-tour-target="evidence" onClick={() => inspectEvidence(activeEvidence)}>
@@ -475,14 +480,17 @@ export function RunRoom({ id, mode, embedded = false, autoplay = false, onContin
           <ol className="agent-event-list" start={9}>{orderedActivity.slice(8).map(activityRow)}</ol>
         </details>}
       </div>
+      {active && <PanelGrip edge="bottom" panel=".agent-current-activity" neighbor=".agent-event-scroll"
+        variable="--agent-brief-height" min={104} remaining={126} label="Resize current step and activity history heights" />}
+      </div>
       {debug && <details className="agent-terminal"><summary>Execution log</summary>
         <ol className="agent-events">{visible.map(event => <li key={event.id}>{event.seq} · {event.type} · {event.title}</li>)}</ol>
       </details>}
       </>}
     </aside>}
     {!embedded && <>
-      <PanelGrip edge="left" panel=".agent-room-side:first-child" opposite=".agent-room-activity" variable="--desk-left" min={165} remaining={315} label="Resize participant panel" />
-      <PanelGrip edge="right" panel=".agent-room-activity" opposite=".agent-room-side:first-child" variable="--desk-right" min={195} remaining={315} label="Resize activity panel" reverse />
+      <PanelGrip edge="left" panel=".agent-room-side:first-child" neighbor=".agent-room-center" variable="--desk-left" min={176} remaining={410} label="Resize participants and workspace widths" />
+      <PanelGrip edge="right" panel=".agent-room-activity" neighbor=".agent-room-center" variable="--desk-right" min={216} remaining={410} label="Resize activity and workspace widths" />
     </>}
     </div>
     {!live && !waitingForMode && events.length > 0 && <footer className="mvp-toolbar replay-controls terminal-glass" data-tour-target="replay">

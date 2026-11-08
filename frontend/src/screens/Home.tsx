@@ -495,10 +495,11 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
   const chartHolding = holdings.find(holding => holding.ticker === selected);
   const holdingPoints = (holdingPrices.value?.points ?? []).map(({ date, close_gbp }) => ({ date, nav_gbp: close_gbp, weights: {}, contributions_gbp: null }));
   const availableNotifications = notifications.value?.items.map((item) => read.includes(item.id) ? { ...item, read: true } : item) ?? [];
-  return <div className="portfolio-home">
+  return <div className="portfolio-home resizable-desk">
     {summary.error && <div className="portfolio-summary-error" role="alert"><span>Couldn’t load the latest portfolio summary · {summary.error}</span>
       <button type="button" onClick={refresh}>Retry</button></div>}
     <Watchlist portfolio={portfolio} holdings={holdings} history={points} selected={selected} select={selectHolding} pending={summary.pending} />
+    <div className="portfolio-center">
     <section className="portfolio-panel terminal-glass glass-feedback portfolio-chart" aria-label="Portfolio charts">
       <nav className="portfolio-chart-switch" aria-label="Portfolio chart views">
         {chartViews.map((item) => <button type="button" key={item} aria-pressed={view === item}
@@ -526,11 +527,12 @@ export default function Home({ onClockChange }: { onClockChange?: (date: string)
     {showNews ? <LatestNews portfolio={portfolio} revision={revision} setNews={setNews} /> :
       <Positions portfolio={portfolio} holdings={holdings} pnl={pnl.error ? null : pnl.value} period={period} selectPeriod={setPeriod}
         selected={selected} pending={pnl.pending} error={pnl.error} setNews={setNews} />}
+    <PanelGrip edge="bottom" panel=".portfolio-chart" neighbor=".portfolio-positions" variable="--desk-top" min={254} remaining={208} label={showNews ? "Resize chart and news heights" : "Resize chart and positions heights"} />
+    </div>
     <ReviewPanel portfolio={portfolio} reviews={reviews.value?.slice(0, 8) ?? []} notifications={availableNotifications}
       reviewError={reviews.error} notificationError={markError || (notifications.error && "Couldn’t load portfolio activity")}
       markRead={markRead} marking={marking} revision={revision} startCheck={() => void startCheck()} checking={checking} checkError={checkError} />
-    <PanelGrip edge="left" panel=".portfolio-watchlist" opposite=".portfolio-review" variable="--desk-left" min={168} remaining={342} label="Resize holdings panel" />
-    <PanelGrip edge="right" panel=".portfolio-review" opposite=".portfolio-watchlist" variable="--desk-right" min={208} remaining={342} label="Resize review panel" reverse />
-    <PanelGrip edge="bottom" axis="y" panel=".portfolio-chart" opposite=".portfolio-summary-error" variable="--desk-top" min={180} remaining={215} label="Resize chart and news panels" />
+    <PanelGrip edge="left" panel=".portfolio-watchlist" neighbor=".portfolio-chart" variable="--desk-left" min={168} remaining={400} label="Resize holdings and chart widths" />
+    <PanelGrip edge="right" panel=".portfolio-review" neighbor=".portfolio-chart" variable="--desk-right" min={224} remaining={400} label="Resize review and chart widths" />
   </div>;
 }
