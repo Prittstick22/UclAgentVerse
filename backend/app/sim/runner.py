@@ -24,6 +24,7 @@ import pandas as pd
 from app.config import params
 from app.container import AppState, build_state
 from app.engine import optimiser, risk
+from app.engine.portfolio import record_checkpoint
 from app.monitors import rules
 from app.monitors.cooldowns import Cooldowns, describe, primary_kind
 from app.profile.quiz import mandate_for
@@ -197,6 +198,7 @@ async def run(state: AppState, start: str, end: str | None = None, agents: bool 
         for b in bench:
             b_hit = bool(rules.drift_hits(b.ledger.weights(), b.targets, led.catalogue, trg["drift_pp"]))
             b.step(date, prices, bench_contribution, fired=b_hit)
+        record_checkpoint(state.db, clock.mode, led, date, targets or {})
         ev.emit("clock.tick", title=f"{date} NAV £{led.nav():,.0f}",
                 payload={"nav_gbp": round(led.nav(), 2), "weights": {t: round(w, 6) for t, w in led.weights().items()},
                          "benchmarks": {b.name: round(b.ledger.nav(), 2) for b in bench}, "status": status})

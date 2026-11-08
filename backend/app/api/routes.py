@@ -10,16 +10,21 @@ import logging
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.api.portfolio import PortfolioView
 from app.api.run_views import agent_tree, find_evidence, summarize
 from app.core.events import Event, sse_frame
 from app.data.gateway import AsOfViolation
 from app.engine import risk
+from app.engine.portfolio import PortfolioDataUnavailable
 from app.profile.quiz import mandate_for, questions_payload, score
-from app.schemas import Evidence, Goal, Mandate, Mode, Notifications, Portfolio, RunSummary, TriggerKind
+from app.schemas import (
+    Evidence, Goal, Mandate, Mode, Notifications, PnlPeriod, Portfolio, PortfolioHistory, PortfolioPnl,
+    PortfolioRebalances, RunSummary, TriggerKind,
+)
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger(__name__)
@@ -113,31 +118,38 @@ async def build(request: Request):
 
 
 @router.get("/portfolio")
-async def portfolio(request: Request) -> Portfolio:
+def portfolio(request: Request, mode: Mode | None = None) -> Portfolio:
     s = S(request)
-    led = s.ledger  # TODO(#21): holdings with P&L, targets and purposes
-    activity = s.activity.snapshot(s.clock.mode)
-    return Portfolio(mode=s.clock.mode, as_of=s.clock.as_of_str(), nav_gbp=round(led.nav(), 2),
-                     cash_gbp=round(led.cash_gbp, 2), invested_gbp=round(led.nav() - led.cash_gbp, 2),
-                     contributions_gbp=led.contributions_gbp, total_return=0.0, status=activity.status,
-                     counters=activity.counters, last_review_date=activity.last_review_date)
+    try:
+        summary = PortfolioView(s, mode).summary()
+    except PortfolioDataUnavailable as exc:
+        err(409, "validation_error", str(exc))
+    # Home status + counters come from the notifications activity log (#10); holdings and P&L from #21.
+    activity = s.activity.snapshot(mode or s.clock.mode)
+    return summary.model_copy(update={"status": activity.status, "counters": activity.counters,
+                                      "last_review_date": activity.last_review_date or summary.last_review_date})
 
 
 @router.get("/portfolio/history")
-def history(request: Request):
-    pts = [{"date": e.as_of, "nav_gbp": e.payload.get("nav_gbp"), "weights": e.payload.get("weights", {}),
-            "contributions_gbp": None} for e in S(request).events.history(None) if e.type == "clock.tick"]
-    return {"points": pts}
+def history(
+    request: Request, mode: Mode | None = None, start: date | None = None, end: date | None = None,
+) -> PortfolioHistory:
+    if start and end and start > end:
+        err(422, "validation_error", "Start must be on or before end")
+    return PortfolioView(S(request), mode).history(start.isoformat() if start else None, end.isoformat() if end else None)
 
 
 @router.get("/portfolio/pnl")
-def pnl(request: Request, period: str = "since_purchase"):
-    return {"period": period, "rows": [], "total_pnl_gbp": 0.0}  # TODO(#pnl)
+def pnl(request: Request, mode: Mode | None = None, period: PnlPeriod = "since_purchase") -> PortfolioPnl:
+    try:
+        return PortfolioView(S(request), mode).pnl(period)
+    except PortfolioDataUnavailable as exc:
+        err(409, "validation_error", str(exc))
 
 
 @router.get("/portfolio/rebalances")
-def rebalances(request: Request, limit: int = 20):
-    return {"items": []}  # TODO(#rebalances)
+def rebalances(request: Request, mode: Mode | None = None, limit: int = Query(default=20, ge=1)) -> PortfolioRebalances:
+    return PortfolioView(S(request), mode).rebalances(limit)
 
 
 @router.get("/benchmarks")
