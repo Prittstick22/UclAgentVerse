@@ -162,6 +162,14 @@ Each check emits `gate.started` and `gate.verdict {gate, status, issues, require
 
 **Every proposal gets the full gate**, even if the lead's decision is `maintain`, because a proposal is a change. On any `fail`, the draft is marked `blocked`. Findings a rewording can't fix (no or unknown evidence, injected text, quarantined sources) are **removed** and listed in `revision.requested {by_gate, points, dropped_claims}`, and the lead runs once more with those points. If the revision fails again, that proposal is `blocked` too and the decision becomes `investigate_further`. Approvals (`sim/approvals.py`) never execute a proposal with a failed gate. A Flash wording review and an LLM critic can be layered on later; they're not needed for the controls above.
 
+**Decision card (#34, `agents/explainer.py`):**
+- `propose_adjustment` builds the card from **code numbers only**: the option stats, the trade list and the capital.
+- The headline is in £ ("Your starting portfolio: £10,000 across 6 holdings", "Suggested change: 2 trades, about £600 moved", or "No trades needed…" when nothing would trade).
+- The body covers what is invested and what stays in cash, the one-off trading cost, the yearly fund fees in £, the past worst fall and the typical yearly swing. Past numbers are labelled "simulated on past prices, not a forecast" and "an estimate, not a promise". It ends with "Nothing is bought or sold until you approve."
+- **Every % on the card has its £ in the same sentence**, and small fees show as 0.08%, never 0%. The compliance gate re-checks this (`percent without a £ amount` fails).
+- The risk warning and `simulated: true` are on every card.
+- A model never writes the card's numbers. A Flash rewording pass could be added for tone only, re-checked by the same gate.
+
 **Badges** (never one generic "verified"): `source_retrieved` (gateway), `claim_supported` (evidence checker), `relationship_uncertain` (dependency, T3), `calculation_recomputed` (numbers verifier), `judgement_uncertain` (critic/lead).
 
 ## 7. Default plans (`agents/plans.py`): the lead may add or skip within limits

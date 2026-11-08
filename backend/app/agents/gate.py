@@ -185,7 +185,13 @@ def check_critic(ctx: Any, run: Any, p: Proposal) -> GateResult:
 
 
 def check_compliance(ctx: Any, run: Any, p: Proposal) -> GateResult:
+    from app.agents.explainer import percent_without_pound
+
     res = compliance_rules(_card_text(p))
+    card = f"{p.decision_card.headline}. {p.decision_card.body}"
+    for sentence in percent_without_pound(card)[:3]:   # #34: on the card, a % never appears without its £
+        res.issues.append(f"percentage without a £ amount: '{sentence[:100]}'")
+        res.status = "fail"
     if not p.decision_card.simulated:
         res.issues.append("decision card is not labelled simulated")
         res.status = "fail"

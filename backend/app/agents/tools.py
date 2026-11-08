@@ -19,6 +19,7 @@ from typing import Any
 
 import pandas as pd
 
+from app.agents import explainer
 from app.agents.guard import scan
 from app.agents.roles import ROLES
 from app.agents.schemas import InvestmentCase
@@ -28,7 +29,7 @@ from app.data.gateway import AsOfViolation, DataGateway
 from app.engine import backtest as bt
 from app.engine import checker, exposure, optimiser, risk
 from app.engine.ledger import Ledger
-from app.schemas import DecisionCard, OptionStats, OrderChange, PortfolioOption, Proposal, ProposedHolding
+from app.schemas import OptionStats, OrderChange, PortfolioOption, Proposal, ProposedHolding
 
 ToolFn = Callable[["ToolContext", dict, Any], Awaitable[dict]]
 VARIANTS = ("recommended", "lower_cost", "lower_risk")
@@ -426,15 +427,8 @@ async def propose_adjustment(ctx: ToolContext, args: dict, run: Any) -> dict:
     changes, cost, turnover = _trades(ctx, w)
     capital = _capital(ctx)
     kind = "construction" if led.nav() <= 0 else "adjustment"
-    s = opt.stats
-    card = DecisionCard(
-        headline=(f"Proposed starting portfolio: {len(opt.holdings)} holdings" if kind == "construction"
-                  else f"Proposed adjustment: {len(changes)} trades"),
-        body=(f"Invests £{capital:,.0f} across {len(opt.holdings)} holdings with £{opt.cash_weight * capital:,.0f} kept "
-              f"in cash. Trading cost about £{cost:,.2f}; fund fees about £{s.ocf_weighted * capital:,.2f} a year. "
-              f"In the past {params()['optimiser']['lookback']} trading days a mix like this had a worst fall of "
-              f"{abs(s.max_drawdown_backtest or 0):.0%} (simulated on past data, not a forecast)."),
-        changes=changes)
+    # #34: the explainer writes the card from code numbers only, with a £ beside every %
+    card = explainer.decision_card(kind, opt, changes, capital, cost, int(params()["optimiser"]["lookback"]))
     uncertainties = sorted({u for f in getattr(run, "findings", []) for u in getattr(f, "uncertainties", [])})[:10]
     prop = Proposal(id=f"prop_{uuid.uuid4().hex[:10]}", run_id=_run_id(run) or "none", kind=kind,
                     as_of=ctx.gw.clock.as_of_str(), created_at=datetime.now(UTC).isoformat(),
