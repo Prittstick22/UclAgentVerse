@@ -54,10 +54,37 @@ agent investigation is asynchronous and may take time.
 
 ## Run locally without API keys
 
-Use a **fresh checkout**, Python 3.12 (the CI runtime), Node.js 22 LTS and npm.
-Run from the repository root. Dependency installation needs internet; after
-installation, this walkthrough uses generated synthetic data and deterministic
-fake agent outputs, not paid services or the canonical recorded agent run.
+This walkthrough is written for a **fresh checkout** and a first-time user.
+It does not require Gemini, market-data credentials or a pre-existing virtual
+environment. Dependency installation needs internet; after installation, the
+walkthrough uses generated synthetic data and deterministic fake agent outputs,
+not paid services or the canonical recorded agent run.
+
+### Prerequisites
+
+Install Python 3.12 and Node.js 22 LTS before running the commands below:
+
+- Python 3.12: [python.org/downloads](https://www.python.org/downloads/)
+- Node.js 22 LTS: [nodejs.org/en/download](https://nodejs.org/en/download)
+
+On Windows, select **Add Python to PATH** and **Python Launcher** in the Python
+installer. Open a new terminal after installation, then verify the versions:
+
+```powershell
+py -3.12 --version
+node --version
+npm --version
+```
+
+The first command must print Python 3.12.x. If `py` is not recognised, run
+`python --version`; only use the fallback below when it prints Python 3.12.x:
+
+```powershell
+python -m venv .venv
+```
+
+If neither command finds Python 3.12, install it from the link above and reopen
+PowerShell. Do not use a different Python version for this walkthrough.
 
 ### macOS / Linux — five commands
 
