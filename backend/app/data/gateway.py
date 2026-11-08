@@ -121,6 +121,11 @@ class DataGateway:
         out = []
         for row in catalogue_raw():
             inst = Instrument.model_validate({**row, "data_source": self.snapshot.source_label})
+            if history := row.get("ocf_history"):
+                visible = [entry for entry in history if entry["effective_from"] <= self.clock.as_of_str()]
+                if not visible:
+                    raise AsOfViolation(f"No verified OCF for {inst.ticker} at {self.clock.as_of_str()}")
+                inst.ocf = max(visible, key=lambda entry: entry["effective_from"])["ocf"]
             if inst.ticker not in self._prices_gbp.columns:
                 inst.eligible = False
             if not eligible_only or inst.eligible:
